@@ -4,7 +4,7 @@
 
 - [x] Kalıcı proje hafızası
 - [x] Başlama ve gün sonu tetikleyicileri
-- [ ] GitHub deposunu bağla ve ilk push'u doğrula
+- [x] GitHub deposunu bağla ve ilk push'u doğrula
 - [ ] Secret ve `.gitignore` kontrolünü her sürümde uygula
 
 ## Faz 1 — Temel ve performans
