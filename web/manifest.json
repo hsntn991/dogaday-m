@@ -1,0 +1,11 @@
+{
+  "name": "Doğada",
+  "short_name": "Doğada",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F8FAF7",
+  "theme_color": "#1D6B52",
+  "description": "Doğa keşif uygulaması",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

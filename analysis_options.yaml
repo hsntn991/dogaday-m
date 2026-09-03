@@ -1,0 +1,13 @@
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+    - design_backups/**
+    - work/**
+    - .dart-appdata/**
+include: package:flutter_lints/flutter.yaml

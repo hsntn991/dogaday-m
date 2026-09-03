@@ -1,0 +1,40 @@
+name: dogada_gezi
+description: Doğa keşifleri için sade Flutter mobil uygulaması.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_map: ^8.3.1
+  geolocator: ^14.0.3
+  http: ^1.2.2
+  image_picker: ^1.1.2
+  latlong2: ^0.10.1
+  path_provider: ^2.1.5
+  shared_preferences: ^2.5.3
+  supabase_flutter: ^2.17.2
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/branding/dogadayim_logo_full.png
+    - assets/branding/dogadayim_logo_mark.png
+    - assets/maps/turkiye_provinces_paintmaps.png
+    - assets/data/marmara_place_enrichment.json
+  fonts:
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/Fraunces-Variable.ttf
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit-Variable.ttf
