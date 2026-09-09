@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doğadayım — Hesap Silme</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #F7F8F7;
+      color: #1A2B1F;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 480px;
+      width: 100%;
+      padding: 32px 20px 48px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .header .app-icon {
+      width: 56px;
+      height: 56px;
+      background: #2E7D32;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+    .header .app-icon svg { width: 30px; height: 30px; fill: #fff; }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin-bottom: 6px;
+    }
+    .header p {
+      font-size: 14px;
+      color: #5F6B64;
+      line-height: 1.5;
+    }
+
+    /* Cards */
+    .card {
+      background: #fff;
+      border: 1px solid #E8EBE9;
+      border-radius: 10px;
+      padding: 22px 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #1A2B1F;
+    }
+    .card ul {
+      list-style: none;
+      padding: 0;
+    }
+    .card ul li {
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: #3A4A3F;
+      padding-left: 18px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .card ul li::before {
+      content: '•';
+      position: absolute;
+      left: 4px;
+      color: #2E7D32;
+      font-weight: 700;
+    }
+    .card p {
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: #3A4A3F;
+    }
+
+    .warning-box {
+      background: #FFF8F0;
+      border: 1px solid #F0C36D;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .warning-box p {
+      font-size: 13px;
+      color: #8B6914;
+      line-height: 1.5;
+    }
+    .warning-box strong { color: #7A5A0F; }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #3A4A3F;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1px solid #D4D9D5;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #1A2B1F;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus {
+      border-color: #2E7D32;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-login {
+      background: #2E7D32;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .btn-google {
+      background: #fff;
+      color: #3A4A3F;
+      border: 1px solid #D4D9D5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .btn-google svg { width: 18px; height: 18px; }
+    .btn-delete {
+      background: #D32F2F;
+      color: #fff;
+      margin-top: 6px;
+    }
+    .btn-delete:hover:not(:disabled) { background: #B71C1C; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 14px 0;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #E0E3E1;
+    }
+    .divider span {
+      padding: 0 14px;
+      font-size: 12px;
+      color: #8A948D;
+    }
+
+    /* Steps */
+    .step { display: none; }
+    .step.active { display: block; }
+
+    /* User info bar */
+    .user-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #F0F4F1;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .user-bar .avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #2E7D32;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .user-bar .info {
+      min-width: 0;
+    }
+    .user-bar .info .name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1A2B1F;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-bar .info .email {
+      font-size: 12px;
+      color: #5F6B64;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Result */
+    .result-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .result-icon.success { background: #E8F5E9; }
+    .result-icon.error { background: #FFEBEE; }
+    .result-icon svg { width: 28px; height: 28px; }
+
+    .result-title {
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .result-desc {
+      font-size: 13.5px;
+      color: #5F6B64;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Footer */
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #8A948D;
+      line-height: 1.7;
+    }
+    .footer a {
+      color: #2E7D32;
+      text-decoration: none;
+    }
+    .footer a:hover { text-decoration: underline; }
+
+    .error-msg {
+      background: #FFEBEE;
+      color: #C62828;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="app-icon">
+      <svg viewBox="0 0 24 24"><path d="M17.12 9.88a3.5 3.5 0 0 0-4.24-4.24A3.5 3.5 0 0 0 6.5 8 3.5 3.5 0 0 0 8 14.5V20h8v-5.5a3.5 3.5 0 0 0 1.12-4.62zM12 3a1 1 0 0 1 1 1h-2a1 1 0 0 1 1-1z"/></svg>
+    </div>
+    <h1>Doğadayım — Hesap Silme</h1>
+    <p>Bu sayfa üzerinden Doğadayım hesabınızı ve ilişkili tüm verilerinizi kalıcı olarak silebilirsiniz.</p>
+  </div>
+
+  <!-- STEP 1: Bilgilendirme + Giriş -->
+  <div id="step-login" class="step active">
+
+    <div class="card">
+      <h2>Silinecek veriler</h2>
+      <ul>
+        <li>Hesap ve kimlik bilgileriniz</li>
+        <li>Eklediğiniz doğa noktaları (yer gönderimleri)</li>
+        <li>Yüklediğiniz fotoğraflar</li>
+        <li>Uygulama içi rol ve yetkilendirmeler</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Tutulan veriler</h2>
+      <p>Yalnızca moderasyon denetim kayıtları, kimliğiniz kaldırılarak (anonimleştirilmiş şekilde) yasal izlenebilirlik amacıyla korunur. Bu kayıtlar size bağlanamaz.</p>
+    </div>
+
+    <div class="warning-box">
+      <p><strong>⚠ Bu işlem geri alınamaz.</strong> Hesabınız ve tüm verileriniz kalıcı olarak silinir. Silme işlemi anlık ve otomatik olarak gerçekleştirilir.</p>
+    </div>
+
+    <div class="card">
+      <h2>Kimliğinizi doğrulayın</h2>
+      <p style="margin-bottom: 16px;">Hesabınızı silmek için önce Doğadayım hesabınıza giriş yapmanız gerekmektedir.</p>
+
+      <div id="login-error" class="error-msg"></div>
+
+      <div class="form-group">
+        <label for="email">E-posta adresi</label>
+        <input type="email" id="email" placeholder="ornek@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="password">Şifre</label>
+        <input type="password" id="password" placeholder="Şifreniz" autocomplete="current-password">
+      </div>
+
+      <button class="btn btn-login" id="btn-email-login" onclick="loginWithEmail()">
+        Giriş Yap
+      </button>
+
+      <div class="divider"><span>veya</span></div>
+
+      <button class="btn btn-google" id="btn-google-login" onclick="loginWithGoogle()">
+        <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.1 24.1 0 0 0 0 21.56l7.98-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Google ile Giriş Yap
+      </button>
+    </div>
+
+    <div class="footer">
+      <p>
+        Hesabınızı uygulama içinden de silebilirsiniz:<br>
+        <strong>Profil → Hesabımı Sil</strong>
+      </p>
+      <p style="margin-top: 8px;">
+        Yardım için: <a href="mailto:dogadayim.destek@gmail.com">dogadayim.destek@gmail.com</a>
+      </p>
+      <p style="margin-top: 6px;">
+        <a href="https://dogadayim.github.io/dogadayim-privacy/">Gizlilik Politikası</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- STEP 2: Onay + Silme -->
+  <div id="step-confirm" class="step">
+
+    <div class="user-bar">
+      <div class="avatar" id="user-avatar">D</div>
+      <div class="info">
+        <div class="name" id="user-name">Kullanıcı</div>
+        <div class="email" id="user-email">-</div>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <p><strong>⚠ Son adım.</strong> Aşağıdaki butona bastığınızda hesabınız, eklediğiniz yerler, fotoğraflar ve tüm verileriniz kalıcı olarak silinecektir. Bu işlem geri alınamaz.</p>
+    </div>
+
+    <div id="delete-error" class="error-msg"></div>
+
+    <button class="btn btn-delete" id="btn-delete" onclick="deleteAccount()">
+      Hesabımı Kalıcı Olarak Sil
+    </button>
+
+    <p style="text-align:center; margin-top:14px;">
+      <a href="#" onclick="cancelAndLogout(); return false;" style="font-size:13px; color:#5F6B64; text-decoration:none;">Vazgeç</a>
+    </p>
+  </div>
+
+  <!-- STEP 3: Sonuç -->
+  <div id="step-result" class="step">
+
+    <div id="result-success" style="display:none;">
+      <div class="result-icon success">
+        <svg viewBox="0 0 24 24" fill="#2E7D32"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      </div>
+      <p class="result-title">Hesabınız silindi</p>
+      <p class="result-desc">Doğadayım hesabınız ve ilişkili tüm verileriniz kalıcı olarak silindi. Artık bu sayfayı kapatabilirsiniz.</p>
+    </div>
+
+    <div id="result-error" style="display:none;">
+      <div class="result-icon error">
+        <svg viewBox="0 0 24 24" fill="#D32F2F"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      </div>
+      <p class="result-title">Bir hata oluştu</p>
+      <p class="result-desc" id="result-error-msg">Hesabınız silinemedi. Lütfen daha sonra tekrar deneyin veya <a href="mailto:dogadayim.destek@gmail.com" style="color:#2E7D32;">dogadayim.destek@gmail.com</a> adresinden destek alın.</p>
+    </div>
+
+    <div class="footer" style="margin-top: 28px;">
+      <a href="https://dogadayim.github.io/dogadayim-privacy/">Gizlilik Politikası</a>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+
+  const SUPABASE_URL = 'https://lluypcdjiuyskelbwxys.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable__vxa5ShMV58IaqEqfWfgAQ_6xZXlrdE';
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Expose functions to global scope for onclick handlers
+  window.loginWithEmail = loginWithEmail;
+  window.loginWithGoogle = loginWithGoogle;
+  window.deleteAccount = deleteAccount;
+  window.cancelAndLogout = cancelAndLogout;
+
+  // On page load, check if user is already signed in (e.g. after OAuth redirect)
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    showConfirmStep(session.user);
+  }
+
+  // Listen for auth state changes (handles OAuth redirect callback)
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) {
+      showConfirmStep(session.user);
+    }
+  });
+
+  async function loginWithEmail() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('login-error');
+    const btn = document.getElementById('btn-email-login');
+
+    errorEl.style.display = 'none';
+
+    if (!email || !password) {
+      errorEl.textContent = 'Lütfen e-posta ve şifrenizi girin.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      btn.disabled = false;
+      btn.textContent = 'Giriş Yap';
+      errorEl.textContent = 'Giriş başarısız. E-posta veya şifrenizi kontrol edin.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    showConfirmStep(data.user);
+  }
+
+  async function loginWithGoogle() {
+    const btn = document.getElementById('btn-google-login');
+    btn.disabled = true;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.href.split('?')[0].split('#')[0],
+      },
+    });
+
+    if (error) {
+      btn.disabled = false;
+      const errorEl = document.getElementById('login-error');
+      errorEl.textContent = 'Google ile giriş başlatılamadı. Lütfen tekrar deneyin.';
+      errorEl.style.display = 'block';
+    }
+  }
+
+  function showConfirmStep(user) {
+    const meta = user.user_metadata || {};
+    const fullName = (meta.full_name || meta.name || meta.display_name || '').trim();
+    const email = (user.email || '').trim();
+    const displayName = fullName || email || 'Doğadayım Kullanıcısı';
+    const initial = displayName.charAt(0).toUpperCase();
+
+    document.getElementById('user-avatar').textContent = initial;
+    document.getElementById('user-name').textContent = displayName;
+    document.getElementById('user-email').textContent = email;
+
+    document.getElementById('step-login').classList.remove('active');
+    document.getElementById('step-confirm').classList.add('active');
+  }
+
+  async function deleteAccount() {
+    const btn = document.getElementById('btn-delete');
+    const errorEl = document.getElementById('delete-error');
+    errorEl.style.display = 'none';
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Siliniyor...';
+
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        method: 'POST',
+      });
+
+      if (error) throw error;
+
+      await supabase.auth.signOut().catch(() => {});
+
+      // Show success
+      document.getElementById('step-confirm').classList.remove('active');
+      document.getElementById('step-result').classList.add('active');
+      document.getElementById('result-success').style.display = 'block';
+
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Hesabımı Kalıcı Olarak Sil';
+      errorEl.textContent = 'Hesabınız silinemedi. Lütfen tekrar deneyin.';
+      errorEl.style.display = 'block';
+    }
+  }
+
+  async function cancelAndLogout() {
+    await supabase.auth.signOut();
+    document.getElementById('step-confirm').classList.remove('active');
+    document.getElementById('step-login').classList.add('active');
+    document.getElementById('email').value = '';
+    document.getElementById('password').value = '';
+  }
+</script>
+
+</body>
+</html>
