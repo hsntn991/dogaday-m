@@ -46,4 +46,15 @@ class PlacePhotoStorage {
     const allowed = {'.jpg', '.jpeg', '.png', '.webp', '.heic'};
     return allowed.contains(extension) ? extension : '.jpg';
   }
+
+  static Future<void> clearLocalPhotos() async {
+    try {
+      final root = await getApplicationDocumentsDirectory();
+      final directory =
+          Directory('${root.path}${Platform.pathSeparator}place_photos');
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    } catch (_) {}
+  }
 }

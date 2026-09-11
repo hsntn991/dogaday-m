@@ -10,9 +10,15 @@ class DogaApp extends StatelessWidget {
             title: 'Doğada',
             theme: ThemeData(
               useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: green,
+              colorScheme: const ColorScheme.light(
+                primary: AppColors.primary,
+                onPrimary: AppColors.onPrimary,
+                secondary: AppColors.primary,
+                onSecondary: AppColors.onPrimary,
                 surface: AppColors.surface,
+                onSurface: AppColors.textPrimary,
+                error: AppColors.error,
+                onError: AppColors.onPrimary,
               ),
               scaffoldBackgroundColor: AppColors.background,
               canvasColor: AppColors.surface,
@@ -76,8 +82,13 @@ class DogaApp extends StatelessWidget {
               inputDecorationTheme: InputDecorationTheme(
                 filled: true,
                 fillColor: AppColors.surface,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                hintStyle: AppTypography.body.copyWith(
+                  color: AppColors.textTertiary,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.large,
+                  vertical: AppSpacing.medium,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppRadii.medium),
                   borderSide: const BorderSide(color: AppColors.border),
@@ -90,12 +101,22 @@ class DogaApp extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadii.medium),
                   borderSide: const BorderSide(color: green, width: 1.4),
                 ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  borderSide: const BorderSide(color: AppColors.error),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  borderSide:
+                      const BorderSide(color: AppColors.error, width: 1.4),
+                ),
               ),
               filledButtonTheme: FilledButtonThemeData(
                 style: FilledButton.styleFrom(
                   backgroundColor: green,
                   foregroundColor: Colors.white,
                   elevation: 0,
+                  minimumSize: const Size.fromHeight(AppControlSizes.button),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppRadii.medium),
                   ),
@@ -105,6 +126,7 @@ class DogaApp extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: ink,
                   side: const BorderSide(color: AppColors.border),
+                  minimumSize: const Size.fromHeight(AppControlSizes.button),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppRadii.medium),
                   ),
@@ -673,16 +695,21 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _loading = false;
   bool _openingApp = false;
   StreamSubscription<AuthState>? _authSubscription;
+  late final TapGestureRecognizer _privacyPolicyRecognizer;
+  late final TapGestureRecognizer _toggleTermsRecognizer;
 
   bool get _isSignUp => _mode == AuthMode.signUp;
 
-  static String? get _authRedirectUrl => kIsWeb
-      ? Uri.base.origin
-      : 'io.supabase.dogadagezi://login-callback/';
+  static String? get _authRedirectUrl =>
+      kIsWeb ? Uri.base.origin : 'io.supabase.dogadagezi://login-callback/';
 
   @override
   void initState() {
     super.initState();
+    _privacyPolicyRecognizer = TapGestureRecognizer()
+      ..onTap = () => AppLegalLinks.openPrivacyPolicy(context);
+    _toggleTermsRecognizer = TapGestureRecognizer()
+      ..onTap = () => setState(() => _acceptedTerms = !_acceptedTerms);
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
       (state) {
         if (state.session != null &&
@@ -697,6 +724,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   void dispose() {
+    _privacyPolicyRecognizer.dispose();
+    _toggleTermsRecognizer.dispose();
     _authSubscription?.cancel();
     _nameController.dispose();
     _emailController.dispose();
@@ -856,8 +885,7 @@ class _AuthScreenState extends State<AuthScreen> {
               child: FilledButton(
                 onPressed: () async {
                   final email = controller.text.trim();
-                  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                      .hasMatch(email)) {
+                  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
                     ScaffoldMessenger.of(sheetContext).showSnackBar(
                       const SnackBar(
                         content: Text('Geçerli bir e-posta adresi yaz.'),
@@ -1061,50 +1089,58 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ),
                   const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () =>
-                        setState(() => _acceptedTerms = !_acceptedTerms),
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                                width: 23,
-                                height: 23,
-                                child: Checkbox(
-                                  value: _acceptedTerms,
-                                  onChanged: (value) => setState(
-                                      () => _acceptedTerms = value ?? false),
-                                  activeColor: const Color(0xFF1E6A43),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(5)),
-                                )),
-                            const SizedBox(width: 10),
-                            const Expanded(
-                                child: Text.rich(
-                                    TextSpan(children: [
-                                      TextSpan(
-                                          text: 'Kullanım Şartları',
-                                          style: TextStyle(
-                                              color: Color(0xFF1E6A43),
-                                              fontWeight: FontWeight.w700)),
-                                      TextSpan(text: ' ve '),
-                                      TextSpan(
-                                          text: 'Gizlilik Politikası',
-                                          style: TextStyle(
-                                              color: Color(0xFF1E6A43),
-                                              fontWeight: FontWeight.w700)),
-                                      TextSpan(
-                                          text: '’nı okudum, kabul ediyorum.'),
-                                    ]),
-                                    style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 12,
-                                        height: 1.45,
-                                        color: Color(0xFF737E8B)))),
-                          ]),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 23,
+                          height: 23,
+                          child: Checkbox(
+                            value: _acceptedTerms,
+                            onChanged: (value) => setState(
+                                () => _acceptedTerms = value ?? false),
+                            activeColor: const Color(0xFF1E6A43),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(5)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(children: [
+                              const TextSpan(
+                                text: 'Kullanım Şartları',
+                                style: TextStyle(
+                                  color: Color(0xFF1E6A43),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const TextSpan(text: ' ve '),
+                              TextSpan(
+                                text: 'Gizlilik Politikası',
+                                style: const TextStyle(
+                                  color: Color(0xFF1E6A43),
+                                  fontWeight: FontWeight.w700,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                recognizer: _privacyPolicyRecognizer,
+                              ),
+                              TextSpan(
+                                text: '’nı okudum, kabul ediyorum.',
+                                recognizer: _toggleTermsRecognizer,
+                              ),
+                            ]),
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12,
+                              height: 1.45,
+                              color: Color(0xFF737E8B),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 13),
@@ -1586,6 +1622,7 @@ class _MainShellState extends State<MainShell> {
         0 => FigmaHomeScreen(
             onOpen: open,
             onExploreMap: () => selectTab(1),
+            onRequestLocation: () => unawaited(offerLocationPermission()),
             onAddPlace: openAddPlace,
             onMessages: () => Navigator.push(
               context,
@@ -1640,84 +1677,89 @@ class _FigmaBottomBar extends StatelessWidget {
   final VoidCallback onAdd;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 78,
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
-          children: [
-            Positioned.fill(
-              top: 4,
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border(top: BorderSide(color: AppColors.border)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(9, 6, 9, 8),
-                  child: Row(children: [
-                    Expanded(
-                        child: _FigmaNavItem(
-                            index: 0,
-                            current: index,
-                            icon: Icons.home_outlined,
-                            activeIcon: Icons.home_rounded,
-                            label: 'Keşfet',
-                            onTap: onChanged)),
-                    Expanded(
-                        child: _FigmaNavItem(
-                            index: 1,
-                            current: index,
-                            icon: Icons.map_outlined,
-                            activeIcon: Icons.map_rounded,
-                            label: 'Harita',
-                            onTap: onChanged)),
-                    const SizedBox(width: 62),
-                    Expanded(
-                        child: _FigmaNavItem(
-                            index: 2,
-                            current: index,
-                            icon: Icons.volunteer_activism_outlined,
-                            activeIcon: Icons.volunteer_activism_rounded,
-                            label: 'İyilik',
-                            onTap: onChanged)),
-                    Expanded(
-                        child: _FigmaNavItem(
-                            index: 3,
-                            current: index,
-                            icon: Icons.person_outline_rounded,
-                            activeIcon: Icons.person_rounded,
-                            label: 'Profil',
-                            onTap: onChanged)),
-                  ]),
-                ),
-              ),
-            ),
-            Positioned(
-              top: -5,
-              child: GestureDetector(
-                onTap: onAdd,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: green,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                    border: Border.all(color: Colors.white, width: 2),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x241F5A35),
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
+  Widget build(BuildContext context) => SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 76,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              Positioned.fill(
+                top: 12,
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border(top: BorderSide(color: AppColors.border)),
+                    boxShadow: AppShadows.soft,
                   ),
-                  child: const Icon(Icons.add_rounded,
-                      color: Colors.white, size: 25),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 9, 8, 6),
+                    child: Row(children: [
+                      Expanded(
+                          child: _FigmaNavItem(
+                              index: 0,
+                              current: index,
+                              icon: Icons.home_outlined,
+                              activeIcon: Icons.home_rounded,
+                              label: 'Keşfet',
+                              onTap: onChanged)),
+                      Expanded(
+                          child: _FigmaNavItem(
+                              index: 1,
+                              current: index,
+                              icon: Icons.map_outlined,
+                              activeIcon: Icons.map_rounded,
+                              label: 'Harita',
+                              onTap: onChanged)),
+                      const SizedBox(width: 64),
+                      Expanded(
+                          child: _FigmaNavItem(
+                              index: 2,
+                              current: index,
+                              icon: Icons.volunteer_activism_outlined,
+                              activeIcon: Icons.volunteer_activism_rounded,
+                              label: 'İyilik',
+                              onTap: onChanged)),
+                      Expanded(
+                          child: _FigmaNavItem(
+                              index: 3,
+                              current: index,
+                              icon: Icons.person_outline_rounded,
+                              activeIcon: Icons.person_rounded,
+                              label: 'Profil',
+                              onTap: onChanged)),
+                    ]),
+                  ),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                top: -14,
+                child: Semantics(
+                  label: 'Yer Ekle',
+                  button: true,
+                  child: Tooltip(
+                    message: 'Yer Ekle',
+                    child: Material(
+                      color: AppColors.primary,
+                      shape: const CircleBorder(),
+                      elevation: 3,
+                      child: InkWell(
+                        onTap: onAdd,
+                        customBorder: const CircleBorder(),
+                        child: const SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: Icon(Icons.add_rounded,
+                              color: Colors.white, size: 28),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
 }
@@ -1738,28 +1780,30 @@ class _FigmaNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = index == current;
-    final color = active ? green : const Color(0xFFA8A4A0);
-    return InkWell(
-      onTap: () => onTap(index),
-      borderRadius: BorderRadius.circular(AppRadii.small),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: 36,
-          height: 25,
-          decoration: BoxDecoration(
-              color: active ? mint : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppRadii.small)),
-          child: Icon(active ? activeIcon : icon, color: color, size: 20),
+    final color = active ? AppColors.primary : AppColors.textTertiary;
+    return Semantics(
+      label: label,
+      selected: active,
+      button: true,
+      child: Tooltip(
+        message: label,
+        child: InkWell(
+          onTap: () => onTap(index),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(active ? activeIcon : icon, color: color, size: 23),
+            const SizedBox(height: 4),
+            Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontFamily: 'Outfit',
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: active ? FontWeight.w600 : FontWeight.w500)),
+          ]),
         ),
-        const SizedBox(height: 4),
-        Text(label,
-            style: TextStyle(
-                fontFamily: 'Outfit',
-                color: color,
-                fontSize: 9.5,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w500)),
-      ]),
+      ),
     );
   }
 }

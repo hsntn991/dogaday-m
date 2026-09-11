@@ -1,5 +1,6 @@
 part of '../../main.dart';
 
+// ignore: unused_element
 class _DailyNatureQuoteBoard extends StatelessWidget {
   const _DailyNatureQuoteBoard({required this.onMessages});
 
@@ -121,12 +122,14 @@ class FigmaHomeScreen extends StatefulWidget {
     required this.onMessages,
     this.onExploreMap,
     this.onAddPlace,
+    this.onRequestLocation,
   });
   final ValueChanged<Place> onOpen;
   final VoidCallback onSearch;
   final VoidCallback onMessages;
   final VoidCallback? onExploreMap;
   final VoidCallback? onAddPlace;
+  final VoidCallback? onRequestLocation;
 
   @override
   State<FigmaHomeScreen> createState() => _FigmaHomeScreenState();
@@ -134,10 +137,6 @@ class FigmaHomeScreen extends StatefulWidget {
 
 class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
   String? selectedCategory;
-  String? selectedSubtype;
-
-  PlaceCategoryDefinition? get selectedCategoryDefinition =>
-      placeCategoryByKey(selectedCategory);
 
   int get userPlacesRevision => Object.hashAll(
         UserPlacesController.places.value.map((place) => place.sourceId),
@@ -176,137 +175,59 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
 
   void selectCategory(String category) => setState(() {
         selectedCategory = selectedCategory == category ? null : category;
-        selectedSubtype = null;
       });
 
   @override
   Widget build(BuildContext context) => SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
-            _DailyNatureQuoteBoard(onMessages: widget.onMessages),
-            const SizedBox(height: 14),
-            GestureDetector(
-              onTap: widget.onSearch,
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadii.medium),
-                    border: Border.all(color: AppColors.border)),
-                child: const Row(children: [
-                  Icon(Icons.search_rounded,
-                      size: 19, color: Color(0xFF8A8680)),
-                  SizedBox(width: 9),
-                  Expanded(
-                      child: Text('Şelale, göl, kamp alanı...',
-                          style: TextStyle(
-                              fontSize: 12, color: Color(0xFF8A8680)))),
-                  SizedBox(
-                      width: 30,
-                      height: 30,
-                      child: DecoratedBox(
-                          decoration: BoxDecoration(
-                              color: green,
-                              borderRadius: BorderRadius.all(
-                                  Radius.circular(AppRadii.small))),
-                          child: Icon(Icons.tune_rounded,
-                              size: 15, color: Colors.white)))
-                ]),
-              ),
-            ),
-            const SizedBox(height: 14),
             ValueListenableBuilder<bool>(
               valueListenable:
                   HomeWeatherLocationController.isResolvingLocation,
               builder: (_, isResolvingLocation, __) =>
                   ValueListenableBuilder<WeatherTarget>(
                 valueListenable: HomeWeatherLocationController.current,
-                builder: (_, target, __) => _HomeWeatherCard(
-                  key: ValueKey(target.cacheKey),
+                builder: (_, target, __) => _HomePremiumHeader(
                   target: target,
                   isResolvingLocation: isResolvingLocation,
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            const _FigmaSectionTitle('Kategoriler'),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
+            Semantics(
+              label: 'Yer ara',
+              button: true,
+              child: GestureDetector(
+                onTap: widget.onSearch,
+                child: AbsorbPointer(
+                  child: AppSearchField(onFilterTap: widget.onSearch),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             SizedBox(
-              height: 80,
+              height: AppControlSizes.minimumTouchTarget,
               child: ScrollConfiguration(
                 behavior: const _MouseDragScrollBehavior(),
-                child: ListView.builder(
+                child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   itemCount: _homeCategories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (_, index) {
                     final category = _homeCategories[index];
-                    return _MiniCategory(
-                      category.emoji,
-                      category.label,
-                      category.foreground,
-                      category.background,
+                    return AppCategoryChip(
+                      label: category.label,
+                      icon: _categoryIcon(category.key),
                       selected: selectedCategory == category.key,
-                      onTap: () => selectCategory(category.key),
+                      onSelected: (_) => selectCategory(category.key),
                     );
                   },
                 ),
               ),
             ),
-            if (selectedCategoryDefinition case final category?) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 36,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: category.subtypes.length + 1,
-                  separatorBuilder: (_, __) => const SizedBox(width: 7),
-                  itemBuilder: (_, index) {
-                    final subtype =
-                        index == 0 ? null : category.subtypes[index - 1];
-                    final selected = selectedSubtype == subtype?.key;
-                    return ChoiceChip(
-                      label: Text(subtype?.label ?? 'Tümü'),
-                      selected: selected,
-                      onSelected: (_) => setState(() {
-                        selectedSubtype = selected ? null : subtype?.key;
-                      }),
-                    );
-                  },
-                ),
-              ),
-            ],
-            const SizedBox(height: 18),
-            if (selectedCategory == null) ...[
-              const _FigmaSectionTitle('Öne Çıkan', action: 'Tümünü Gör'),
-              const SizedBox(height: 9),
-              ValueListenableBuilder<WeatherTarget>(
-                valueListenable: HomeWeatherLocationController.current,
-                builder: (_, target, __) => _RealFeaturedPlace(
-                  target: target,
-                  onOpen: widget.onOpen,
-                  onExploreMap: widget.onExploreMap,
-                ),
-              ),
-            ] else
-              ValueListenableBuilder<WeatherTarget>(
-                valueListenable: HomeWeatherLocationController.current,
-                builder: (_, target, __) => _CategoryFeaturedSection(
-                  key: ValueKey(
-                      'category:${target.cacheKey}:$selectedCategory:$selectedSubtype:$userPlacesRevision:$nearbyRevision'),
-                  target: target,
-                  mainCategory: selectedCategory!,
-                  subtype: selectedSubtype,
-                  label: selectedSubtype == null
-                      ? selectedCategoryDefinition!.label
-                      : placeSubtypeByKey(selectedSubtype)!.label,
-                  onOpen: widget.onOpen,
-                  onExploreMap: widget.onExploreMap,
-                ),
-              ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 24),
             ValueListenableBuilder<WeatherTarget>(
               valueListenable: HomeWeatherLocationController.current,
               builder: (_, target, __) => _TodayRecommendationsSection(
@@ -319,35 +240,103 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
                 onExploreMap: widget.onExploreMap,
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 24),
             ValueListenableBuilder<WeatherTarget>(
               valueListenable: HomeWeatherLocationController.current,
               builder: (_, target, __) => _NearbyPlacesSection(
                 key: ValueKey(
                     'nearby:${target.cacheKey}:$userPlacesRevision:$nearbyRevision'),
                 target: target,
+                preferredCategory: selectedCategory,
                 onOpen: widget.onOpen,
                 onExploreMap: widget.onExploreMap,
+                onRequestLocation: widget.onRequestLocation,
               ),
             ),
-            const SizedBox(height: 19),
-            ValueListenableBuilder<WeatherTarget>(
-              valueListenable: HomeWeatherLocationController.current,
-              builder: (_, target, __) => _LatestPlacesSection(
-                key: ValueKey(
-                    'latest:${target.cacheKey}:$userPlacesRevision:$nearbyRevision'),
-                target: target,
-                onOpen: widget.onOpen,
-                onAddPlace: widget.onAddPlace,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const _HomeAdBanner(),
           ],
         ),
       );
 }
 
+IconData _categoryIcon(String category) => switch (category) {
+      'water' => Icons.water_drop_outlined,
+      'mountain_terrain' => Icons.terrain_outlined,
+      'natural_formation' => Icons.landscape_outlined,
+      'nature_area' => Icons.park_outlined,
+      'camp_caravan' => Icons.terrain_outlined,
+      'route_activity' => Icons.hiking_outlined,
+      'discovery_point' => Icons.explore_outlined,
+      'wildlife' => Icons.forest_outlined,
+      _ => Icons.category_outlined,
+    };
+
+class _HomePremiumHeader extends StatelessWidget {
+  const _HomePremiumHeader({
+    required this.target,
+    required this.isResolvingLocation,
+  });
+
+  final WeatherTarget target;
+  final bool isResolvingLocation;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 370;
+          return Row(
+            children: [
+              const Icon(Icons.park_rounded,
+                  color: AppColors.primary, size: AppIconSizes.large),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Doğadayım',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      AppTypography.brand.copyWith(fontSize: compact ? 32 : 36),
+                ),
+              ),
+              Container(
+                constraints: BoxConstraints(maxWidth: compact ? 112 : 138),
+                height: AppControlSizes.minimumTouchTarget,
+                padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.location_on_outlined,
+                        color: AppColors.textPrimary, size: AppIconSizes.small),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        isResolvingLocation
+                            ? 'Konum belirleniyor'
+                            : target.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.label.copyWith(fontSize: 14),
+                      ),
+                    ),
+                    if (!isResolvingLocation && !compact) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.keyboard_arrow_down_rounded,
+                          size: AppIconSizes.small),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      );
+}
+
+// ignore: unused_element
 class _RealFeaturedPlace extends StatelessWidget {
   const _RealFeaturedPlace({
     required this.target,
@@ -414,24 +403,17 @@ class _TodayRecommendationsSection extends StatelessWidget {
       weather: WeatherService.availableNow(target),
       hasUserLocation: hasLocation,
       preferredCategory: preferredCategory,
-    );
+    ).take(2).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _FigmaSectionTitle('Bugün sana uygun'),
-        const SizedBox(height: 3),
-        Text(
-          hasLocation
-              ? 'Konum, hava ve erişime göre'
-              : 'Kayıtlı doğa noktalarından',
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            color: Color(0xFF858078),
-            fontSize: 10.5,
-          ),
+        AppSectionHeader(
+          title: 'Bugün sana uygun',
+          actionLabel: 'Tümünü gör',
+          onAction: onExploreMap,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 16),
         if (recommendations.isEmpty)
           _EmptyPlacesCard(
             message: 'Şu an için uygun bir öneri bulunamadı.',
@@ -441,24 +423,31 @@ class _TodayRecommendationsSection extends StatelessWidget {
             onRefresh: () => unawaited(NearbyPlacesService.refresh(target)),
           )
         else
-          SizedBox(
-            height: 216,
-            child: ScrollConfiguration(
-              behavior: const _MouseDragScrollBehavior(),
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: recommendations.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (_, index) {
-                  final recommendation = recommendations[index];
-                  return _RecommendationCard(
-                    recommendation: recommendation,
-                    onTap: () => onOpen(recommendation.place),
-                  );
-                },
-              ),
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cardWidth = (constraints.maxWidth - 12) / 2;
+              return SizedBox(
+                height: 228,
+                child: ScrollConfiguration(
+                  behavior: const _MouseDragScrollBehavior(),
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: recommendations.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (_, index) {
+                      final recommendation = recommendations[index];
+                      return _RecommendationCard(
+                        width: cardWidth,
+                        recommendation: recommendation,
+                        showDistance: target.usesCoordinates,
+                        onTap: () => onOpen(recommendation.place),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
           ),
       ],
     );
@@ -473,105 +462,24 @@ class _RecommendationCard extends StatelessWidget {
   const _RecommendationCard({
     required this.recommendation,
     required this.onTap,
+    required this.width,
+    required this.showDistance,
   });
 
   final PlaceRecommendation recommendation;
   final VoidCallback onTap;
+  final double width;
+  final bool showDistance;
 
   @override
-  Widget build(BuildContext context) {
-    final place = recommendation.place;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 212,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadii.large),
-          border: Border.all(color: AppColors.border),
+  Widget build(BuildContext context) => SizedBox(
+        width: width,
+        child: AppPlaceHeroCard(
+          place: recommendation.place,
+          onTap: onTap,
+          showDistance: showDistance,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  NatureArt(place: place, radius: 0, showKind: false),
-                  Positioned(
-                    left: 9,
-                    top: 9,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F7ED),
-                        borderRadius: BorderRadius.circular(AppRadii.small),
-                      ),
-                      child: Text(
-                        recommendation.suitabilityLabel,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          color: green,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    place.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      color: ink,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '${place.kind}  •  ${place.distanceKm == null ? place.location : '${place.distanceKm!.toStringAsFixed(1)} km'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      color: Color(0xFF77726A),
-                      fontSize: 9.3,
-                      height: 1.25,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    recommendation.reasons.first,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      color: AppColors.textSecondary,
-                      fontSize: 9.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+      );
 }
 
 class _MouseDragScrollBehavior extends MaterialScrollBehavior {
@@ -674,7 +582,6 @@ class _CommunitySuggestionsSectionState
 
 class _CategoryFeaturedSection extends StatefulWidget {
   const _CategoryFeaturedSection({
-    super.key,
     required this.target,
     required this.mainCategory,
     required this.subtype,
@@ -882,13 +789,17 @@ class _NearbyPlacesSection extends StatefulWidget {
   const _NearbyPlacesSection({
     super.key,
     required this.target,
+    required this.preferredCategory,
     required this.onOpen,
     required this.onExploreMap,
+    required this.onRequestLocation,
   });
 
   final WeatherTarget target;
+  final String? preferredCategory;
   final ValueChanged<Place> onOpen;
   final VoidCallback? onExploreMap;
+  final VoidCallback? onRequestLocation;
 
   @override
   State<_NearbyPlacesSection> createState() => _NearbyPlacesSectionState();
@@ -900,116 +811,149 @@ class _NearbyPlacesSectionState extends State<_NearbyPlacesSection> {
   @override
   void initState() {
     super.initState();
-    future = NearbyPlacesService.fetch(widget.target);
+    future = widget.target.usesCoordinates
+        ? NearbyPlacesService.fetch(widget.target)
+        : Future.value(const <Place>[]);
   }
 
   void retry() => setState(() {
-        future = NearbyPlacesService.refresh(widget.target);
+        future = widget.target.usesCoordinates
+            ? NearbyPlacesService.refresh(widget.target)
+            : Future.value(const <Place>[]);
       });
 
   @override
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _FigmaSectionTitle('Yakınımdaki Yerler', action: 'Konuma Göre'),
-          const SizedBox(height: 9),
-          FutureBuilder<List<Place>>(
-            future: future,
-            initialData: NearbyPlacesService.availableNow(widget.target),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData) {
-                return const _CompactSectionLoading();
-              }
+          AppSectionHeader(
+            title: 'Yakınındaki yerler',
+            actionLabel: 'Tümünü gör',
+            onAction: widget.onExploreMap,
+          ),
+          const SizedBox(height: 12),
+          if (!widget.target.usesCoordinates)
+            _LocationRequiredNearbyCard(
+              onRequestLocation: widget.onRequestLocation ??
+                  () => unawaited(HomeWeatherLocationController
+                      .requestAndUseDeviceLocation()),
+            )
+          else
+            FutureBuilder<List<Place>>(
+              future: future,
+              initialData: NearbyPlacesService.availableNow(widget.target),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
+                  return const _CompactSectionLoading();
+                }
 
-              if (snapshot.hasError) {
-                return Container(
-                  height: 122,
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                    border: Border.all(color: const Color(0xFFE8E4DC)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.location_off_outlined,
-                          color: Color(0xFF77736C), size: 25),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Yakındaki doğa noktaları şu anda alınamadı.',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            color: Color(0xFF66625C),
-                            fontSize: 11.5,
-                            height: 1.35,
+                if (snapshot.hasError) {
+                  return Container(
+                    height: 122,
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppRadii.large),
+                      border: Border.all(color: const Color(0xFFE8E4DC)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_off_outlined,
+                            color: Color(0xFF77736C), size: 25),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Yakındaki doğa noktaları şu anda alınamadı.',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              color: Color(0xFF66625C),
+                              fontSize: 11.5,
+                              height: 1.35,
+                            ),
                           ),
                         ),
-                      ),
-                      TextButton(onPressed: retry, child: const Text('Yenile')),
-                    ],
-                  ),
-                );
-              }
-
-              final nearby = NearbyPlacesService.availableNow(widget.target)
-                  .where((place) =>
-                      !isPlaceAmenity(place) &&
-                      (place.distanceKm ?? double.infinity) <=
-                          NearbyPlacesService.queryRadiusKm)
-                  .toList()
-                ..sort((a, b) => (a.distanceKm ?? double.infinity)
-                    .compareTo(b.distanceKm ?? double.infinity));
-              if (nearby.isEmpty) {
-                return _EmptyPlacesCard(
-                  message: '${NearbyPlacesService.queryRadiusKm} km çevrende '
-                      'henüz kayıtlı bir doğa noktası yok.',
-                  actionLabel: 'Haritada keşfet',
-                  actionIcon: Icons.map_outlined,
-                  onAction: widget.onExploreMap ?? retry,
-                  onRefresh: retry,
-                );
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    height: 190,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: nearby.take(12).length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (_, index) => _SmallPhotoCard(
-                        place: nearby[index],
-                        width: 184,
-                        kindBelow: true,
-                        onTap: () => widget.onOpen(nearby[index]),
-                      ),
+                        TextButton(
+                            onPressed: retry, child: const Text('Yenile')),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'Veri: Supabase ve © OpenStreetMap katkıda bulunanlar',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      color: Color(0xFF98938B),
-                      fontSize: 8,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+                  );
+                }
+
+                final nearby = NearbyPlacesService.filterNearbyPlaces(
+                  target: widget.target,
+                  places: NearbyPlacesService.availableNow(widget.target),
+                  preferredCategory: widget.preferredCategory,
+                );
+                if (nearby.isEmpty) {
+                  return _EmptyPlacesCard(
+                    message: '${NearbyPlacesService.queryRadiusKm} km çevrende '
+                        'henüz kayıtlı bir doğa noktası yok.',
+                    actionLabel: 'Haritada keşfet',
+                    actionIcon: Icons.map_outlined,
+                    onAction: widget.onExploreMap ?? retry,
+                    onRefresh: retry,
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ...nearby.take(6).map(
+                          (place) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: AppCompactPlaceCard(
+                              place: place,
+                              onTap: () => widget.onOpen(place),
+                            ),
+                          ),
+                        ),
+                  ],
+                );
+              },
+            ),
         ],
+      );
+}
+
+class _LocationRequiredNearbyCard extends StatelessWidget {
+  const _LocationRequiredNearbyCard({required this.onRequestLocation});
+
+  final VoidCallback onRequestLocation;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.medium),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.location_off_outlined,
+                color: AppColors.textSecondary, size: AppIconSizes.large),
+            const SizedBox(width: AppSpacing.small),
+            Expanded(
+              child: Text(
+                'Yakınındaki yerleri görmek için konum izni ver.',
+                style: AppTypography.metadata.copyWith(fontSize: 13),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.small),
+            TextButton(
+              onPressed: onRequestLocation,
+              child: const Text('Konumu Aç'),
+            ),
+          ],
+        ),
       );
 }
 
 class _LatestPlacesSection extends StatefulWidget {
   const _LatestPlacesSection({
-    super.key,
     required this.target,
     required this.onOpen,
     required this.onAddPlace,
@@ -1186,7 +1130,7 @@ class _EmptyPlacesCard extends StatelessWidget {
     required this.actionIcon,
     required this.onAction,
     required this.onRefresh,
-    this.height = 120,
+    this.height = 152,
   });
 
   final String message;
@@ -1222,8 +1166,10 @@ class _EmptyPlacesCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 6,
+              runSpacing: 4,
               children: [
                 TextButton.icon(
                   onPressed: onAction,
@@ -1241,7 +1187,6 @@ class _EmptyPlacesCard extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                   ),
                 ),
-                const SizedBox(width: 6),
                 TextButton(
                   onPressed: onRefresh,
                   style: TextButton.styleFrom(
@@ -1264,7 +1209,6 @@ class _EmptyPlacesCard extends StatelessWidget {
 
 class _HomeWeatherCard extends StatefulWidget {
   const _HomeWeatherCard({
-    super.key,
     required this.target,
     required this.isResolvingLocation,
   });
@@ -1697,6 +1641,7 @@ class _FigmaSectionTitle extends StatelessWidget {
       ]);
 }
 
+// ignore: unused_element
 class _MiniCategory extends StatelessWidget {
   const _MiniCategory(
     this.icon,

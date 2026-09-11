@@ -5,6 +5,7 @@ import 'dart:typed_data' show Uint8List;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/foundation.dart' show compute, kIsWeb, listEquals;
+import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_map/flutter_map.dart';
@@ -15,9 +16,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'services/device_location.dart';
-import 'services/place_image_provider.dart';
-import 'services/place_photo_storage.dart';
+import 'src/services/device_location.dart';
+import 'src/services/place_image_provider.dart';
+import 'src/services/place_photo_storage.dart';
 
 part 'src/app/app.dart';
 part 'src/app/admin_panel.dart';
@@ -28,11 +29,13 @@ part 'src/core/recommendation_service.dart';
 part 'src/features/add_place.dart';
 part 'src/features/detail.dart';
 part 'src/features/favorites_profile.dart';
+part 'src/features/privacy_policy.dart';
 part 'src/features/home.dart';
 part 'src/features/community_chat.dart';
 part 'src/features/goodness_movement.dart';
 part 'src/features/search_map.dart';
 part 'src/widgets/shared_widgets.dart';
+part 'src/widgets/design_system_widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

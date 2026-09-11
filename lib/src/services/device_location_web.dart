@@ -1,9 +1,6 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
-import 'dart:convert';
 import 'dart:html' as html;
-
-import 'package:http/http.dart' as http;
 
 class DeviceCoordinates {
   const DeviceCoordinates({
@@ -32,8 +29,6 @@ class DeviceLocationService {
   const DeviceLocationService._();
 
   static Future<DeviceCoordinates> requestCurrentPosition() async {
-    DeviceLocationException? browserError;
-
     try {
       return await _requestBrowserPosition(
         enableHighAccuracy: true,
@@ -41,7 +36,7 @@ class DeviceLocationService {
         maximumAge: Duration.zero,
       );
     } on DeviceLocationException catch (error) {
-      browserError = error;
+      if (error.message.contains('konum iznini reddetti')) rethrow;
     }
 
     try {
@@ -50,17 +45,8 @@ class DeviceLocationService {
         timeout: const Duration(seconds: 7),
         maximumAge: const Duration(seconds: 30),
       );
-    } on DeviceLocationException catch (error) {
-      browserError = error;
-    }
-
-    try {
-      return await _requestApproximateIpPosition();
-    } catch (_) {
-      throw DeviceLocationException(
-        '${browserError.message} '
-        'İnternet üzerinden yaklaşık konum da alınamadı.',
-      );
+    } on DeviceLocationException {
+      rethrow;
     }
   }
 
@@ -90,7 +76,7 @@ class DeviceLocationService {
       return DeviceCoordinates(
         latitude: latitude,
         longitude: longitude,
-        label: isApproximate ? 'Yaklaşık konum' : 'Mevcut konum',
+        label: isApproximate ? 'Yaklaşık konum' : 'Konumum',
         isApproximate: isApproximate,
       );
     } on DeviceLocationException {
@@ -121,47 +107,6 @@ class DeviceLocationService {
     }
   }
 
-  static Future<DeviceCoordinates> _requestApproximateIpPosition() async {
-    final response = await http
-        .get(Uri.https('ipwho.is', '/'))
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw const DeviceLocationException(
-        'Yaklaşık konum servisine ulaşılamadı.',
-      );
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    if (data['success'] == false) {
-      throw DeviceLocationException(
-        data['message']?.toString() ?? 'Yaklaşık konum bulunamadı.',
-      );
-    }
-
-    final latitude = (data['latitude'] as num?)?.toDouble();
-    final longitude = (data['longitude'] as num?)?.toDouble();
-    if (latitude == null || longitude == null) {
-      throw const DeviceLocationException(
-        'Yaklaşık konum koordinatları alınamadı.',
-      );
-    }
-
-    final city = data['city']?.toString().trim();
-    final region = data['region']?.toString().trim();
-    final label = city != null && city.isNotEmpty
-        ? city
-        : region != null && region.isNotEmpty
-            ? region
-            : 'Yaklaşık konum';
-
-    return DeviceCoordinates(
-      latitude: latitude,
-      longitude: longitude,
-      label: label,
-      isApproximate: true,
-    );
-  }
-
   static Stream<DeviceCoordinates> watchPosition() =>
       html.window.navigator.geolocation
           .watchPosition(
@@ -184,7 +129,7 @@ class DeviceLocationService {
     return DeviceCoordinates(
       latitude: latitude,
       longitude: longitude,
-      label: isApproximate ? 'Yaklaşık konum' : 'Mevcut konum',
+      label: isApproximate ? 'Yaklaşık konum' : 'Konumum',
       isApproximate: isApproximate,
     );
   }

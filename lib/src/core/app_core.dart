@@ -3,31 +3,68 @@ part of '../../main.dart';
 abstract final class AppColors {
   static const background = Color(0xFFFFFFFF);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFF7F8F7);
-  static const border = Color(0xFFDCE1DD);
-  static const primary = Color(0xFF1F5A35);
-  static const primarySoft = Color(0xFFEDF4EF);
-  static const textPrimary = Color(0xFF171A18);
-  static const textSecondary = Color(0xFF69706B);
-  static const textTertiary = Color(0xFF929993);
+  static const surfaceMuted = Color(0xFFF7F8F6);
+  static const border = Color(0xFFE1E5E1);
+  static const primary = Color(0xFF0F5A35);
+  static const primaryPressed = Color(0xFF0B482A);
+  static const primarySoft = Color(0xFFEAF3ED);
+  static const textPrimary = Color(0xFF151515);
+  static const textSecondary = Color(0xFF68706A);
+  static const textTertiary = Color(0xFF8A928C);
+  static const onPrimary = Color(0xFFFFFFFF);
+  static const error = Color(0xFFB42318);
+  static const disabled = Color(0xFFC5CBC6);
 }
 
 abstract final class AppRadii {
-  static const double small = 2;
-  static const double medium = 4;
-  static const double large = 6;
-  static const double pill = 6;
+  static const double small = 8;
+  static const double medium = 12;
+  static const double large = 16;
+  static const double hero = 20;
+  static const double pill = 999;
 }
 
 abstract final class AppSpacing {
+  static const double xxSmall = 4;
   static const double xSmall = 4;
   static const double small = 8;
+  static const double compact = 12;
   static const double medium = 16;
-  static const double large = 24;
-  static const double xLarge = 32;
+  static const double large = 20;
+  static const double xLarge = 24;
+  static const double section = 32;
+}
+
+abstract final class AppBorders {
+  static const thin = BorderSide(color: AppColors.border);
+  static const focused = BorderSide(color: AppColors.primary, width: 1.4);
+  static const error = BorderSide(color: AppColors.error);
+}
+
+abstract final class AppShadows {
+  static const soft = <BoxShadow>[
+    BoxShadow(color: Color(0x0D18221A), blurRadius: 14, offset: Offset(0, 4)),
+  ];
+}
+
+abstract final class AppIconSizes {
+  static const double small = 18;
+  static const double medium = 22;
+  static const double large = 28;
+}
+
+abstract final class AppControlSizes {
+  static const double button = 52;
+  static const double minimumTouchTarget = 48;
 }
 
 abstract final class AppTypography {
+  static const brand = TextStyle(
+    fontFamily: 'Fraunces',
+    color: AppColors.primary,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -.7,
+  );
   static const heading = TextStyle(
     fontFamily: 'Outfit',
     color: AppColors.textPrimary,
@@ -43,6 +80,12 @@ abstract final class AppTypography {
     fontFamily: 'Outfit',
     color: AppColors.textSecondary,
     fontWeight: FontWeight.w400,
+  );
+  static const label = TextStyle(
+    fontFamily: 'Outfit',
+    color: AppColors.textPrimary,
+    fontWeight: FontWeight.w600,
+    letterSpacing: .05,
   );
 }
 
@@ -65,6 +108,22 @@ class AppThemeController {
     mode.value = enabled ? ThemeMode.dark : ThemeMode.light;
     final preferences = await SharedPreferences.getInstance();
     await preferences.setBool(_storageKey, enabled);
+  }
+}
+
+abstract final class AppLegalLinks {
+  /// Google Play ve uygulama içi kullanım için Gizlilik Politikası URL'i.
+  /// Derleme anında --dart-define=PRIVACY_POLICY_URL=https://... ile ezilebilir.
+  static const String privacyPolicyUrl = String.fromEnvironment(
+    'PRIVACY_POLICY_URL',
+    defaultValue: 'https://dogadayim.github.io/dogadayim-privacy/',
+  );
+
+  static Future<void> openPrivacyPolicy(BuildContext context) async {
+    if (!context.mounted) return;
+    await Navigator.of(context).push<void>(MaterialPageRoute(
+      builder: (_) => const PrivacyPolicyScreen(),
+    ));
   }
 }
 
@@ -133,7 +192,7 @@ class Place {
   const Place(
     this.name,
     this.location,
-    this.kind,
+    String kind,
     this.rating,
     this.icon,
     this.colors,
@@ -150,8 +209,15 @@ class Place {
     this.mainCategory,
     this.subtype,
     this.facilities = const PlaceFacilities(),
-  });
-  final String name, location, kind, description;
+  }) : _legacyKind = kind;
+  final String name, location, description;
+  final String _legacyKind;
+
+  String get kind => taxonomyDisplayLabel(
+        fallback: _legacyKind,
+        mainCategory: mainCategory,
+        subtype: subtype,
+      );
   final String? image;
   final double rating;
   final IconData icon;
@@ -169,10 +235,13 @@ class Place {
   final PlaceFacilities facilities;
 
   ({String? mainCategory, String? subtype}) get resolvedTaxonomy {
-    final legacy = taxonomyFromLegacy(kind);
+    final legacy = taxonomyFromLegacy(_legacyKind);
+    final resolvedSubtype = subtype ?? legacy.subtype;
     return (
-      mainCategory: mainCategory ?? legacy.mainCategory,
-      subtype: subtype ?? legacy.subtype,
+      mainCategory: isUtilitySubtype(resolvedSubtype)
+          ? null
+          : mainCategory ?? legacy.mainCategory,
+      subtype: resolvedSubtype,
     );
   }
 
@@ -548,6 +617,12 @@ class UserPlacesController {
     await _persist();
   }
 
+  static Future<void> clear() async {
+    places.value = const <Place>[];
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove(_storageKey);
+  }
+
   static Future<void> _persist() async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setStringList(
@@ -685,6 +760,11 @@ class PlaceSubmissionController {
     await preferences.setStringList(_queueKey, queued.toList(growable: false));
   }
 
+  static Future<void> clearQueue() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove(_queueKey);
+  }
+
   static Future<void> _submit(Place place) async {
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
@@ -701,7 +781,9 @@ class PlaceSubmissionController {
         .maybeSingle();
     final existingPhotos = (existing?['photo_paths'] as List?) ?? const [];
     if (existing != null &&
-        (place.image == null || place.image!.isEmpty || existingPhotos.isNotEmpty)) {
+        (place.image == null ||
+            place.image!.isEmpty ||
+            existingPhotos.isNotEmpty)) {
       return;
     }
 
@@ -717,7 +799,8 @@ class PlaceSubmissionController {
           .maybeSingle();
       final categoryId = category?['id'];
       if (categoryId == null) {
-        throw StateError('$categoryName kategorisi Supabase içinde bulunamadı.');
+        throw StateError(
+            '$categoryName kategorisi Supabase içinde bulunamadı.');
       }
 
       final location = _locationParts(place.location);
@@ -745,25 +828,25 @@ class PlaceSubmissionController {
       final inserted = await client
           .from('place_submissions')
           .insert({
-        'submitted_by': user.id,
-        'client_reference': sourceId,
-        'category_id': categoryId,
-        'name': place.name.trim(),
-        'description': place.description.trim(),
-        'city': location.city,
-        'district': location.district,
-        'location_label': place.location.trim(),
-        'latitude': place.latitude,
-        'longitude': place.longitude,
-        'environment_tags': environmentTags,
-        'features': featureTags,
-        'road_access': roadAccess,
-        'photo_paths': const <String>[],
-        'main_category': taxonomy.mainCategory,
-        'subtype': taxonomy.subtype,
-        'facilities': facilities,
-        'status': 'pending',
-      })
+            'submitted_by': user.id,
+            'client_reference': sourceId,
+            'category_id': categoryId,
+            'name': place.name.trim(),
+            'description': place.description.trim(),
+            'city': location.city,
+            'district': location.district,
+            'location_label': place.location.trim(),
+            'latitude': place.latitude,
+            'longitude': place.longitude,
+            'environment_tags': environmentTags,
+            'features': featureTags,
+            'road_access': roadAccess,
+            'photo_paths': const <String>[],
+            'main_category': taxonomy.mainCategory,
+            'subtype': taxonomy.subtype,
+            'facilities': facilities,
+            'status': 'pending',
+          })
           .select('id')
           .single();
       submissionId = inserted['id'].toString();
@@ -809,8 +892,8 @@ class PlaceSubmissionController {
       };
 
   static ({String city, String? district}) _locationParts(String label) {
-    final isCoordinate = RegExp(r'^-?\d+[.,]\d+\s*,\s*-?\d+[.,]\d+$')
-        .hasMatch(label.trim());
+    final isCoordinate =
+        RegExp(r'^-?\d+[.,]\d+\s*,\s*-?\d+[.,]\d+$').hasMatch(label.trim());
     if (label.trim().isEmpty || isCoordinate) {
       return (city: 'Belirtilmedi', district: null);
     }
@@ -820,7 +903,8 @@ class PlaceSubmissionController {
         .where((part) => part.isNotEmpty && part.toLowerCase() != 'türkiye')
         .toList(growable: false);
     if (parts.isEmpty) return (city: 'Belirtilmedi', district: null);
-    final city = parts.last.length > 80 ? parts.last.substring(0, 80) : parts.last;
+    final city =
+        parts.last.length > 80 ? parts.last.substring(0, 80) : parts.last;
     final district = parts.length > 1 ? parts[parts.length - 2] : null;
     return (city: city, district: district);
   }
@@ -900,6 +984,7 @@ class SupabasePlacesController {
   static Future<void> loadCachedAndRefresh() async {
     try {
       await loadCached();
+      places.value = await ResearchPhotoPlaces.merge(places.value);
     } finally {
       await refresh();
     }
@@ -983,7 +1068,7 @@ class SupabasePlacesController {
       );
     }
 
-    places.value = loadedPlaces;
+    places.value = await ResearchPhotoPlaces.merge(loadedPlaces);
 
     final preferences = await SharedPreferences.getInstance();
     await preferences.setStringList(
@@ -1155,9 +1240,9 @@ class WeatherTarget {
 class HomeWeatherLocationController {
   HomeWeatherLocationController._();
 
-  static const fallbackCity = 'Antalya';
+  static const unavailableLabel = 'Konum izni gerekli';
   static final current =
-      ValueNotifier<WeatherTarget>(const WeatherTarget.city(fallbackCity));
+      ValueNotifier<WeatherTarget>(const WeatherTarget.city(unavailableLabel));
   static final isResolvingLocation = ValueNotifier<bool>(false);
   static final isApproximateLocation = ValueNotifier<bool>(false);
 
@@ -1194,6 +1279,9 @@ class HomeWeatherLocationController {
         isApproximate: coordinates.isApproximate,
       );
       return coordinates;
+    } catch (_) {
+      useFallbackCity();
+      rethrow;
     } finally {
       isResolvingLocation.value = false;
     }
@@ -1201,7 +1289,7 @@ class HomeWeatherLocationController {
 
   static void useFallbackCity() {
     isApproximateLocation.value = false;
-    current.value = const WeatherTarget.city(fallbackCity);
+    current.value = const WeatherTarget.city(unavailableLabel);
   }
 }
 
@@ -1436,7 +1524,7 @@ class NearbyPlacesService {
 
   static String cacheRegionKey(WeatherTarget target) {
     if (!target.usesCoordinates) {
-      return 'nearby:r$_radiusMeters:city:${target.label.trim().toLowerCase()}';
+      return 'nearby:r$_radiusMeters:unavailable';
     }
     final latitudeCell = (target.latitude! / _cacheCellDegrees).round();
     final longitudeCell = (target.longitude! / _cacheCellDegrees).round();
@@ -1447,12 +1535,14 @@ class NearbyPlacesService {
     WeatherTarget target, {
     bool forceRefresh = false,
   }) {
+    if (!target.usesCoordinates) return Future.value(const <Place>[]);
     final available = availableNow(target);
     _refreshInBackground(target, forceRefresh: forceRefresh);
     return Future<List<Place>>.value(available);
   }
 
   static Future<List<Place>> refresh(WeatherTarget target) async {
+    if (!target.usesCoordinates) return const <Place>[];
     final cacheKey = cacheRegionKey(target);
     _refreshInBackground(target, forceRefresh: true);
     final request = _inFlight[cacheKey];
@@ -1467,6 +1557,7 @@ class NearbyPlacesService {
   }
 
   static List<Place> availableNow(WeatherTarget target) {
+    if (!target.usesCoordinates) return const <Place>[];
     final cached = _cache[cacheRegionKey(target)];
     return _mergeAvailablePlaces(
       target,
@@ -1494,6 +1585,7 @@ class NearbyPlacesService {
     WeatherTarget target, {
     required bool forceRefresh,
   }) {
+    if (!target.usesCoordinates) return;
     final cacheKey = cacheRegionKey(target);
     final cached = _cache[cacheKey];
     final cacheIsFresh = cached != null &&
@@ -1519,39 +1611,12 @@ class NearbyPlacesService {
     WeatherTarget target,
     List<Place> remotePlaces,
   ) {
-    Iterable<Place> withDistance(Iterable<Place> places) =>
-        places.where((place) => place.hasCoordinates).map((place) {
-          final distance = target.usesCoordinates
-              ? calculateDistanceKm(
-                  target.latitude!,
-                  target.longitude!,
-                  place.latitude!,
-                  place.longitude!,
-                )
-              : place.distanceKm ?? 0;
-          return Place(
-            place.name,
-            place.location,
-            canonicalPlaceCategory(place.kind),
-            place.rating,
-            place.icon,
-            place.colors,
-            place.image,
-            description: place.description,
-            latitude: place.latitude,
-            longitude: place.longitude,
-            distanceKm: distance,
-            sourceId: place.sourceId,
-            updatedAt: place.updatedAt,
-            source: place.source,
-            verificationStatus: place.verificationStatus,
-            features: place.features,
-            mainCategory: place.resolvedTaxonomy.mainCategory,
-            subtype: place.resolvedTaxonomy.subtype,
-            facilities: place.facilities,
-          );
-        }).where((place) =>
-            (place.distanceKm ?? double.infinity) <= queryRadiusKm + .5);
+    if (!target.usesCoordinates) return const <Place>[];
+    Iterable<Place> withDistance(Iterable<Place> places) => places
+        .where((place) => place.hasCoordinates)
+        .map((place) => _withTargetDistance(target, place))
+        .where(
+            (place) => (place.distanceKm ?? double.infinity) <= queryRadiusKm);
 
     final localPlaces = withDistance(UserPlacesController.places.value);
     final supabasePlaces = withDistance(SupabasePlacesController.places.value);
@@ -1576,6 +1641,63 @@ class NearbyPlacesService {
     merged.sort((a, b) => (a.distanceKm ?? double.infinity)
         .compareTo(b.distanceKm ?? double.infinity));
     return merged;
+  }
+
+  static List<Place> filterNearbyPlaces({
+    required WeatherTarget target,
+    required Iterable<Place> places,
+    String? preferredCategory,
+  }) {
+    if (!target.usesCoordinates) return const <Place>[];
+    final nearby = places
+        .where((place) => place.hasCoordinates)
+        .map((place) => _withTargetDistance(target, place))
+        .where(
+            (place) => (place.distanceKm ?? double.infinity) <= queryRadiusKm)
+        .where((place) => _matchesNearbyCategory(place, preferredCategory))
+        .toList()
+      ..sort((a, b) => (a.distanceKm ?? double.infinity)
+          .compareTo(b.distanceKm ?? double.infinity));
+    return nearby;
+  }
+
+  static bool _matchesNearbyCategory(Place place, String? preferredCategory) {
+    if (preferredCategory == null) return !place.isUtility;
+    if (isUtilitySubtype(preferredCategory)) {
+      return place.resolvedTaxonomy.subtype == preferredCategory;
+    }
+    return !place.isUtility &&
+        place.resolvedTaxonomy.mainCategory == preferredCategory;
+  }
+
+  static Place _withTargetDistance(WeatherTarget target, Place place) {
+    final distance = calculateDistanceKm(
+      target.latitude!,
+      target.longitude!,
+      place.latitude!,
+      place.longitude!,
+    );
+    return Place(
+      place.name,
+      place.location,
+      canonicalPlaceCategory(place.kind),
+      place.rating,
+      place.icon,
+      place.colors,
+      place.image,
+      description: place.description,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      distanceKm: distance,
+      sourceId: place.sourceId,
+      updatedAt: place.updatedAt,
+      source: place.source,
+      verificationStatus: place.verificationStatus,
+      features: place.features,
+      mainCategory: place.resolvedTaxonomy.mainCategory,
+      subtype: place.resolvedTaxonomy.subtype,
+      facilities: place.facilities,
+    );
   }
 
   static Future<List<Place>> fetchLatest(
@@ -1713,7 +1835,7 @@ out center meta qt $_resultLimit;
         latitude,
         longitude,
       );
-      if (distance > _radiusMeters / 1000 + .5) continue;
+      if (distance > _radiusMeters / 1000) continue;
 
       final kind = _kindFor(tags);
       final uniqueKey = '$name|$kind';

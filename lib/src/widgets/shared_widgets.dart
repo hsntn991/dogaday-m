@@ -36,7 +36,17 @@ class PlaceImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = resolveProvider(place);
-    if (provider == null) return fallback;
+    if (provider == null) {
+      return FutureBuilder<PlaceEnrichment?>(
+        future: PlaceEnrichmentService.find(place),
+        builder: (context, snapshot) {
+          final photo = snapshot.data?.primaryPhoto;
+          if (photo == null || !photo.url.startsWith('https://')) return fallback;
+          return Image.network(photo.url, fit: fit, cacheWidth: cacheWidth,
+            errorBuilder: (_, __, ___) => fallback);
+        },
+      );
+    }
     return Image(
       image: ResizeImage.resizeIfNeeded(cacheWidth, null, provider),
       fit: fit,
@@ -77,7 +87,7 @@ class NatureArt extends StatelessWidget {
             fallback: Center(
               child: Icon(
                 place.icon,
-                size: 70,
+                size: 36,
                 color: Colors.white.withValues(alpha: .42),
               ),
             ),

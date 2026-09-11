@@ -61,6 +61,9 @@ class PlacePhotoInfo {
     this.qualityGrade,
     this.matchMethod,
     this.reuseStatus,
+    this.author,
+    this.licenseUrl,
+    this.attribution,
   });
 
   factory PlacePhotoInfo.fromJson(Map<String, dynamic> data) => PlacePhotoInfo(
@@ -82,6 +85,9 @@ class PlacePhotoInfo {
         qualityGrade: data['quality_grade']?.toString().toUpperCase(),
         matchMethod: data['match_method']?.toString().toLowerCase(),
         reuseStatus: data['reuse_status']?.toString().toLowerCase(),
+        author: (data['author'] ?? data['artist'])?.toString(),
+        licenseUrl: data['license_url']?.toString(),
+        attribution: data['attribution']?.toString(),
       );
 
   final String url;
@@ -92,6 +98,9 @@ class PlacePhotoInfo {
   final String? qualityGrade;
   final String? matchMethod;
   final String? reuseStatus;
+  final String? author;
+  final String? licenseUrl;
+  final String? attribution;
 }
 
 class PlacePhotoPolicy {
@@ -207,6 +216,77 @@ List<PlaceEnrichment> _decodePlaceEnrichment(String raw) => (jsonDecode(raw)
     .map((item) => PlaceEnrichment.fromJson(Map<String, dynamic>.from(item)))
     .toList(growable: false);
 
+class ResearchPhotoPlaces {
+  static Future<List<Place>>? _future;
+  static Future<List<Map<String, dynamic>>>? _records;
+  static Future<List<Map<String, dynamic>>> records() => _records ??= readRecords(
+    remote: () async {
+      final rows = await Supabase.instance.client.from('research_photo_places')
+          .select('payload').order('id').limit(1000).timeout(const Duration(seconds: 8));
+      return rows.map((row) => row['payload']).toList();
+    },
+    fallback: () async => jsonDecode(await rootBundle.loadString('assets/data/research_photo_places.json')) as List,
+  );
+
+  static Future<List<Map<String, dynamic>>> readRecords({
+    required Future<List<dynamic>> Function() remote,
+    required Future<List<dynamic>> Function() fallback,
+  }) async {
+    List<Map<String, dynamic>> accepted(List<dynamic> rows) {
+      final result = <Map<String, dynamic>>[];
+      for (final value in rows) {
+        if (value is! Map) continue;
+        final row = Map<String, dynamic>.from(value);
+        final lat = row['latitude'], lon = row['longitude'];
+        if (row['id'] is! String || row['name'] is! String ||
+            lat is! num || lon is! num || !lat.isFinite || !lon.isFinite ||
+            lat.abs() > 90 || lon.abs() > 180 || row['photos'] is! List) continue;
+        final photos = (row['photos'] as List).where((p) => p is Map &&
+          p['photo_quality_status'] == 'approved' && p['license_verified'] == true &&
+          const ['A', 'B'].contains(p['confidence_level']) &&
+          const ['author', 'license', 'license_url', 'description_url', 'original_url'].every(
+            (key) => p[key] is String && (p[key] as String).trim().isNotEmpty) &&
+          Uri.tryParse(p['original_url'])?.scheme == 'https').toList();
+        if (photos.isNotEmpty) result.add({...row, 'photos': photos});
+      }
+      return result;
+    }
+    try {
+      final rows = accepted(await remote());
+      if (rows.isNotEmpty) return rows;
+    } catch (_) {
+      // The bundled package keeps places available when the server is offline.
+    }
+    return accepted(await fallback());
+  }
+  static Future<List<Place>> load() => _future ??= _load();
+  static Future<List<Place>> _load() async {
+    final rows = await records();
+    return rows.map((row) {
+      final data = Map<String, dynamic>.from(row as Map);
+      final enrichment = PlaceEnrichment.fromJson(data);
+      return Place(data['name'] as String, data['province'] as String? ?? '',
+        taxonomyDisplayLabel(fallback: 'Doğa Noktası', subtype: data['subtype']),
+        0, Icons.place_rounded, const [Color(0xFF315F45), Color(0xFF9BBF82)],
+        enrichment.primaryPhoto?.url,
+        latitude: enrichment.latitude, longitude: enrichment.longitude,
+        sourceId: 'research:${data['id']}', source: PlaceSource.osm,
+        verificationStatus: VerificationStatus.community,
+        mainCategory: data['main_category'], subtype: data['subtype']);
+    }).toList();
+  }
+  static Future<List<Place>> merge(List<Place> existing) async {
+    final result = [...existing];
+    for (final place in await load()) {
+      final duplicate = result.any((p) => p.sourceId == place.sourceId ||
+        (AddPlaceQualityService.normalizeName(p.name) == AddPlaceQualityService.normalizeName(place.name) &&
+          p.hasCoordinates && NearbyPlacesService.calculateDistanceKm(p.latitude!, p.longitude!, place.latitude!, place.longitude!) <= .75));
+      if (!duplicate) result.add(place);
+    }
+    return result;
+  }
+}
+
 class PlaceEnrichmentService {
   PlaceEnrichmentService._();
 
@@ -240,7 +320,24 @@ class PlaceEnrichmentService {
     try {
       final raw = await rootBundle
           .loadString('assets/data/marmara_place_enrichment.json');
-      final records = await compute(_decodePlaceEnrichment, raw);
+      final records = (await compute(_decodePlaceEnrichment, raw)).map((r) =>
+          PlaceEnrichment(name: r.name, latitude: r.latitude, longitude: r.longitude,
+            aboutText: r.aboutText, aboutSources: r.aboutSources, amenities: r.amenities,
+            amenitiesStatus: r.amenitiesStatus, photos: const <PlacePhotoInfo>[])).toList();
+      final photoRecords = (await ResearchPhotoPlaces.records()).map(PlaceEnrichment.fromJson).toList();
+      for (final photoRecord in photoRecords) {
+        final position = records.indexWhere((r) =>
+            AddPlaceQualityService.normalizeName(r.name) == AddPlaceQualityService.normalizeName(photoRecord.name) &&
+            r.latitude == photoRecord.latitude && r.longitude == photoRecord.longitude);
+        if (position < 0) {
+          records.add(photoRecord);
+        } else {
+          final old = records[position];
+          records[position] = PlaceEnrichment(name: old.name, latitude: old.latitude,
+            longitude: old.longitude, aboutText: old.aboutText, aboutSources: old.aboutSources,
+            amenities: old.amenities, amenitiesStatus: old.amenitiesStatus, photos: photoRecord.photos);
+        }
+      }
       final index = <String, List<PlaceEnrichment>>{};
       for (final record in records) {
         final key = AddPlaceQualityService.normalizeName(record.name);

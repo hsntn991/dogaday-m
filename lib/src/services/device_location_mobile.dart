@@ -61,7 +61,7 @@ class DeviceLocationService {
       return DeviceCoordinates(
         latitude: position.latitude,
         longitude: position.longitude,
-        label: 'Mevcut konum',
+        label: 'Konumum',
       );
     } on TimeoutException {
       throw const DeviceLocationException(
@@ -84,7 +84,7 @@ class DeviceLocationService {
         (position) => DeviceCoordinates(
           latitude: position.latitude,
           longitude: position.longitude,
-          label: 'Mevcut konum',
+          label: 'Konumum',
         ),
       );
 }

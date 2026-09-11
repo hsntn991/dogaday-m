@@ -34,4 +34,6 @@ class PlacePhotoStorage {
     if (lower.endsWith('.heic')) return 'image/heic';
     return 'image/jpeg';
   }
+
+  static Future<void> clearLocalPhotos() async {}
 }

@@ -142,6 +142,7 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
 const utilitySubtypes = <PlaceSubtypeDefinition>[
   PlaceSubtypeDefinition('toilet', 'WC'),
   PlaceSubtypeDefinition('drinking_water', 'İçme Suyu'),
+  PlaceSubtypeDefinition('water_fountain', 'Çeşme'),
 ];
 
 ({String? mainCategory, String? subtype}) taxonomyFromLegacy(String value) {
@@ -155,11 +156,12 @@ const utilitySubtypes = <PlaceSubtypeDefinition>[
   if (normalized.contains('selale')) {
     return (mainCategory: 'water', subtype: 'waterfall');
   }
+  if (normalized.contains('cesme') || normalized.contains('hayrat')) {
+    return (mainCategory: null, subtype: 'water_fountain');
+  }
   if (normalized.contains('su kaynagi') ||
       normalized.contains('dogal kaynak') ||
-      normalized.contains('pinar') ||
-      normalized.contains('cesme') ||
-      normalized.contains('hayrat')) {
+      normalized.contains('pinar')) {
     return (mainCategory: 'water', subtype: 'spring');
   }
   if (normalized.contains('gol') || normalized.contains('golet')) {
@@ -229,7 +231,9 @@ String taxonomyDisplayLabel({
     fallback.trim();
 
 bool isUtilitySubtype(String? subtype) =>
-    subtype == 'toilet' || subtype == 'drinking_water';
+    subtype == 'toilet' ||
+    subtype == 'drinking_water' ||
+    subtype == 'water_fountain';
 
 const facilityLabels = <String, String>{
   'toilets': 'Tuvalet',

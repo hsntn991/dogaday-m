@@ -1019,6 +1019,17 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                             height: 1.72,
                             fontWeight: FontWeight.w400,
                             color: Color(0xFF625F58))),
+                    for (final photo in enrichment?.photos ?? const <PlacePhotoInfo>[])
+                      ListTile(
+                        dense: true,
+                        title: Text(photo.attribution ?? 'Fotoğraf: ${photo.author ?? photo.source} / ${photo.source}'),
+                        subtitle: Text(photo.license ?? ''),
+                        trailing: const Icon(Icons.open_in_new, size: 16),
+                        onTap: () {
+                          final uri = Uri.tryParse(photo.sourcePageUrl ?? '');
+                          if (uri != null && uri.scheme == 'https') launchUrl(uri);
+                        },
+                      ),
                     aboutSourcesSection(),
                     const SizedBox(height: 22),
                     Row(children: [
