@@ -21,5 +21,6 @@ ios/.symlinks/
 *.jks
 *.keystore
 key.properties
+**/key.properties
 *.pem
 *.p12

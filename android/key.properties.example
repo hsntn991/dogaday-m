@@ -1,0 +1,4 @@
+storePassword=BURAYA_KEYSTORE_SIFRENIZI_YAZIN
+keyPassword=BURAYA_KEY_SIFRENIZI_YAZIN
+keyAlias=upload
+storeFile=upload-keystore.jks
