@@ -1,38 +1,5 @@
 part of '../../main.dart';
 
-class _HomeHeaderButton extends StatelessWidget {
-  const _HomeHeaderButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: Material(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-            side: const BorderSide(color: Color(0xFFE2DED6)),
-          ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-            child: SizedBox(
-              width: 36,
-              height: 36,
-              child: Icon(icon, color: green, size: 19),
-            ),
-          ),
-        ),
-      );
-}
-
 class CommunityChatHubScreen extends StatelessWidget {
   const CommunityChatHubScreen({super.key});
 
