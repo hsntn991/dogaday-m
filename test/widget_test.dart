@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dogada_gezi/main.dart';
-import 'package:dogada_gezi/services/place_photo_storage.dart';
+import 'package:dogada_gezi/src/services/place_photo_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +12,35 @@ import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test(
+      'research photo package contains licensed approved media and matches a place',
+      () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final records = jsonDecode(
+        await File('assets/data/research_photos.json').readAsString()) as List;
+    expect(records.length, 61);
+    var count = 0;
+    for (final row in records) {
+      for (final photo in row['photos'] as List) {
+        expect(photo['confidence_level'], anyOf('A', 'B'));
+        expect(photo['photo_quality_status'], 'approved');
+        expect(photo['license_verified'], true);
+        expect(photo['author'], isNotEmpty);
+        expect(photo['license_url'], isNotEmpty);
+        expect(photo['file_title'], isNot('File:Troas.png'));
+        count++;
+      }
+    }
+    expect(count, 146);
+    final row = records.first;
+    final place = Place(row['name'], '', 'Doğa Noktası', 0, Icons.place,
+        const [Colors.green, Colors.green], null,
+        latitude: (row['latitude'] as num).toDouble(),
+        longitude: (row['longitude'] as num).toDouble());
+    final result = await PlaceEnrichmentService.find(place);
+    expect(result?.primaryPhoto?.url, startsWith('https://'));
+    expect(result?.primaryPhoto?.author, isNotEmpty);
+  });
   Place duplicateFixture({
     String name = 'Araplar Çeşmesi',
     String kind = 'Su Kaynağı',
@@ -47,6 +77,42 @@ void main() {
     expect(AddPlaceQualityService.isValidCoordinate(0, 0), isFalse);
     expect(AddPlaceQualityService.isValidCoordinate(91, 32), isFalse);
     expect(AddPlaceQualityService.isValidCoordinate(39.92, 32.85), isTrue);
+  });
+
+  test('fountain taxonomy stays a utility and is not promoted as a destination',
+      () {
+    final taxonomy = taxonomyFromLegacy('Mahalle Çeşmesi');
+
+    expect(taxonomy.mainCategory, isNull);
+    expect(taxonomy.subtype, 'water_fountain');
+    expect(isUtilitySubtype(taxonomy.subtype), isTrue);
+    expect(
+        taxonomyDisplayLabel(
+          fallback: 'Su Kaynağı',
+          mainCategory: taxonomy.mainCategory,
+          subtype: taxonomy.subtype,
+        ),
+        'Çeşme');
+  });
+
+  test('map labels use the fountain subtype instead of the legacy spring name',
+      () {
+    final fountain = Place(
+      'Akçeşme',
+      'Konya',
+      'Su Kaynağı',
+      0,
+      Icons.water_drop,
+      const [Color(0xFF315F45), Color(0xFF9BBF82)],
+      null,
+      mainCategory: null,
+      subtype: 'water_fountain',
+    );
+
+    expect(fountain.kind, 'Çeşme');
+    expect(fountain.displayKind, 'Çeşme');
+    expect(fountain.resolvedTaxonomy.mainCategory, isNull);
+    expect(fountain.isUtility, isTrue);
   });
 
   test('same name and very close coordinates are a strong duplicate', () {
@@ -356,6 +422,86 @@ void main() {
     );
   });
 
+  test('no-location fallback never selects Antalya or creates nearby results',
+      () {
+    HomeWeatherLocationController.useFallbackCity();
+
+    expect(HomeWeatherLocationController.current.value.label,
+        'Konum izni gerekli');
+    expect(
+        HomeWeatherLocationController.current.value.usesCoordinates, isFalse);
+
+    final results = NearbyPlacesService.filterNearbyPlaces(
+      target: HomeWeatherLocationController.current.value,
+      places: [
+        Place(
+          'Uzak doğa noktası',
+          'Antalya',
+          'Göl',
+          4.7,
+          Icons.water_outlined,
+          const [Color(0xFF287890), Color(0xFF8DD1C9)],
+          null,
+          latitude: 36.9,
+          longitude: 30.7,
+        ),
+      ],
+    );
+
+    expect(results, isEmpty);
+  });
+
+  test(
+      'nearby filter keeps natural water but excludes distant and utility water',
+      () {
+    const target = WeatherTarget.coordinates(
+      latitude: 39.9208,
+      longitude: 32.8541,
+      label: 'Ankara',
+    );
+    final results = NearbyPlacesService.filterNearbyPlaces(
+      target: target,
+      places: [
+        Place(
+          'Yakındaki doğal pınar',
+          'Ankara',
+          'Su Kaynağı',
+          4.8,
+          Icons.water_drop_outlined,
+          const [Color(0xFF287890), Color(0xFF8DD1C9)],
+          null,
+          latitude: 39.925,
+          longitude: 32.854,
+        ),
+        Place(
+          'Yakındaki içme suyu',
+          'Ankara',
+          'İçme Suyu',
+          4.8,
+          Icons.water_drop_outlined,
+          const [Color(0xFF287890), Color(0xFF8DD1C9)],
+          null,
+          latitude: 39.925,
+          longitude: 32.854,
+        ),
+        Place(
+          'Uzak göl',
+          'Bartın',
+          'Göl',
+          4.8,
+          Icons.water_outlined,
+          const [Color(0xFF287890), Color(0xFF8DD1C9)],
+          null,
+          latitude: 41.64,
+          longitude: 32.34,
+        ),
+      ],
+    );
+
+    expect(results.map((place) => place.name), ['Yakındaki doğal pınar']);
+    expect(results.single.distanceKm, lessThanOrEqualTo(25));
+  });
+
   test('local places are returned without waiting for Overpass', () async {
     const latitude = 39.9208;
     const longitude = 32.8541;
@@ -388,7 +534,7 @@ void main() {
     expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 250)));
   });
 
-  test('local places remain available independently of remote refresh',
+  test('local places are not treated as nearby without device coordinates',
       () async {
     final localPlace = Place(
       'Offline local çeşme',
@@ -408,11 +554,8 @@ void main() {
     final initial = await NearbyPlacesService.fetch(offlineTarget);
     final stillAvailable = NearbyPlacesService.availableNow(offlineTarget);
 
-    expect(
-        initial.any((place) => place.sourceId == 'offline-local-test'), isTrue);
-    expect(
-        stillAvailable.any((place) => place.sourceId == 'offline-local-test'),
-        isTrue);
+    expect(initial, isEmpty);
+    expect(stillAvailable, isEmpty);
   });
 
   testWidgets('home state is preserved and map stays lazy', (tester) async {
@@ -423,10 +566,9 @@ void main() {
 
     expect(find.byType(FlutterMap), findsNothing);
 
-    await tester.tap(find.text('Su').first);
+    await tester.tap(find.byType(AppCategoryChip).first);
     await tester.pump();
-    expect(find.text('Yakındaki Su'), findsOneWidget);
-    expect(find.text('25 km içinde'), findsOneWidget);
+    expect(find.text('Bugün sana uygun'), findsOneWidget);
 
     await tester.tap(find.text('Harita'));
     await tester.pump();
@@ -434,7 +576,196 @@ void main() {
 
     await tester.tap(find.text('Keşfet'));
     await tester.pump();
-    expect(find.text('Yakındaki Su'), findsOneWidget);
+    expect(find.text('Bugün sana uygun'), findsOneWidget);
+  });
+
+  testWidgets(
+      'map marker opens the shared preview and ignores invalid coordinates',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(() => UserPlacesController.places.value = const []);
+
+    UserPlacesController.places.value = [
+      Place(
+        'Harita Test Şelalesi',
+        'Bolu',
+        'Şelale',
+        4.8,
+        Icons.waterfall_chart_rounded,
+        const [Color(0xFF315F45), Color(0xFF9BBF82)],
+        null,
+        description: 'Gerçek koordinatlı harita test noktası.',
+        latitude: 40.73,
+        longitude: 31.61,
+        sourceId: 'map-preview-valid',
+      ),
+      Place(
+        'Geçersiz Sıfır Noktası',
+        'Bilinmiyor',
+        'Şelale',
+        0,
+        Icons.waterfall_chart_rounded,
+        const [Color(0xFF315F45), Color(0xFF9BBF82)],
+        null,
+        latitude: 0,
+        longitude: 0,
+        sourceId: 'map-preview-invalid',
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: MapScreen(onOpen: (_) {})),
+    ));
+    await tester.pump();
+
+    expect(find.byType(AppMapPreviewCard), findsNothing);
+    expect(
+        find.bySemanticsLabel('Haritada Harita Test Şelalesi'), findsOneWidget);
+    expect(
+        find.bySemanticsLabel('Haritada Geçersiz Sıfır Noktası'), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('Haritada Harita Test Şelalesi'));
+    await tester.pump();
+
+    expect(find.byType(AppMapPreviewCard), findsOneWidget);
+    expect(find.text('Yakındakiler'), findsNothing);
+    expect(find.byTooltip('Kartı kapat'), findsOneWidget);
+    expect(find.text('Harita Test Şelalesi'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('selecting another map marker updates the same preview card',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(() => UserPlacesController.places.value = const []);
+
+    UserPlacesController.places.value = [
+      duplicateFixture(
+        name: 'Birinci Harita Noktası',
+        latitude: 40.73,
+        longitude: 31.61,
+      ),
+      duplicateFixture(
+        name: 'İkinci Harita Noktası',
+        latitude: 37.0,
+        longitude: 34.8,
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: MapScreen(onOpen: (_) {})),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.bySemanticsLabel('Haritada Birinci Harita Noktası'));
+    await tester.pump();
+    expect(find.text('Birinci Harita Noktası'), findsWidgets);
+
+    await tester.tap(find.byTooltip('En yakın sonraki yer'));
+    await tester.pump();
+    expect(find.byType(AppMapPreviewCard), findsOneWidget);
+    expect(find.text('İkinci Harita Noktası'), findsWidgets);
+    final camera = tester
+        .widget<FlutterMap>(find.byType(FlutterMap))
+        .mapController!
+        .camera;
+    expect(camera.zoom, greaterThanOrEqualTo(12));
+    expect(camera.center.longitude, closeTo(34.8, 0.01));
+    await tester.tap(find.byTooltip('Önceki yer'));
+    await tester.pump();
+    expect(find.text('Birinci Harita Noktası'), findsWidgets);
+    await tester.tap(find.byTooltip('Kartı kapat'));
+    await tester.pump();
+    expect(find.byType(AppMapPreviewCard), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('map floating controls stay overflow-free on phone widths',
+      (tester) async {
+    const pathChannel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            pathChannel, (_) async => Directory.systemTemp.path);
+    addTearDown(() => TestDefaultBinaryMessengerBinding
+        .instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(pathChannel, null));
+    addTearDown(() => UserPlacesController.places.value = const []);
+    if (const bool.fromEnvironment('CAPTURE_MAP')) {
+      for (final family in ['Roboto', 'Outfit']) {
+        await (FontLoader(family)
+              ..addFont(rootBundle.load('assets/fonts/Outfit-Variable.ttf')))
+            .load();
+      }
+      await (FontLoader('MaterialIcons')
+            ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf')))
+          .load();
+    }
+    for (final width in [320.0, 360.0, 375.0, 390.0, 412.0, 430.0]) {
+      tester.view.physicalSize = Size(width, 800);
+      tester.view.devicePixelRatio = 1;
+      UserPlacesController.places.value = [
+        duplicateFixture(name: 'Dar Ekran Harita Noktası', kind: 'Şelale'),
+      ];
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: MapScreen(onOpen: (_) {})),
+      ));
+      await tester.pump();
+      await tester
+          .tap(find.bySemanticsLabel('Haritada Dar Ekran Harita Noktası'));
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: '${width.toInt()}px');
+      if (width == 390 && const bool.fromEnvironment('CAPTURE_MAP')) {
+        await expectLater(find.byType(Scaffold),
+            matchesGoldenFile('goldens/map_selection.png'));
+      }
+    }
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  });
+
+  testWidgets('premium bottom navigation keeps its tabs and center add route',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: MainShell()));
+    await tester.pump();
+    await tester.tap(find.text('Şimdi Değil'));
+    await tester.pump();
+
+    expect(find.byTooltip('Keşfet'), findsOneWidget);
+    expect(find.byTooltip('Harita'), findsOneWidget);
+    expect(find.byTooltip('İyilik'), findsOneWidget);
+    expect(find.byTooltip('Profil'), findsOneWidget);
+    expect(find.byTooltip('Yer Ekle'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AddPlaceScreen), findsOneWidget);
+  });
+
+  testWidgets('premium bottom navigation remains overflow-free on phones',
+      (tester) async {
+    for (final width in [320.0, 360.0, 375.0, 390.0, 412.0, 430.0]) {
+      tester.view.physicalSize = Size(width, 800);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: MainShell()));
+      await tester.pump();
+      final deferLocation = find.text('Şimdi Değil');
+      if (deferLocation.evaluate().isNotEmpty) {
+        await tester.tap(deferLocation);
+        await tester.pump();
+      }
+
+      expect(tester.takeException(), isNull, reason: '${width.toInt()}px');
+    }
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
   });
 
   testWidgets('local cards render without a large section spinner',
@@ -475,7 +806,7 @@ void main() {
     expect(find.text('Anında görünen çeşme'), findsWidgets);
   });
 
-  testWidgets('weather hides stale current-location data while resolving',
+  testWidgets('home header hides stale current-location data while resolving',
       (tester) async {
     HomeWeatherLocationController.useDeviceCoordinates(
       latitude: 39.92,
@@ -495,19 +826,17 @@ void main() {
     ));
 
     expect(find.text('Konum belirleniyor'), findsOneWidget);
-    expect(find.text('MEVCUT KONUM  •  ŞU AN'), findsNothing);
   });
 
-  testWidgets('empty nearby and latest sections expose useful actions',
+  testWidgets('nearby section requests location instead of faking proximity',
       (tester) async {
     tester.view.physicalSize = const Size(800, 3000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     UserPlacesController.places.value = const [];
-    HomeWeatherLocationController.useManualCity('UX boş durum test bölgesi');
-    var mapOpened = false;
-    var addOpened = false;
+    HomeWeatherLocationController.useFallbackCity();
+    var locationRequested = false;
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -515,18 +844,16 @@ void main() {
           onOpen: (_) {},
           onSearch: () {},
           onMessages: () {},
-          onExploreMap: () => mapOpened = true,
-          onAddPlace: () => addOpened = true,
+          onRequestLocation: () => locationRequested = true,
         ),
       ),
     ));
     await tester.pump();
 
-    await tester.tap(find.text('Haritada keşfet').first);
-    await tester.tap(find.text('İlk yeri sen ekle'));
-    expect(mapOpened, isTrue);
-    expect(addOpened, isTrue);
-    expect(find.text('Tekrar dene'), findsWidgets);
+    expect(find.text('Yakınındaki yerleri görmek için konum izni ver.'),
+        findsOneWidget);
+    await tester.tap(find.text('Konumu Aç'));
+    expect(locationRequested, isTrue);
   });
 
   test('selected map place closes only outside the expanded viewport', () {
