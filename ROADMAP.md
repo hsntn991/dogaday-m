@@ -21,7 +21,8 @@
 - [x] 25 km Overpass ve sınırlı timeout
 - [x] Ana ekran state koruması
 - [x] Lazy harita ve marker clustering
-- [ ] Gerçek cihaz performans ölçümü
+- [x] Ana ekran recommendation memoization ve kart cacheWidth optimizasyonu
+- [ ] Gerçek cihaz performans ölçümü (Aşama 2: SharedPreferences önbellek)
 
 ## Faz 2 — Veri kalitesi ve yer ekleme
 
@@ -47,8 +48,11 @@
 
 - [x] Admin rol kontrolü ve temel RLS
 - [x] Başvuru hız sınırı ve güvenli RPC
+- [x] Kapsamlı güvenlik denetimi ve P0 bulguların doğrulanması
+- [x] P0 Başvuru güvenlik sıkılaştırması (main_category, facilities JSONB, payload limitleri)
+- [x] Production migration geçmişi senkronizasyonu (supabase_migrations)
 - [ ] Yönetici MFA
-- [ ] Canlı RLS/RPC güvenlik testi
+- [ ] P1 Güvenlik sertleştirmesi (launchUrl şema kontrolü, app_user_roles ve audit_logs açık revoke)
 - [ ] Secret/release yapılandırması denetimi
 - [ ] Hata izleme, yedekleme ve kötüye kullanım planı
 

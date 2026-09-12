@@ -1,7 +1,7 @@
 # Doğadayım — Kalıcı Hafıza
 
-Son güncelleme: 2026-09-03
-Son doğrulanan commit: `3e252f4fc8590d04a7342c3e14da5f699994f121`
+Son güncelleme: 2026-09-13
+Son doğrulanan commit: `552f7f42ea7d3885060aca347ecfe4e9ebe1d874`
 
 ## Ürün amacı
 
@@ -37,6 +37,10 @@ Türkiye için toplum destekli doğa haritası. Gerçek konum, kaynak ve kullan�
 - Kalıcı kullanıcı fotoğrafı, yer ekleme kalite kontrolü ve moderasyon başvuru akışı.
 - Supabase yönetici paneli, güvenlik migration'ları ve başvuru/local kayıt uzlaştırması.
 - Marmara hakkında, kaynak, olanak ve açık lisanslı fotoğraf zenginleştirmesi.
+- Ana ekran performans optimizasyonu: build() dışına çıkarılan memoized recommendation motoru ve kart cacheWidth küçültmesi (`e5769c1`).
+- Eski profil buton tasarımı testinin güncellenmesi (`ecd3a53`).
+- Kapsamlı güvenlik denetimi: P0/P1/P2 sınıflandırması ve preflight doğrulaması.
+- P0 Başvuru Güvenlik Sıkılaştırması (`202609130001`): `main_category`, `facilities` JSONB ve payload boyut sınırları veritabanı seviyesinde eklendi; `supabase_migrations` tablosu başlatılarak tüm migration geçmişi production'da senkronize edildi (`552f7f4`).
 
 ## Açık riskler
 
