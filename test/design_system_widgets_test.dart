@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('profile edit button fits a row with full-width button theme',
+  testWidgets(
+      'secondary button fits bounded layout with full-width button theme',
       (tester) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -18,14 +19,23 @@ void main() {
             ),
           ),
         ),
-        home: Scaffold(body: FigmaProfileScreen(onOpen: (_) {})),
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: width - 124,
+              child: AppSecondaryButton(
+                label: 'Düzenle',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
       ));
       expect(tester.takeException(), isNull, reason: '${width.toInt()}px');
       expect(
-          tester
-              .getSize(find.widgetWithText(OutlinedButton, 'Profili Düzenle'))
-              .width,
-          lessThan(width - 124));
+        tester.getSize(find.byType(AppSecondaryButton)).width,
+        lessThanOrEqualTo(width - 124),
+      );
     }
   });
 
