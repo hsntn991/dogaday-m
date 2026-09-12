@@ -1,7 +1,7 @@
 # Doğadayım — Kalıcı Hafıza
 
 Son güncelleme: 2026-09-03
-Son doğrulanan commit: `d6eec404eaba7f0e8330da942e3bc7568e3731b6`
+Son doğrulanan commit: `3e252f4fc8590d04a7342c3e14da5f699994f121`
 
 ## Ürün amacı
 
@@ -20,6 +20,15 @@ Türkiye için toplum destekli doğa haritası. Gerçek konum, kaynak ve kullan�
 - Harita OSM altlığı, gerçek koordinatlar, kategori filtresi, marker cluster ve canlı kullanıcı konumu kullanır.
 - Çevrimdışı local kayıtlar ve gönderim kuyruğu korunur.
 - V8.5.1 araştırma motoru ve 81-il PBF önbelleği uygulama entegrasyonundan bağımsız tutulur.
+- Konya KOSKİ tarihî çeşme envanteri `places` içindedir; 3.617 koordinatlı kayıt `water_fountain` utility olarak doğrulanmış ve yayınlanmıştır. Bu kayıtlar Keşfet destinasyonları değildir; haritadaki ayrı Çeşme filtresinden görünür.
+
+## Model kullanım notları
+
+- Kullanıcı token/kredi tüketiminin dengede tutulmasını istiyor; işler yarım kalmamalı.
+- Basit görevlerde `gpt-5.6-luna`, normal geliştirmede `gpt-5.6-terra`, kritik/karmaşık işlerde `gpt-5.6-sol` önerilir.
+- `gpt-5.6-sol` yalnız güvenlik, veri modeli, RLS, performans darboğazı, büyük hata ayıklama veya yüksek riskli kararlar için kullanılmalı.
+- Her yeni faz başında önerilen model seviyesi kullanıcıya hatırlatılmalı.
+- Gereksiz proje taraması, aynı dosyayı tekrar okuma, geniş refactor ve gereksiz test komutları token maliyeti artırdığı için kaçınılmalıdır.
 
 ## Tamamlanan ana fazlar
 

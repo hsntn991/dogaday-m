@@ -24,3 +24,6 @@ key.properties
 **/key.properties
 *.pem
 *.p12
+.vscode/
+design_backups/
+supabase/.temp/

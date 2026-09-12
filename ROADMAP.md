@@ -5,7 +5,15 @@
 - [x] Kalıcı proje hafızası
 - [x] Başlama ve gün sonu tetikleyicileri
 - [x] GitHub deposunu bağla ve ilk push'u doğrula
+- [x] Model geçiş ve token tasarrufu notları
 - [ ] Secret ve `.gitignore` kontrolünü her sürümde uygula
+
+## Model Geçiş Rehberi
+
+- `gpt-5.6-luna`: küçük metin/UI düzeltmeleri, tek dosya değişiklikleri, kısa kontroller.
+- `gpt-5.6-terra`: varsayılan geliştirme modeli; Flutter/Supabase tarafında orta ölçekli işler.
+- `gpt-5.6-sol`: güvenlik, RLS, Supabase migration, performans darboğazı, kapsamlı debug ve mimari kararlar.
+- Faz değişimlerinde model önerisi tekrar kontrol edilecek; gereksiz yüksek model kullanılmayacak.
 
 ## Faz 1 — Temel ve performans
 
@@ -29,6 +37,9 @@
 - [x] `about_text`, `about_sources`, `app_amenities`
 - [x] `not_found` semantiği ve medya önceliği
 - [x] Pixabay A/B–Q1/Q2 filtresi
+- [x] Çeşme (`water_fountain`) utility taksonomisi ve harita filtresi
+- [x] Konya çeşme kayıtlarının gerçek Supabase tablo/görünümünü doğrula
+- [x] Konya KOSKİ çeşmelerini `water_fountain` utility türüyle yayınla ve public API erişimini doğrula
 - [ ] 81 il için kompakt veri üretimi
 - [ ] Gerçek Pixabay sonuçlarını kontrollü içe aktar
 
