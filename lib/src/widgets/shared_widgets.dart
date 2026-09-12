@@ -62,10 +62,12 @@ class NatureArt extends StatelessWidget {
     required this.place,
     this.radius = AppRadii.large,
     this.showKind = true,
+    this.cacheWidth = 900,
   });
   final Place place;
   final double radius;
   final bool showKind;
+  final int cacheWidth;
   @override
   Widget build(BuildContext context) {
     final effectiveRadius = radius.clamp(0, AppRadii.large).toDouble();
@@ -84,6 +86,7 @@ class NatureArt extends StatelessWidget {
         children: [
           PlaceImage(
             place: place,
+            cacheWidth: cacheWidth,
             fallback: Center(
               child: Icon(
                 place.icon,
@@ -152,6 +155,7 @@ class CompactPlaceCard extends StatelessWidget {
                     place: place,
                     radius: AppRadii.medium,
                     showKind: false,
+                    cacheWidth: 200,
                   ),
                 ),
                 const SizedBox(width: 13),

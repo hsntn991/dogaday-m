@@ -171,11 +171,6 @@ class FigmaHomeScreen extends StatefulWidget {
 class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
   String? selectedCategory;
 
-  int get userPlacesRevision => Object.hashAll(
-        UserPlacesController.places.value.map((place) => place.sourceId),
-      );
-  int get nearbyRevision => NearbyPlacesService.revision.value;
-
   @override
   void initState() {
     super.initState();
@@ -264,9 +259,6 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
             ValueListenableBuilder<WeatherTarget>(
               valueListenable: HomeWeatherLocationController.current,
               builder: (_, target, __) => _TodayRecommendationsSection(
-                key: ValueKey(
-                  'recommendations:${target.cacheKey}:$userPlacesRevision:$nearbyRevision:${WeatherService.revision.value}:$selectedCategory',
-                ),
                 target: target,
                 preferredCategory: selectedCategory,
                 onOpen: widget.onOpen,
@@ -277,8 +269,6 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
             ValueListenableBuilder<WeatherTarget>(
               valueListenable: HomeWeatherLocationController.current,
               builder: (_, target, __) => _NearbyPlacesSection(
-                key: ValueKey(
-                    'nearby:${target.cacheKey}:$userPlacesRevision:$nearbyRevision'),
                 target: target,
                 preferredCategory: selectedCategory,
                 onOpen: widget.onOpen,
@@ -407,9 +397,8 @@ class _RealFeaturedPlace extends StatelessWidget {
   }
 }
 
-class _TodayRecommendationsSection extends StatelessWidget {
+class _TodayRecommendationsSection extends StatefulWidget {
   const _TodayRecommendationsSection({
-    super.key,
     required this.target,
     required this.preferredCategory,
     required this.onOpen,
@@ -422,21 +411,67 @@ class _TodayRecommendationsSection extends StatelessWidget {
   final VoidCallback? onExploreMap;
 
   @override
-  Widget build(BuildContext context) {
-    final hasLocation = target.usesCoordinates;
-    final available = NearbyPlacesService.availableNow(target);
+  State<_TodayRecommendationsSection> createState() =>
+      _TodayRecommendationsSectionState();
+}
+
+class _TodayRecommendationsSectionState
+    extends State<_TodayRecommendationsSection> {
+  List<PlaceRecommendation> _recommendations = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _recomputeRecommendations();
+    UserPlacesController.places.addListener(_handleUpdate);
+    SupabasePlacesController.places.addListener(_handleUpdate);
+    NearbyPlacesService.revision.addListener(_handleUpdate);
+    WeatherService.revision.addListener(_handleUpdate);
+  }
+
+  @override
+  void didUpdateWidget(covariant _TodayRecommendationsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.target != widget.target ||
+        oldWidget.preferredCategory != widget.preferredCategory) {
+      _recomputeRecommendations();
+    }
+  }
+
+  @override
+  void dispose() {
+    UserPlacesController.places.removeListener(_handleUpdate);
+    SupabasePlacesController.places.removeListener(_handleUpdate);
+    NearbyPlacesService.revision.removeListener(_handleUpdate);
+    WeatherService.revision.removeListener(_handleUpdate);
+    super.dispose();
+  }
+
+  void _handleUpdate() {
+    if (!mounted) return;
+    setState(_recomputeRecommendations);
+  }
+
+  void _recomputeRecommendations() {
+    final hasLocation = widget.target.usesCoordinates;
+    final available = NearbyPlacesService.availableNow(widget.target);
 
     final candidates = <Place>[
       ...SupabasePlacesController.places.value,
       ...UserPlacesController.places.value,
       ...available,
     ].where(_isTodayTripCandidate);
-    final recommendations = RecommendationService.rank(
+    _recommendations = RecommendationService.rank(
       places: candidates,
-      weather: WeatherService.availableNow(target),
+      weather: WeatherService.availableNow(widget.target),
       hasUserLocation: hasLocation,
-      preferredCategory: preferredCategory,
-    ).take(2).toList();
+      preferredCategory: widget.preferredCategory,
+    ).take(2).toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recommendations = _recommendations;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,7 +479,7 @@ class _TodayRecommendationsSection extends StatelessWidget {
         AppSectionHeader(
           title: 'Bugün sana uygun',
           actionLabel: 'Tümünü gör',
-          onAction: onExploreMap,
+          onAction: widget.onExploreMap,
         ),
         const SizedBox(height: 16),
         if (recommendations.isEmpty)
@@ -452,8 +487,9 @@ class _TodayRecommendationsSection extends StatelessWidget {
             message: 'Şu an için uygun bir öneri bulunamadı.',
             actionLabel: 'Haritada keşfet',
             actionIcon: Icons.map_outlined,
-            onAction: onExploreMap ?? () {},
-            onRefresh: () => unawaited(NearbyPlacesService.refresh(target)),
+            onAction: widget.onExploreMap ?? () {},
+            onRefresh: () =>
+                unawaited(NearbyPlacesService.refresh(widget.target)),
           )
         else
           LayoutBuilder(
@@ -473,8 +509,8 @@ class _TodayRecommendationsSection extends StatelessWidget {
                       return _RecommendationCard(
                         width: cardWidth,
                         recommendation: recommendation,
-                        showDistance: target.usesCoordinates,
-                        onTap: () => onOpen(recommendation.place),
+                        showDistance: widget.target.usesCoordinates,
+                        onTap: () => widget.onOpen(recommendation.place),
                       );
                     },
                   ),
@@ -820,7 +856,6 @@ class _CategoryFeaturedSectionState extends State<_CategoryFeaturedSection> {
 
 class _NearbyPlacesSection extends StatefulWidget {
   const _NearbyPlacesSection({
-    super.key,
     required this.target,
     required this.preferredCategory,
     required this.onOpen,
@@ -847,6 +882,16 @@ class _NearbyPlacesSectionState extends State<_NearbyPlacesSection> {
     future = widget.target.usesCoordinates
         ? NearbyPlacesService.fetch(widget.target)
         : Future.value(const <Place>[]);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NearbyPlacesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.target != widget.target) {
+      future = widget.target.usesCoordinates
+          ? NearbyPlacesService.fetch(widget.target)
+          : Future.value(const <Place>[]);
+    }
   }
 
   void retry() => setState(() {
@@ -1751,7 +1796,12 @@ class _HeroPlace extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadii.large),
               border: Border.all(color: AppColors.border)),
           child: Stack(fit: StackFit.expand, children: [
-            NatureArt(place: place, radius: 0, showKind: false),
+            NatureArt(
+              place: place,
+              radius: 0,
+              showKind: false,
+              cacheWidth: 700,
+            ),
             const DecoratedBox(
                 decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -1844,7 +1894,12 @@ class _SmallPhotoCard extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
                 child: Stack(fit: StackFit.expand, children: [
-              NatureArt(place: place, radius: 0, showKind: !kindBelow),
+              NatureArt(
+                place: place,
+                radius: 0,
+                showKind: !kindBelow,
+                cacheWidth: 360,
+              ),
               if (kindBelow)
                 Positioned(
                     left: 9,
@@ -2000,6 +2055,7 @@ class _CommunityCard extends StatelessWidget {
                       place: suggestion.place,
                       radius: 0,
                       showKind: false,
+                      cacheWidth: 360,
                     ),
                     const DecoratedBox(
                       decoration: BoxDecoration(
@@ -2263,7 +2319,12 @@ class _PlaceRow extends StatelessWidget {
           child: Row(children: [
             SizedBox(
                 width: 62,
-                child: NatureArt(place: place, radius: 13, showKind: false)),
+                child: NatureArt(
+                  place: place,
+                  radius: 13,
+                  showKind: false,
+                  cacheWidth: 180,
+                )),
             const SizedBox(width: 13),
             Expanded(
                 child: Column(

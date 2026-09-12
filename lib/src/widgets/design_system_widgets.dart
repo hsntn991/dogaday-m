@@ -242,10 +242,12 @@ class AppPlaceThumbnail extends StatelessWidget {
     super.key,
     required this.place,
     this.radius = AppRadii.medium,
+    this.cacheWidth = 900,
   });
 
   final Place place;
   final double radius;
+  final int cacheWidth;
 
   @override
   Widget build(BuildContext context) => ClipRRect(
@@ -257,6 +259,7 @@ class AppPlaceThumbnail extends StatelessWidget {
             children: [
               PlaceImage(
                 place: place,
+                cacheWidth: cacheWidth,
                 fallback: Center(
                   child: Icon(
                     place.icon,
@@ -406,7 +409,11 @@ class AppPlaceHeroCard extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        AppPlaceThumbnail(place: place, radius: 0),
+                        AppPlaceThumbnail(
+                          place: place,
+                          radius: 0,
+                          cacheWidth: 380,
+                        ),
                         Positioned(
                           right: 6,
                           top: 6,
@@ -505,7 +512,7 @@ class AppMapPreviewCard extends StatelessWidget {
               SizedBox(
                 width: imageWidth,
                 height: double.infinity,
-                child: AppPlaceThumbnail(place: place),
+                child: AppPlaceThumbnail(place: place, cacheWidth: 200),
               ),
               const SizedBox(width: AppSpacing.small),
               Expanded(

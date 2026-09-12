@@ -1517,6 +1517,14 @@ class NearbyPlacesService {
   static final _cache = <String, ({DateTime fetchedAt, List<Place> places})>{};
   static final _inFlight = <String, Future<List<Place>>>{};
   static final revision = ValueNotifier<int>(0);
+  static String? _lastMergedTargetKey;
+  static List<Place>? _lastUserPlacesRef;
+  static List<Place>? _lastSupabasePlacesRef;
+  static int _lastMergedRevision = -1;
+  static List<Place>? _lastMergedResult;
+  static String? _lastFilteredKey;
+  static List<Place>? _lastFilteredPlacesRef;
+  static List<Place>? _lastFilteredResult;
 
   static int get queryRadiusMeters => _radiusMeters;
   static int get queryRadiusKm => _radiusMeters ~/ 1000;
@@ -1558,11 +1566,32 @@ class NearbyPlacesService {
 
   static List<Place> availableNow(WeatherTarget target) {
     if (!target.usesCoordinates) return const <Place>[];
+    final targetKey = target.cacheKey;
+    final userPlaces = UserPlacesController.places.value;
+    final supabasePlaces = SupabasePlacesController.places.value;
+    final currentRevision = revision.value;
+
+    if (_lastMergedResult != null &&
+        _lastMergedTargetKey == targetKey &&
+        identical(_lastUserPlacesRef, userPlaces) &&
+        identical(_lastSupabasePlacesRef, supabasePlaces) &&
+        _lastMergedRevision == currentRevision) {
+      return _lastMergedResult!;
+    }
+
     final cached = _cache[cacheRegionKey(target)];
-    return _mergeAvailablePlaces(
+    final result = _mergeAvailablePlaces(
       target,
       cached?.places ?? const <Place>[],
     );
+
+    _lastMergedTargetKey = targetKey;
+    _lastUserPlacesRef = userPlaces;
+    _lastSupabasePlacesRef = supabasePlaces;
+    _lastMergedRevision = currentRevision;
+    _lastMergedResult = result;
+
+    return result;
   }
 
   static List<Place> availableLatestNow(WeatherTarget target) {
@@ -1649,6 +1678,13 @@ class NearbyPlacesService {
     String? preferredCategory,
   }) {
     if (!target.usesCoordinates) return const <Place>[];
+    final filterKey = '${target.cacheKey}:$preferredCategory';
+    if (places is List<Place> &&
+        _lastFilteredResult != null &&
+        identical(_lastFilteredPlacesRef, places) &&
+        _lastFilteredKey == filterKey) {
+      return _lastFilteredResult!;
+    }
     final nearby = places
         .where((place) => place.hasCoordinates)
         .map((place) => _withTargetDistance(target, place))
@@ -1658,6 +1694,11 @@ class NearbyPlacesService {
         .toList()
       ..sort((a, b) => (a.distanceKm ?? double.infinity)
           .compareTo(b.distanceKm ?? double.infinity));
+    if (places is List<Place>) {
+      _lastFilteredPlacesRef = places;
+      _lastFilteredKey = filterKey;
+      _lastFilteredResult = nearby;
+    }
     return nearby;
   }
 
