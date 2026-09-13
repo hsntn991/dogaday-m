@@ -1,5 +1,8 @@
 part of '../../main.dart';
 
+bool isSafeExternalUrl(Uri? uri) =>
+    uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+
 class DetailScreen extends StatefulWidget {
   const DetailScreen({
     super.key,
@@ -426,9 +429,9 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
           return ActionChip(
             avatar: const Icon(Icons.open_in_new_rounded, size: 15),
             label: Text(label),
-            onPressed: uri == null || !uri.hasScheme
-                ? null
-                : () => launchUrl(uri, mode: LaunchMode.externalApplication),
+            onPressed: isSafeExternalUrl(uri)
+                ? () => launchUrl(uri!, mode: LaunchMode.externalApplication)
+                : null,
           );
         }).toList(growable: false),
       ),
@@ -518,6 +521,11 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
           'https://www.google.com/maps/dir/?api=1&destination=$destination&travelmode=driving',
         ),
     };
+
+    if (!isSafeExternalUrl(uri)) {
+      if (mounted) message('Seçilen harita uygulaması açılamadı.');
+      return;
+    }
 
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
@@ -1027,7 +1035,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                         trailing: const Icon(Icons.open_in_new, size: 16),
                         onTap: () {
                           final uri = Uri.tryParse(photo.sourcePageUrl ?? '');
-                          if (uri != null && uri.scheme == 'https') launchUrl(uri);
+                          if (isSafeExternalUrl(uri)) launchUrl(uri!);
                         },
                       ),
                     aboutSourcesSection(),

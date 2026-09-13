@@ -1212,4 +1212,17 @@ void main() {
       findsOneWidget,
     );
   });
+
+  test('isSafeExternalUrl allows only http and https schemes', () {
+    expect(isSafeExternalUrl(null), isFalse);
+    expect(isSafeExternalUrl(Uri.tryParse('')), isFalse);
+    expect(isSafeExternalUrl(Uri.tryParse('javascript:alert(1)')), isFalse);
+    expect(isSafeExternalUrl(Uri.tryParse('file:///etc/passwd')), isFalse);
+    expect(isSafeExternalUrl(Uri.tryParse('intent://scan/#Intent;scheme=zxing;end')), isFalse);
+    expect(isSafeExternalUrl(Uri.tryParse('tel:+905551234567')), isFalse);
+    expect(isSafeExternalUrl(Uri.tryParse('sms:+905551234567')), isFalse);
+    expect(isSafeExternalUrl(Uri.tryParse('data:text/html,test')), isFalse);
+    expect(isSafeExternalUrl(Uri.tryParse('http://example.com')), isTrue);
+    expect(isSafeExternalUrl(Uri.tryParse('https://maps.google.com/?q=test')), isTrue);
+  });
 }
