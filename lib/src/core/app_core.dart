@@ -984,7 +984,9 @@ class SupabasePlacesController {
   static Future<void> loadCachedAndRefresh() async {
     try {
       await loadCached();
-      places.value = await ResearchPhotoPlaces.merge(places.value);
+      places.value = await RegionalResearchPlaces.merge(
+        await ResearchPhotoPlaces.merge(places.value),
+      );
     } finally {
       await refresh();
     }
@@ -1068,7 +1070,9 @@ class SupabasePlacesController {
       );
     }
 
-    places.value = await ResearchPhotoPlaces.merge(loadedPlaces);
+    places.value = await RegionalResearchPlaces.merge(
+      await ResearchPhotoPlaces.merge(loadedPlaces),
+    );
 
     final preferences = await SharedPreferences.getInstance();
     await preferences.setStringList(

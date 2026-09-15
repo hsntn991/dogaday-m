@@ -216,6 +216,81 @@ List<PlaceEnrichment> _decodePlaceEnrichment(String raw) => (jsonDecode(raw)
     .map((item) => PlaceEnrichment.fromJson(Map<String, dynamic>.from(item)))
     .toList(growable: false);
 
+class RegionalResearchPlaces {
+  RegionalResearchPlaces._();
+
+  static Future<List<Place>>? _future;
+  static const _genericNames = {'piknik alani', 'kamp alani', 'camping', 'bungalows'};
+
+  static List<Place> decodeRecords(List<dynamic> rows) {
+    final places = <Place>[];
+    for (final value in rows) {
+      if (value is! Map) continue;
+      final row = Map<String, dynamic>.from(value);
+      final id = row['id']?.toString().trim() ?? '';
+      final name = row['name']?.toString().trim() ?? '';
+      final province = row['province']?.toString().trim() ?? '';
+      final latitude = row['latitude'];
+      final longitude = row['longitude'];
+      if (id.isEmpty || name.isEmpty || province.isEmpty ||
+          _genericNames.contains(AddPlaceQualityService.normalizeName(name)) ||
+          latitude is! num || longitude is! num || !latitude.isFinite ||
+          !longitude.isFinite || latitude.abs() > 90 || longitude.abs() > 180) {
+        continue;
+      }
+      final subtype = row['subtype']?.toString();
+      final mainCategory = row['main_category']?.toString();
+      places.add(Place(
+        name,
+        province,
+        taxonomyDisplayLabel(
+          fallback: row['category']?.toString() ?? 'Doğa Noktası',
+          mainCategory: mainCategory,
+          subtype: subtype,
+        ),
+        0,
+        Icons.place_rounded,
+        const [Color(0xFF315F45), Color(0xFF9BBF82)],
+        null,
+        description: row['description']?.toString() ?? '',
+        latitude: latitude.toDouble(),
+        longitude: longitude.toDouble(),
+        sourceId: 'research:${id}',
+        source: PlaceSource.osm,
+        verificationStatus: VerificationStatus.verified,
+        mainCategory: mainCategory,
+        subtype: subtype,
+      ));
+    }
+    return places;
+  }
+
+  static Future<List<Place>> load() => _future ??= _load();
+
+  static Future<List<Place>> _load() async {
+    final raw = await rootBundle.loadString('assets/data/akdeniz_research_places.json');
+    return decodeRecords(jsonDecode(raw) as List);
+  }
+
+  static Future<List<Place>> merge(List<Place> existing) async {
+    final result = [...existing];
+    for (final place in await load()) {
+      final duplicate = result.any((candidate) =>
+          candidate.sourceId == place.sourceId ||
+          (AddPlaceQualityService.normalizeName(candidate.name) ==
+                  AddPlaceQualityService.normalizeName(place.name) &&
+              candidate.hasCoordinates &&
+              NearbyPlacesService.calculateDistanceKm(
+                    candidate.latitude!, candidate.longitude!,
+                    place.latitude!, place.longitude!,
+                  ) <=
+                  .75));
+      if (!duplicate) result.add(place);
+    }
+    return result;
+  }
+}
+
 class ResearchPhotoPlaces {
   static Future<List<Place>>? _future;
   static Future<List<Map<String, dynamic>>>? _records;

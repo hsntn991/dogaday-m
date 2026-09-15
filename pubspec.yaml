@@ -31,6 +31,7 @@ flutter:
     - assets/branding/dogadayim_logo_mark.png
     - assets/maps/turkiye_provinces_paintmaps.png
     - assets/data/marmara_place_enrichment.json
+    - assets/data/akdeniz_research_places.json
     - assets/data/research_photos.json
     - assets/data/research_photo_places.json
   fonts:
