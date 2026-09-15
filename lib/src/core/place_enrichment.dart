@@ -272,23 +272,8 @@ class RegionalResearchPlaces {
     return decodeRecords(jsonDecode(raw) as List);
   }
 
-  static Future<List<Place>> merge(List<Place> existing) async {
-    final result = [...existing];
-    for (final place in await load()) {
-      final duplicate = result.any((candidate) =>
-          candidate.sourceId == place.sourceId ||
-          (AddPlaceQualityService.normalizeName(candidate.name) ==
-                  AddPlaceQualityService.normalizeName(place.name) &&
-              candidate.hasCoordinates &&
-              NearbyPlacesService.calculateDistanceKm(
-                    candidate.latitude!, candidate.longitude!,
-                    place.latitude!, place.longitude!,
-                  ) <=
-                  .75));
-      if (!duplicate) result.add(place);
-    }
-    return result;
-  }
+  static Future<List<Place>> merge(List<Place> existing) async =>
+      ResearchPhotoPlaces.mergePlaces(existing: existing, incoming: await load());
 }
 
 class ResearchPhotoPlaces {
@@ -350,16 +335,65 @@ class ResearchPhotoPlaces {
         mainCategory: data['main_category'], subtype: data['subtype']);
     }).toList();
   }
-  static Future<List<Place>> merge(List<Place> existing) async {
+  static List<Place> mergePlaces({
+    required List<Place> existing,
+    required List<Place> incoming,
+  }) {
     final result = [...existing];
-    for (final place in await load()) {
-      final duplicate = result.any((p) => p.sourceId == place.sourceId ||
-        (AddPlaceQualityService.normalizeName(p.name) == AddPlaceQualityService.normalizeName(place.name) &&
-          p.hasCoordinates && NearbyPlacesService.calculateDistanceKm(p.latitude!, p.longitude!, place.latitude!, place.longitude!) <= .75));
-      if (!duplicate) result.add(place);
+    final knownSourceIds = <String>{};
+    final byNormalizedName = <String, List<Place>>{};
+
+    for (final place in existing) {
+      final sourceId = place.sourceId;
+      if (sourceId != null && sourceId.isNotEmpty) {
+        knownSourceIds.add(sourceId);
+      }
+      final normalized = AddPlaceQualityService.normalizeName(place.name);
+      (byNormalizedName[normalized] ??= <Place>[]).add(place);
     }
+
+    for (final place in incoming) {
+      final sourceId = place.sourceId;
+      if (sourceId != null &&
+          sourceId.isNotEmpty &&
+          knownSourceIds.contains(sourceId)) {
+        continue;
+      }
+
+      final normalized = AddPlaceQualityService.normalizeName(place.name);
+      final candidates = byNormalizedName[normalized];
+
+      var isDuplicate = false;
+      if (candidates != null && place.hasCoordinates) {
+        for (final candidate in candidates) {
+          if (candidate.hasCoordinates &&
+              NearbyPlacesService.calculateDistanceKm(
+                    candidate.latitude!,
+                    candidate.longitude!,
+                    place.latitude!,
+                    place.longitude!,
+                  ) <=
+                  0.75) {
+            isDuplicate = true;
+            break;
+          }
+        }
+      }
+
+      if (!isDuplicate) {
+        result.add(place);
+        if (sourceId != null && sourceId.isNotEmpty) {
+          knownSourceIds.add(sourceId);
+        }
+        (byNormalizedName[normalized] ??= <Place>[]).add(place);
+      }
+    }
+
     return result;
   }
+
+  static Future<List<Place>> merge(List<Place> existing) async =>
+      mergePlaces(existing: existing, incoming: await load());
 }
 
 class PlaceEnrichmentService {
