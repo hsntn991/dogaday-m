@@ -930,13 +930,42 @@ class SupabasePlacesController {
   static const _storageKey = 'supabase_places_cache_v1';
   static final places = ValueNotifier<List<Place>>(<Place>[]);
 
+  // Isolate-safe helper: sadece JSON string -> Map decode eder.
+  // Place nesneleri main isolate'ta olusturuluyor cunke IconData ve Color
+  // (dart:ui) isolate mesaj kanalindan gecemez.
+  static List<Map<String, dynamic>> _decodeCacheRecords(
+    List<String> records,
+  ) {
+    final result = <Map<String, dynamic>>[];
+    for (final record in records) {
+      try {
+        final data = jsonDecode(record);
+        if (data is Map<String, dynamic>) result.add(data);
+      } catch (_) {
+        // Bozuk JSON: kayit atlanir, mevcut davranis korunur.
+      }
+    }
+    return result;
+  }
+
+  // Test accessor: exposes _decodeCacheRecords for unit testing without compute().
+  @visibleForTesting
+  static List<Map<String, dynamic>> decodeCacheRecordsForTest(
+    List<String> records,
+  ) =>
+      _decodeCacheRecords(records);
+
   static Future<void> loadCached() async {
     final preferences = await SharedPreferences.getInstance();
-    final records = preferences.getStringList(_storageKey) ?? const <String>[];
-    places.value = records
-        .map((record) {
+    final rawRecords =
+        preferences.getStringList(_storageKey) ?? const <String>[];
+    // JSON decode -> background isolate (main thread'i bloklamaz).
+    final decoded = await compute(_decodeCacheRecords, rawRecords);
+    // Place construction -> main isolate (IconData / Color dart:ui tipleri
+    // isolate boundary'yi gecemez).
+    places.value = decoded
+        .map((data) {
           try {
-            final data = jsonDecode(record) as Map<String, dynamic>;
             return Place(
               data['name']?.toString() ?? 'Doğa Noktası',
               data['location']?.toString() ?? '',
@@ -951,7 +980,8 @@ class SupabasePlacesController {
               latitude: (data['latitude'] as num?)?.toDouble(),
               longitude: (data['longitude'] as num?)?.toDouble(),
               sourceId: data['sourceId']?.toString(),
-              updatedAt: DateTime.tryParse(data['updatedAt']?.toString() ?? ''),
+              updatedAt:
+                  DateTime.tryParse(data['updatedAt']?.toString() ?? ''),
               source: PlaceSource.curated,
               verificationStatus: data['verificationStatus'] == 'community'
                   ? VerificationStatus.community

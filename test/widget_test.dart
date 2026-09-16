@@ -1225,4 +1225,61 @@ void main() {
     expect(isSafeExternalUrl(Uri.tryParse('http://example.com')), isTrue);
     expect(isSafeExternalUrl(Uri.tryParse('https://maps.google.com/?q=test')), isTrue);
   });
+
+  group('SupabasePlacesController._decodeCacheRecords', () {
+    test('1. gecerli kayitlar dogru sayida Map uretir', () {
+      final records = [
+        jsonEncode({'name': 'Yer A', 'location': 'Antalya'}),
+        jsonEncode({'name': 'Yer B', 'location': 'Muğla'}),
+      ];
+      final result =
+          SupabasePlacesController.decodeCacheRecordsForTest(records);
+      expect(result, hasLength(2));
+    });
+
+    test('2. alanlar birebir korunur', () {
+      final original = {
+        'name': 'Göynük Kanyonu',
+        'location': 'Antalya',
+        'latitude': 36.61,
+        'longitude': 30.42,
+        'sourceId': 'osm-123',
+        'verificationStatus': 'verified',
+      };
+      final result = SupabasePlacesController.decodeCacheRecordsForTest(
+        [jsonEncode(original)],
+      );
+      expect(result.single['name'], original['name']);
+      expect(result.single['location'], original['location']);
+      expect(result.single['latitude'], original['latitude']);
+      expect(result.single['sourceId'], original['sourceId']);
+    });
+
+    test('3. bos liste -> bos sonuc', () {
+      final result =
+          SupabasePlacesController.decodeCacheRecordsForTest(const []);
+      expect(result, isEmpty);
+    });
+
+    test('4. bozuk JSON sessizce atlanir, gecerli kayitlar korunur', () {
+      final records = [
+        'bozuk-json{{{',
+        jsonEncode({'name': 'Gecerli Yer', 'location': 'Bolu'}),
+        '###',
+      ];
+      final result =
+          SupabasePlacesController.decodeCacheRecordsForTest(records);
+      expect(result, hasLength(1));
+      expect(result.single['name'], 'Gecerli Yer');
+    });
+
+    test('5. helper widget ve controller bagimsiz calisir (Flutter binding gerektirmez)', () {
+      // Bu test Flutter widget binding olmadan geciyor olmasından dolayı
+      // helper'in saf Dart oldugunu kanitlar.
+      final result = SupabasePlacesController.decodeCacheRecordsForTest(
+        [jsonEncode({'name': 'Test', 'location': 'TR'})],
+      );
+      expect(result.single['name'], 'Test');
+    });
+  });
 }
