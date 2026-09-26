@@ -2093,7 +2093,9 @@ class _MainShellState extends State<MainShell> {
         index: index,
         children: List<Widget>.generate(
           _tabScreens.length,
-          (tabIndex) => _tabScreens[tabIndex] ?? const SizedBox.shrink(),
+          // A locale/theme rebuild can temporarily clear an inactive cached
+          // tab. Never render a blank page for a selected navigation item.
+          (tabIndex) => _tabScreens[tabIndex] ?? _createTab(tabIndex),
         ),
       ),
       bottomNavigationBar: _FigmaBottomBar(
