@@ -1,5 +1,18 @@
 part of '../../main.dart';
 
+class GoodnessCampaignScore {
+  const GoodnessCampaignScore._();
+
+  static int pointsFor(String type) => switch (type) {
+        'Fidan Diktim' => 15,
+        'Çöp Topladım' => 12,
+        'Sokak Hayvanlarına Mama Verdim' => 10,
+        'Su Kabı Bıraktım' => 10,
+        'Geri Dönüşüme Götürdüm' => 12,
+        _ => 10,
+      };
+}
+
 class GoodnessMovementScreen extends StatefulWidget {
   const GoodnessMovementScreen({super.key});
 
@@ -18,6 +31,21 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
     return grouped;
   }
 
+  Map<String, _GoodnessProvinceSummary> get _provinceSummaries {
+    final summaries = <String, _GoodnessProvinceSummary>{
+      for (final province in _provinceCenters.keys)
+        province: _GoodnessProvinceSummary.empty(province),
+      for (final seed in _goodnessCampaignSeeds)
+        seed.province: _GoodnessProvinceSummary.fromSeed(seed),
+    };
+    for (final entry in _deedsByProvince.entries) {
+      final previous =
+          summaries[entry.key] ?? _GoodnessProvinceSummary.empty(entry.key);
+      summaries[entry.key] = previous.withAddedDeeds(entry.value);
+    }
+    return summaries;
+  }
+
   Future<void> _openAddDeed() async {
     String? province;
     String type = _deedTypes.first;
@@ -25,7 +53,7 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
     final result = await showModalBottomSheet<_GoodDeed>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.surfaceOf(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -43,11 +71,13 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text('Yaptığın iyiliği ekle',
-                    style: AppTypography.heading.copyWith(fontSize: 22)),
+                    style: AppTypography.headingOf(context)
+                        .copyWith(fontSize: AppFontSizes.heading)),
                 const SizedBox(height: 6),
                 Text(
                   'Katkın seçtiğin ilde sayılır. Konum ve kanıt sistemi tasarım onayından sonra bağlanacak.',
-                  style: AppTypography.metadata.copyWith(fontSize: 13),
+                  style: AppTypography.metadataOf(context)
+                      .copyWith(fontSize: AppFontSizes.label),
                 ),
                 const SizedBox(height: 18),
                 DropdownButtonFormField<String>(
@@ -67,7 +97,8 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text('İyilik türü',
-                    style: AppTypography.heading.copyWith(fontSize: 15)),
+                    style: AppTypography.headingOf(context)
+                        .copyWith(fontSize: AppFontSizes.title)),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
@@ -116,12 +147,22 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
     noteController.dispose();
     if (result == null || !mounted) return;
     setState(() => _deeds.add(result));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.province} için +${GoodnessCampaignScore.pointsFor(result.type)} iyilik puanı eklendi.',
+          ),
+        ),
+      );
+    }
   }
 
-  void _showProvince(String province, List<_GoodDeed> deeds) {
+  void _showProvince(String province, _GoodnessProvinceSummary summary) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.surfaceOf(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -132,23 +173,85 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('$province · ${deeds.length} iyilik',
-                  style: AppTypography.heading.copyWith(fontSize: 21)),
+              Text('$province · ${summary.contributionCount} iyilik',
+                  style: AppTypography.headingOf(context)
+                      .copyWith(fontSize: AppFontSizes.heading)),
+              const SizedBox(height: 4),
+              Text('${summary.score} iyilik puanı',
+                  style: AppTypography.metadataOf(context)),
+              Builder(builder: (context) {
+                final places = SupabasePlacesController.places.value
+                    .where((p) =>
+                        p.location.trim().toLowerCase() ==
+                            province.trim().toLowerCase() &&
+                        !p.isUtility)
+                    .toList(growable: false);
+                if (places.isEmpty) return const SizedBox.shrink();
+                final passing = places.where(PlacePublicationStandard.meetsThreshold).length;
+                final pct = ((passing / places.length) * 100).toInt();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
+                      border: Border.all(
+                        color: isDark ? AppColors.darkBorder : AppColors.border,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.verified_outlined, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Yayın standardı: %$pct ($passing/${places.length} nokta)',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
               const SizedBox(height: 14),
-              ...deeds.reversed.map(
+              if (summary.userDeeds.isEmpty)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: isDark
+                        ? AppColors.darkSurfaceMuted
+                        : AppColors.primarySoft,
+                    child: const Icon(Icons.volunteer_activism_rounded,
+                        color: AppColors.primary),
+                  ),
+                  title: Text(summary.latestDeed,
+                      style: AppTypography.bodyOf(context)
+                          .copyWith(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Kampanya örnek verisi'),
+                ),
+              ...summary.userDeeds.reversed.map(
                 (deed) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
-                    backgroundColor: AppColors.primarySoft,
-                    child: Text(_deedEmoji(deed.type)),
+                    backgroundColor: isDark
+                        ? AppColors.darkSurfaceMuted
+                        : AppColors.primarySoft,
+                    child: Icon(_deedIcon(deed.type), color: AppColors.primary),
                   ),
                   title: Text(deed.type,
-                      style: AppTypography.body
+                      style: AppTypography.bodyOf(context)
                           .copyWith(fontWeight: FontWeight.w600)),
                   subtitle: Text(
                     deed.note.isEmpty ? 'Az önce eklendi' : deed.note,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    style: AppTypography.metadataOf(context),
                   ),
                   trailing: TextButton(
                     onPressed: () => _openContributorPreview(),
@@ -174,9 +277,18 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final grouped = _deedsByProvince;
+    final isDark = AppColors.isDark(context);
+    final summaries = _provinceSummaries;
+    final ranked = summaries.values
+        .where((summary) => summary.score > 0)
+        .toList()
+      ..sort((a, b) => b.score.compareTo(a.score));
+    final totalContributions = summaries.values.fold<int>(
+      0,
+      (sum, summary) => sum + summary.contributionCount,
+    );
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.backgroundOf(context),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
@@ -188,10 +300,12 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('İyilik Harekâtı',
-                          style: AppTypography.heading.copyWith(fontSize: 27)),
+                          style: AppTypography.headingOf(context)
+                              .copyWith(fontSize: AppFontSizes.display)),
                       const SizedBox(height: 3),
-                      Text('İyilik yap, kendini göster.',
-                          style: AppTypography.metadata.copyWith(fontSize: 15)),
+                      Text('İyilik yap, şehrini zirveye taşı.',
+                          style: AppTypography.metadataOf(context)
+                              .copyWith(fontSize: AppFontSizes.title)),
                     ],
                   ),
                 ),
@@ -206,18 +320,24 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
+                color:
+                    isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.visibility_outlined,
-                      color: AppColors.primary, size: 19),
-                  SizedBox(width: 9),
+                  Icon(
+                    Icons.visibility_outlined,
+                    color:
+                        isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+                    size: 19,
+                  ),
+                  const SizedBox(width: 9),
                   Expanded(
                     child: Text(
-                      'Tasarım önizlemesi · Eklediklerin bu oturumda görünür.',
-                      style: TextStyle(fontSize: 12.5),
+                      'Kampanya örnek verisi · Eklediklerin yalnızca bu oturumda görünür.',
+                      style: AppTypography.labelOf(context)
+                          .copyWith(fontSize: AppFontSizes.label),
                     ),
                   ),
                 ],
@@ -225,23 +345,38 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
             ),
             const SizedBox(height: 14),
             _TurkeyProvinceBoard(
-              deedsByProvince: grouped,
+              summaries: summaries,
               onProvinceTap: _showProvince,
             ),
             const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
-                    child: _GoodnessStat('${_deeds.length}', 'Toplam iyilik')),
+                    child:
+                        _GoodnessStat('$totalContributions', 'Toplam iyilik')),
                 const SizedBox(width: 10),
                 Expanded(
                     child:
-                        _GoodnessStat('${grouped.length}', 'Katkı sunulan il')),
+                        _GoodnessStat('${ranked.length}', 'Katkı sunulan il')),
               ],
             ),
+            const SizedBox(height: 22),
+            Text('İyilik tablosu',
+                style: AppTypography.headingOf(context)
+                    .copyWith(fontSize: AppFontSizes.heading)),
+            const SizedBox(height: 10),
+            ...ranked.take(5).toList().asMap().entries.map(
+                  (entry) => _GoodnessLeaderboardRow(
+                    rank: entry.key + 1,
+                    summary: entry.value,
+                    onTap: () =>
+                        _showProvince(entry.value.province, entry.value),
+                  ),
+                ),
             const SizedBox(height: 20),
             Text('Nasıl işler?',
-                style: AppTypography.heading.copyWith(fontSize: 20)),
+                style: AppTypography.headingOf(context)
+                    .copyWith(fontSize: AppFontSizes.heading)),
             const SizedBox(height: 10),
             const _GoodnessStep(
               icon: Icons.add_location_alt_outlined,
@@ -270,135 +405,105 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
 
 class _TurkeyProvinceBoard extends StatefulWidget {
   const _TurkeyProvinceBoard({
-    required this.deedsByProvince,
+    required this.summaries,
     required this.onProvinceTap,
   });
 
-  final Map<String, List<_GoodDeed>> deedsByProvince;
-  final void Function(String province, List<_GoodDeed> deeds) onProvinceTap;
+  final Map<String, _GoodnessProvinceSummary> summaries;
+  final void Function(String province, _GoodnessProvinceSummary summary)
+      onProvinceTap;
 
   @override
   State<_TurkeyProvinceBoard> createState() => _TurkeyProvinceBoardState();
 }
 
 class _TurkeyProvinceBoardState extends State<_TurkeyProvinceBoard> {
-  late final TransformationController _controller = TransformationController(
-    Matrix4.diagonal3Values(.41, .41, 1),
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 320,
+      height: 224,
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F7F4),
-        border: Border.all(color: AppColors.border),
+        color: AppColors.goodnessMapBackground,
+        border: Border.all(color: AppColors.goodnessMapBorder),
         borderRadius: BorderRadius.circular(14),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
           Positioned.fill(
-            child: InteractiveViewer(
-              transformationController: _controller,
-              constrained: false,
-              minScale: .32,
-              maxScale: 2.4,
-              boundaryMargin: const EdgeInsets.all(120),
-              child: SizedBox(
-                width: 1020,
-                height: 565,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Image.asset(
-                        'assets/maps/turkiye_provinces_paintmaps.png',
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.high,
+            child: Center(
+              // The province board has a fixed geographic aspect ratio. Letting
+              // FittedBox calculate the scale keeps the full map centered at
+              // every phone width instead of scaling it from the top-left.
+              child: FittedBox(
+                fit: BoxFit.contain,
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                child: SizedBox(
+                  width: 1020,
+                  height: 430,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: SvgPicture.asset(
+                          'assets/maps/turkiye_il_haritasi.svg',
+                          fit: BoxFit.contain,
+                          semanticsLabel: "Türkiye'nin 81 il haritası",
+                        ),
                       ),
-                    ),
-                    ...widget.deedsByProvince.entries.map((entry) {
-                      final point = _provinceCenters[entry.key]!;
-                      final position = _provinceBoardPosition(point);
-                      return Positioned(
-                        left: position.dx - 24,
-                        top: position.dy - 24,
-                        child: GestureDetector(
-                          onTap: () =>
-                              widget.onProvinceTap(entry.key, entry.value),
-                          child: Container(
-                            width: 48,
-                            height: 48,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x44000000),
-                                  blurRadius: 8,
+                      ...widget.summaries.entries.map((entry) {
+                        final point = _provinceCenters[entry.key];
+                        if (point == null) return const SizedBox.shrink();
+                        final position = _provinceBoardPosition(point);
+                        final hasContribution = entry.value.score > 0;
+                        if (!hasContribution) return const SizedBox.shrink();
+                        return Positioned(
+                          left: position.dx - 22,
+                          top: position.dy - 22,
+                          child: Semantics(
+                            button: true,
+                            label:
+                                '${entry.key}, ${entry.value.score} iyilik puanı',
+                            child: GestureDetector(
+                              onTap: () =>
+                                  widget.onProvinceTap(entry.key, entry.value),
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: AppColors.shadow26,
+                                      blurRadius: 8,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: Text(
-                              '+${entry.value.length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
+                                child: Text(
+                                  '${entry.value.score}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: AppFontSizes.caption,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }),
-                  ],
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          Positioned(
-            left: 10,
-            top: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .94),
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: const Text(
-                '81 İl · Yakınlaştırmak için dokun',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          if (widget.deedsByProvince.isEmpty)
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 12,
-              child: Container(
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .96),
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: const Text(
-                  'İlk iyiliği sen ekle; katkı yaptığın il renklensin.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12.5),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -411,7 +516,7 @@ Offset _provinceBoardPosition(LatLng point) {
   const topLatitude = 42.3;
   const bottomLatitude = 35.7;
   const boardWidth = 1020.0;
-  const mapHeight = 520.0;
+  const mapHeight = 422.0;
   final x = (point.longitude - leftLongitude) /
       (rightLongitude - leftLongitude) *
       boardWidth;
@@ -427,23 +532,188 @@ class _GoodnessStat extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(10),
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    return GlassContainer(
+      borderRadius: BorderRadius.circular(AppRadii.medium),
+      blur: 12,
+      color: isDark
+          ? AppColors.darkSurfaceMuted.withValues(alpha: 0.88)
+          : Colors.white.withValues(alpha: 0.70),
+      borderColor:
+          isDark ? AppColors.darkBorder : Colors.white.withValues(alpha: 0.85),
+      borderWidth: 1.2,
+      padding: const EdgeInsets.all(14),
+      boxShadow: const [
+        BoxShadow(
+          color: AppColors.shadow08,
+          blurRadius: 10,
+          offset: Offset(0, 2),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value,
-                style: AppTypography.heading
-                    .copyWith(fontSize: 24, color: AppColors.primary)),
-            Text(label, style: AppTypography.metadata.copyWith(fontSize: 12.5)),
-          ],
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value,
+              style: AppTypography.headingOf(context).copyWith(
+                  fontSize: AppFontSizes.display,
+                  color:
+                      isDark ? AppColors.darkPrimaryLight : AppColors.primary)),
+          Text(label,
+              style: AppTypography.metadataOf(context)
+                  .copyWith(fontSize: AppFontSizes.label)),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoodnessLeaderboardRow extends StatelessWidget {
+  const _GoodnessLeaderboardRow({
+    required this.rank,
+    required this.summary,
+    required this.onTap,
+  });
+
+  final int rank;
+  final _GoodnessProvinceSummary summary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Material(
+          color: AppColors.surfaceOf(context),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadii.medium),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 68),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                border: Border.all(color: AppColors.borderOf(context)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.isDark(context)
+                          ? AppColors.darkPrimarySoft
+                          : AppColors.primarySoft,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text('#$rank',
+                        style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w800)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(summary.province,
+                            style: AppTypography.bodyOf(context).copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontSize: AppFontSizes.title)),
+                        const SizedBox(height: 2),
+                        Text(summary.latestDeed,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.metadataOf(context)
+                                .copyWith(fontSize: AppFontSizes.caption)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('${summary.score}',
+                          style: AppTypography.headingOf(context).copyWith(
+                              color: AppColors.primary,
+                              fontSize: AppFontSizes.heading)),
+                      Text('puan', style: AppTypography.metadataOf(context)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
+}
+
+class _GoodnessCampaignSeed {
+  const _GoodnessCampaignSeed({
+    required this.province,
+    required this.score,
+    required this.contributionCount,
+    required this.latestDeed,
+  });
+
+  final String province;
+  final int score;
+  final int contributionCount;
+  final String latestDeed;
+}
+
+class _GoodnessProvinceSummary {
+  const _GoodnessProvinceSummary({
+    required this.province,
+    required this.score,
+    required this.contributionCount,
+    required this.latestDeed,
+    required this.userDeeds,
+  });
+
+  factory _GoodnessProvinceSummary.fromSeed(_GoodnessCampaignSeed seed) =>
+      _GoodnessProvinceSummary(
+        province: seed.province,
+        score: seed.score,
+        contributionCount: seed.contributionCount,
+        latestDeed: seed.latestDeed,
+        userDeeds: const <_GoodDeed>[],
+      );
+
+  factory _GoodnessProvinceSummary.empty(String province) =>
+      _GoodnessProvinceSummary(
+        province: province,
+        score: 0,
+        contributionCount: 0,
+        latestDeed: 'İlk iyilik katkısını bekliyor',
+        userDeeds: const <_GoodDeed>[],
+      );
+
+  final String province;
+  final int score;
+  final int contributionCount;
+  final String latestDeed;
+  final List<_GoodDeed> userDeeds;
+
+  _GoodnessProvinceSummary withAddedDeeds(List<_GoodDeed> deeds) {
+    if (deeds.isEmpty) return this;
+    final latest = deeds.last;
+    return _GoodnessProvinceSummary(
+      province: province,
+      score: score +
+          deeds.fold<int>(
+            0,
+            (total, deed) => total + GoodnessCampaignScore.pointsFor(deed.type),
+          ),
+      contributionCount: contributionCount + deeds.length,
+      latestDeed: latest.note.isEmpty ? latest.type : latest.note,
+      userDeeds: List<_GoodDeed>.unmodifiable([...userDeeds, ...deeds]),
+    );
+  }
 }
 
 class _GoodnessStep extends StatelessWidget {
@@ -467,7 +737,9 @@ class _GoodnessStep extends StatelessWidget {
               height: 42,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
+                color: AppColors.isDark(context)
+                    ? AppColors.darkPrimarySoft
+                    : AppColors.primarySoft,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: AppColors.primary),
@@ -478,12 +750,13 @@ class _GoodnessStep extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: AppTypography.body
-                          .copyWith(fontWeight: FontWeight.w600, fontSize: 15)),
+                      style: AppTypography.bodyOf(context).copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: AppFontSizes.title)),
                   const SizedBox(height: 3),
                   Text(body,
-                      style: AppTypography.metadata
-                          .copyWith(fontSize: 13, height: 1.35)),
+                      style: AppTypography.metadataOf(context).copyWith(
+                          fontSize: AppFontSizes.label, height: 1.35)),
                 ],
               ),
             ),
@@ -498,6 +771,7 @@ class _GoodnessContributorPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+        backgroundColor: AppColors.backgroundOf(context),
         appBar: AppBar(title: const Text('Katkı profili')),
         body: ListView(
           padding: const EdgeInsets.all(20),
@@ -506,20 +780,25 @@ class _GoodnessContributorPreview extends StatelessWidget {
               radius: 34,
               backgroundColor: AppColors.primary,
               child: Text('S',
-                  style: TextStyle(color: Colors.white, fontSize: 26)),
+                  style: TextStyle(
+                      color: Colors.white, fontSize: AppFontSizes.display)),
             ),
             const SizedBox(height: 12),
             Text('Sen',
                 textAlign: TextAlign.center,
-                style: AppTypography.heading.copyWith(fontSize: 24)),
+                style: AppTypography.headingOf(context)
+                    .copyWith(fontSize: AppFontSizes.display)),
             const SizedBox(height: 5),
             Text('${deeds.length} iyilik katkısı',
-                textAlign: TextAlign.center, style: AppTypography.metadata),
+                textAlign: TextAlign.center,
+                style: AppTypography.metadataOf(context)),
             const SizedBox(height: 22),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
+                color: AppColors.isDark(context)
+                    ? AppColors.darkPrimarySoft
+                    : AppColors.primarySoft,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Text(
@@ -545,12 +824,12 @@ class _GoodDeed {
   final DateTime createdAt;
 }
 
-String _deedEmoji(String type) => switch (type) {
-      'Çöp Topladım' => '🧹',
-      'Fidan Diktim' => '🌱',
-      'Sokak Hayvanlarına Mama Verdim' => '🐾',
-      'Su Kabı Bıraktım' => '💧',
-      _ => '♻️',
+IconData _deedIcon(String type) => switch (type) {
+      'Çöp Topladım' => Icons.cleaning_services_rounded,
+      'Fidan Diktim' => Icons.park_rounded,
+      'Sokak Hayvanlarına Mama Verdim' => Icons.pets_rounded,
+      'Su Kabı Bıraktım' => Icons.water_drop_rounded,
+      _ => Icons.recycling_rounded,
     };
 
 const _deedTypes = <String>[
@@ -559,6 +838,84 @@ const _deedTypes = <String>[
   'Sokak Hayvanlarına Mama Verdim',
   'Su Kabı Bıraktım',
   'Geri Dönüşüme Götürdüm',
+];
+
+const _goodnessCampaignSeeds = <_GoodnessCampaignSeed>[
+  _GoodnessCampaignSeed(
+      province: 'İstanbul',
+      score: 340,
+      contributionCount: 34,
+      latestDeed: '120 poşet çöp toplandı'),
+  _GoodnessCampaignSeed(
+      province: 'Ankara',
+      score: 255,
+      contributionCount: 26,
+      latestDeed: '80 fidan dikildi'),
+  _GoodnessCampaignSeed(
+      province: 'İzmir',
+      score: 210,
+      contributionCount: 21,
+      latestDeed: '3 sahil temizliği yapıldı'),
+  _GoodnessCampaignSeed(
+      province: 'Antalya',
+      score: 198,
+      contributionCount: 20,
+      latestDeed: 'Kaplumbağa yuvaları korundu'),
+  _GoodnessCampaignSeed(
+      province: 'Bursa',
+      score: 150,
+      contributionCount: 15,
+      latestDeed: '45 fidan dikildi'),
+  _GoodnessCampaignSeed(
+      province: 'Trabzon',
+      score: 132,
+      contributionCount: 13,
+      latestDeed: 'Yangın sonrası dikim yapıldı'),
+  _GoodnessCampaignSeed(
+      province: 'Adana',
+      score: 120,
+      contributionCount: 12,
+      latestDeed: 'Nehir kıyısı temizlendi'),
+  _GoodnessCampaignSeed(
+      province: 'Konya',
+      score: 110,
+      contributionCount: 11,
+      latestDeed: '60 kg atık geri dönüştürüldü'),
+  _GoodnessCampaignSeed(
+      province: 'Samsun',
+      score: 101,
+      contributionCount: 10,
+      latestDeed: '25 fidan dikildi'),
+  _GoodnessCampaignSeed(
+      province: 'Diyarbakır',
+      score: 96,
+      contributionCount: 10,
+      latestDeed: 'Sokak hayvanları beslendi'),
+  _GoodnessCampaignSeed(
+      province: 'Van',
+      score: 88,
+      contributionCount: 9,
+      latestDeed: 'Göl kıyısı temizlendi'),
+  _GoodnessCampaignSeed(
+      province: 'Mersin',
+      score: 84,
+      contributionCount: 8,
+      latestDeed: 'Sahil temizliği yapıldı'),
+  _GoodnessCampaignSeed(
+      province: 'Eskişehir',
+      score: 77,
+      contributionCount: 8,
+      latestDeed: 'Kompost atölyesi düzenlendi'),
+  _GoodnessCampaignSeed(
+      province: 'Gaziantep',
+      score: 70,
+      contributionCount: 7,
+      latestDeed: 'Su tasarrufu kampanyası yapıldı'),
+  _GoodnessCampaignSeed(
+      province: 'Kayseri',
+      score: 66,
+      contributionCount: 7,
+      latestDeed: '40 fidan dikildi'),
 ];
 
 const _provinceCenters = <String, LatLng>{

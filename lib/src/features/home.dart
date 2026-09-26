@@ -12,25 +12,46 @@ class _HomeHeaderButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: Tooltip(
         message: tooltip,
-        child: Material(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-            side: const BorderSide(color: Color(0xFFE2DED6)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: AppControlSizes.minimumTouchTarget,
+            minHeight: AppControlSizes.minimumTouchTarget,
           ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-            child: SizedBox(
-              width: 36,
-              height: 36,
-              child: Icon(icon, color: green, size: 19),
+          child: Center(
+            child: Material(
+              color: isDark ? AppColors.darkSurface : AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                side: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                ),
+              ),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                child: SizedBox(
+                  width: 38,
+                  height: 38,
+                  child: Icon(
+                    icon,
+                    color: isDark ? AppColors.darkPrimaryLight : green,
+                    size: 20,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 // ignore: unused_element
@@ -40,109 +61,119 @@ class _DailyNatureQuoteBoard extends StatelessWidget {
   final VoidCallback onMessages;
 
   @override
-  Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minHeight: 78),
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 5),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 3,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFB6C9A7),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Text(
-                      '“${dailyNatureQuote()}”',
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        color: Color(0xFF5F645A),
-                        fontSize: 15.5,
-                        height: 1.38,
-                        fontWeight: FontWeight.w300,
-                        fontStyle: FontStyle.italic,
-                        letterSpacing: .05,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 13),
-            Row(
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 78),
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _HomeHeaderButton(
-                  icon: Icons.forum_outlined,
-                  tooltip: 'Topluluk mesajları',
-                  onTap: onMessages,
-                ),
-                const SizedBox(width: 8),
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 3,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadii.medium),
-                    border: Border.all(color: const Color(0xFFE2DED6)),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x10000000), blurRadius: 8),
-                    ],
-                  ),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Center(
-                        child: Icon(Icons.notifications_none_rounded,
-                            color: green, size: 19),
-                      ),
-                      Positioned(
-                        right: 7,
-                        top: 7,
-                        child: Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFFB84D),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ],
+                    color: isDark
+                        ? AppColors.darkPrimarySoft
+                        : AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: green,
-                    borderRadius: BorderRadius.circular(AppRadii.medium),
-                  ),
-                  child: const Text(
-                    'K',
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Text(
+                    '“${dailyNatureQuote()}”',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
+                      fontSize: AppFontSizes.body,
+                      height: 1.38,
+                      fontWeight: FontWeight.w300,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: .05,
                     ),
                   ),
                 ),
               ],
             ),
-          ],
-        ),
-      );
+          ),
+          const SizedBox(width: 13),
+          Row(
+            children: [
+              _HomeHeaderButton(
+                icon: Icons.forum_outlined,
+                tooltip: 'Topluluk mesajları',
+                onTap: onMessages,
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurface : AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  border: Border.all(
+                    color: isDark ? AppColors.darkBorder : AppColors.border,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(color: AppColors.shadow08, blurRadius: 8),
+                  ],
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Center(
+                      child: Icon(Icons.notifications_none_rounded,
+                          color: isDark ? AppColors.darkPrimaryLight : green,
+                          size: 19),
+                    ),
+                    Positioned(
+                      right: 7,
+                      top: 7,
+                      child: Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.rating,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: green,
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                ),
+                child: const Text(
+                  'K',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 final _homeCategories = placeTaxonomy;
@@ -174,6 +205,7 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
   @override
   void initState() {
     super.initState();
+    AppLocaleController.current.addListener(_onLocaleChanged);
     UserPlacesController.places.addListener(_refreshUserPlaces);
     SupabasePlacesController.places.addListener(_refreshUserPlaces);
     NearbyPlacesService.revision.addListener(_refreshNearbyPlaces);
@@ -182,11 +214,16 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
 
   @override
   void dispose() {
+    AppLocaleController.current.removeListener(_onLocaleChanged);
     UserPlacesController.places.removeListener(_refreshUserPlaces);
     SupabasePlacesController.places.removeListener(_refreshUserPlaces);
     NearbyPlacesService.revision.removeListener(_refreshNearbyPlaces);
     WeatherService.revision.removeListener(_refreshRecommendations);
     super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   void _refreshUserPlaces() {
@@ -208,7 +245,7 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
   @override
   Widget build(BuildContext context) => SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
           children: [
             ValueListenableBuilder<bool>(
               valueListenable:
@@ -219,17 +256,32 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
                 builder: (_, target, __) => _HomePremiumHeader(
                   target: target,
                   isResolvingLocation: isResolvingLocation,
+                  onMessages: widget.onMessages,
                 ),
               ),
             ),
             const SizedBox(height: 20),
             Semantics(
-              label: 'Yer ara',
+              label: AppStrings.get('map_search_places'),
               button: true,
               child: GestureDetector(
                 onTap: widget.onSearch,
                 child: AbsorbPointer(
-                  child: AppSearchField(onFilterTap: widget.onSearch),
+                  child: GlassContainer(
+                    borderRadius: BorderRadius.circular(AppRadii.large),
+                    blur: 14,
+                    color: Colors.white.withValues(alpha: 0.70),
+                    borderColor: Colors.white.withValues(alpha: 0.90),
+                    borderWidth: 1.2,
+                    boxShadow: const [
+                      BoxShadow(
+                        color: AppColors.shadow08,
+                        blurRadius: 14,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                    child: AppSearchField(onFilterTap: widget.onSearch),
+                  ),
                 ),
               ),
             ),
@@ -246,7 +298,7 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
                   itemBuilder: (_, index) {
                     final category = _homeCategories[index];
                     return AppCategoryChip(
-                      label: category.label,
+                      label: category.localizedLabel,
                       icon: _categoryIcon(category.key),
                       selected: selectedCategory == category.key,
                       onSelected: (_) => selectCategory(category.key),
@@ -297,10 +349,12 @@ class _HomePremiumHeader extends StatelessWidget {
   const _HomePremiumHeader({
     required this.target,
     required this.isResolvingLocation,
+    required this.onMessages,
   });
 
   final WeatherTarget target;
   final bool isResolvingLocation;
+  final VoidCallback onMessages;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -308,50 +362,75 @@ class _HomePremiumHeader extends StatelessWidget {
           final compact = constraints.maxWidth < 370;
           return Row(
             children: [
-              const Icon(Icons.park_rounded,
-                  color: AppColors.primary, size: AppIconSizes.large),
-              const SizedBox(width: 8),
+              Icon(
+                Icons.park_rounded,
+                color: AppColors.primary,
+                size: compact ? 24 : AppIconSizes.large,
+              ),
+              SizedBox(width: compact ? 6 : 8),
               Expanded(
                 child: Text(
                   'Doğadayım',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style:
-                      AppTypography.brand.copyWith(fontSize: compact ? 32 : 36),
+                      AppTypography.brand.copyWith(fontSize: compact ? 26 : 34),
                 ),
               ),
-              Container(
-                constraints: BoxConstraints(maxWidth: compact ? 112 : 138),
-                height: AppControlSizes.minimumTouchTarget,
-                padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: compact ? 94 : 130),
+                child: GlassContainer(
                   borderRadius: BorderRadius.circular(AppRadii.medium),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.location_on_outlined,
-                        color: AppColors.textPrimary, size: AppIconSizes.small),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        isResolvingLocation
-                            ? 'Konum belirleniyor'
-                            : target.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.label.copyWith(fontSize: 14),
-                      ),
-                    ),
-                    if (!isResolvingLocation && !compact) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.keyboard_arrow_down_rounded,
+                  blur: 12,
+                  color: Colors.white.withValues(alpha: 0.65),
+                  borderColor: Colors.white.withValues(alpha: 0.90),
+                  borderWidth: 1.2,
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 12),
+                  height: compact ? 38 : AppControlSizes.minimumTouchTarget,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.location_on_outlined,
+                          color: AppColors.textPrimary,
                           size: AppIconSizes.small),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          isResolvingLocation
+                              ? AppStrings.get('home_locating')
+                              : (target.label.trim().toLowerCase() == 'konumum'
+                                  ? AppStrings.get('my_location')
+                                  : (target.label ==
+                                          HomeWeatherLocationController
+                                              .unavailableLabel
+                                      ? AppStrings.get(
+                                          'home_location_permission_required')
+                                      : target.label)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.label
+                              .copyWith(fontSize: AppFontSizes.label),
+                        ),
+                      ),
+                      if (!isResolvingLocation && !compact) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_down_rounded,
+                            size: AppIconSizes.small),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
+              ),
+              SizedBox(width: compact ? 6 : 8),
+              GlassIconButton(
+                icon: Icons.forum_outlined,
+                onTap: onMessages,
+                tooltip: AppStrings.get('profile_community_chat'),
+                size: compact ? 38 : AppControlSizes.minimumTouchTarget,
+                iconSize: compact ? 19 : 20,
+                blur: 12,
+                color: Colors.white.withValues(alpha: 0.65),
+                borderColor: Colors.white.withValues(alpha: 0.90),
               ),
             ],
           );
@@ -423,6 +502,7 @@ class _TodayRecommendationsSectionState
   void initState() {
     super.initState();
     _recomputeRecommendations();
+    AppLocaleController.current.addListener(_handleUpdate);
     UserPlacesController.places.addListener(_handleUpdate);
     SupabasePlacesController.places.addListener(_handleUpdate);
     NearbyPlacesService.revision.addListener(_handleUpdate);
@@ -440,6 +520,7 @@ class _TodayRecommendationsSectionState
 
   @override
   void dispose() {
+    AppLocaleController.current.removeListener(_handleUpdate);
     UserPlacesController.places.removeListener(_handleUpdate);
     SupabasePlacesController.places.removeListener(_handleUpdate);
     NearbyPlacesService.revision.removeListener(_handleUpdate);
@@ -477,15 +558,15 @@ class _TodayRecommendationsSectionState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSectionHeader(
-          title: 'Bugün sana uygun',
-          actionLabel: 'Tümünü gör',
+          title: AppStrings.get('home_for_you_today'),
+          actionLabel: AppStrings.get('home_see_all'),
           onAction: widget.onExploreMap,
         ),
         const SizedBox(height: 16),
         if (recommendations.isEmpty)
           _EmptyPlacesCard(
-            message: 'Şu an için uygun bir öneri bulunamadı.',
-            actionLabel: 'Haritada keşfet',
+            message: AppStrings.get('home_no_recommendations'),
+            actionLabel: AppStrings.get('home_explore_map'),
             actionIcon: Icons.map_outlined,
             onAction: widget.onExploreMap ?? () {},
             onRefresh: () =>
@@ -591,7 +672,7 @@ class _CommunitySuggestionsSectionState
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _FigmaSectionTitle('Topluluk Önerileri'),
+          _FigmaSectionTitle(AppStrings.get('home_community_recommendations')),
           const SizedBox(height: 9),
           FutureBuilder<List<RankedCommunitySuggestion>>(
             future: future,
@@ -601,21 +682,27 @@ class _CommunitySuggestionsSectionState
               }
 
               if (snapshot.hasError || (snapshot.data?.isEmpty ?? true)) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
                 return Container(
                   height: 100,
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? AppColors.darkSurface : AppColors.surface,
                     borderRadius: BorderRadius.circular(AppRadii.large),
+                    border: Border.all(
+                      color: isDark ? AppColors.darkBorder : AppColors.border,
+                    ),
                   ),
-                  child: const Text(
-                    'Konumuna göre topluluk önerileri şu anda alınamadı.',
+                  child: Text(
+                    AppStrings.get('home_community_error'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      color: Color(0xFF77736C),
-                      fontSize: 11.5,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
+                      fontSize: AppFontSizes.caption,
                     ),
                   ),
                 );
@@ -686,172 +773,190 @@ class _CategoryFeaturedSectionState extends State<_CategoryFeaturedSection> {
       });
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _FigmaSectionTitle(
-            'Yakındaki ${widget.label}',
-            action: '${radiusKm.round()} km içinde',
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 48,
-            padding: const EdgeInsets.fromLTRB(10, 3, 10, 3),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppRadii.large),
-              border: Border.all(color: const Color(0xFFE7E3DA)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0C000000),
-                  blurRadius: 8,
-                  offset: Offset(0, 3),
-                ),
-              ],
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FigmaSectionTitle(
+          'Yakındaki ${widget.label}',
+          action: '${radiusKm.round()} km içinde',
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.fromLTRB(10, 3, 10, 3),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.large),
+            border: Border.all(
+              color: isDark ? AppColors.darkBorder : AppColors.border,
             ),
-            child: Row(
-              children: [
-                const Text(
-                  '1',
+            boxShadow: const [
+              BoxShadow(
+                color: AppColors.shadow08,
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Text(
+                '1',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                  fontSize: AppFontSizes.caption,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor:
+                        isDark ? AppColors.darkPrimaryLight : green,
+                    inactiveTrackColor:
+                        isDark ? AppColors.darkPrimarySoft : AppColors.border,
+                    thumbColor: isDark ? AppColors.darkPrimaryLight : green,
+                    overlayColor: (isDark ? AppColors.darkPrimaryLight : green)
+                        .withValues(alpha: .12),
+                    trackHeight: 4,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 8,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 15,
+                    ),
+                  ),
+                  child: Slider(
+                    value: radiusKm,
+                    min: 1,
+                    max: NearbyPlacesService.queryRadiusKm.toDouble(),
+                    divisions: NearbyPlacesService.queryRadiusKm - 1,
+                    label: '${radiusKm.round()} km',
+                    onChanged: (value) => setState(() => radiusKm = value),
+                  ),
+                ),
+              ),
+              Text(
+                '${NearbyPlacesService.queryRadiusKm} km',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                  fontSize: AppFontSizes.caption,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Container(
+                width: 48,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkPrimarySoft : mint,
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                ),
+                child: Text(
+                  '${radiusKm.round()} km',
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    color: Color(0xFF8A8680),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
+                    color: isDark ? AppColors.darkPrimaryLight : green,
+                    fontSize: AppFontSizes.caption,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: green,
-                      inactiveTrackColor: const Color(0xFFDDE5D7),
-                      thumbColor: green,
-                      overlayColor: green.withValues(alpha: .12),
-                      trackHeight: 4,
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 8,
-                      ),
-                      overlayShape: const RoundSliderOverlayShape(
-                        overlayRadius: 15,
-                      ),
-                    ),
-                    child: Slider(
-                      value: radiusKm,
-                      min: 1,
-                      max: NearbyPlacesService.queryRadiusKm.toDouble(),
-                      divisions: NearbyPlacesService.queryRadiusKm - 1,
-                      label: '${radiusKm.round()} km',
-                      onChanged: (value) => setState(() => radiusKm = value),
-                    ),
-                  ),
-                ),
-                Text(
-                  '${NearbyPlacesService.queryRadiusKm} km',
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    color: Color(0xFF8A8680),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Container(
-                  width: 48,
-                  height: 28,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: mint,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                  ),
-                  child: Text(
-                    '${radiusKm.round()} km',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      color: green,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 9),
-          FutureBuilder<List<Place>>(
-            future: future,
-            initialData: NearbyPlacesService.availableNow(widget.target),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData) {
-                return const _CompactSectionLoading();
-              }
+        ),
+        const SizedBox(height: 9),
+        FutureBuilder<List<Place>>(
+          future: future,
+          initialData: NearbyPlacesService.availableNow(widget.target),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const _CompactSectionLoading();
+            }
 
-              if (snapshot.hasError) {
-                return Container(
-                  height: 112,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
+            if (snapshot.hasError) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              return Container(
+                height: 112,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurface : AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                  border: Border.all(
+                    color: isDark ? AppColors.darkBorder : AppColors.border,
                   ),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Konuma göre kategori sonuçları alınamadı.',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            color: Color(0xFF66625C),
-                            fontSize: 11.5,
-                          ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Konuma göre kategori sonuçları alınamadı.',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
+                          fontSize: AppFontSizes.caption,
                         ),
                       ),
-                      TextButton(onPressed: retry, child: const Text('Yenile')),
-                    ],
-                  ),
-                );
-              }
-
-              final results = (snapshot.data ?? const <Place>[]).where((place) {
-                final taxonomy = place.resolvedTaxonomy;
-                return taxonomy.mainCategory == widget.mainCategory &&
-                    (widget.subtype == null ||
-                        taxonomy.subtype == widget.subtype) &&
-                    (place.distanceKm ?? double.infinity) <= radiusKm;
-              }).toList(growable: false);
-              if (results.isEmpty) {
-                return _EmptyPlacesCard(
-                  message:
-                      '${radiusKm.round()} km çevrende kayıtlı ${widget.label.toLowerCase()} bulunamadı.',
-                  actionLabel: 'Haritada keşfet',
-                  actionIcon: Icons.map_outlined,
-                  onAction: widget.onExploreMap ?? retry,
-                  onRefresh: retry,
-                );
-              }
-
-              return SizedBox(
-                height: 190,
-                child: ScrollConfiguration(
-                  behavior: const _MouseDragScrollBehavior(),
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: results.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
-                    itemBuilder: (_, index) => _SmallPhotoCard(
-                      place: results[index],
-                      width: 184,
-                      kindBelow: true,
-                      onTap: () => widget.onOpen(results[index]),
                     ),
-                  ),
+                    TextButton(onPressed: retry, child: const Text('Yenile')),
+                  ],
                 ),
               );
-            },
-          ),
-        ],
-      );
+            }
+
+            final results = (snapshot.data ?? const <Place>[]).where((place) {
+              final taxonomy = place.resolvedTaxonomy;
+              return taxonomy.mainCategory == widget.mainCategory &&
+                  (widget.subtype == null ||
+                      taxonomy.subtype == widget.subtype) &&
+                  (place.distanceKm ?? double.infinity) <= radiusKm;
+            }).toList(growable: false);
+            if (results.isEmpty) {
+              return _EmptyPlacesCard(
+                message:
+                    '${radiusKm.round()} km çevrende kayıtlı ${widget.label.toLowerCase()} bulunamadı.',
+                actionLabel: 'Haritada keşfet',
+                actionIcon: Icons.map_outlined,
+                onAction: widget.onExploreMap ?? retry,
+                onRefresh: retry,
+              );
+            }
+
+            return SizedBox(
+              height: 190,
+              child: ScrollConfiguration(
+                behavior: const _MouseDragScrollBehavior(),
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: results.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (_, index) => _SmallPhotoCard(
+                    place: results[index],
+                    width: 184,
+                    kindBelow: true,
+                    onTap: () => widget.onOpen(results[index]),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
 }
 
 class _NearbyPlacesSection extends StatefulWidget {
@@ -879,9 +984,20 @@ class _NearbyPlacesSectionState extends State<_NearbyPlacesSection> {
   @override
   void initState() {
     super.initState();
+    AppLocaleController.current.addListener(_onLocaleChanged);
     future = widget.target.usesCoordinates
         ? NearbyPlacesService.fetch(widget.target)
         : Future.value(const <Place>[]);
+  }
+
+  @override
+  void dispose() {
+    AppLocaleController.current.removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -905,18 +1021,41 @@ class _NearbyPlacesSectionState extends State<_NearbyPlacesSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppSectionHeader(
-            title: 'Yakınındaki yerler',
-            actionLabel: 'Tümünü gör',
+            title: AppStrings.get('home_nearby_places'),
+            actionLabel: AppStrings.get('home_see_all'),
             onAction: widget.onExploreMap,
           ),
           const SizedBox(height: 12),
-          if (!widget.target.usesCoordinates)
+          if (!widget.target.usesCoordinates) ...[
             _LocationRequiredNearbyCard(
               onRequestLocation: widget.onRequestLocation ??
                   () => unawaited(HomeWeatherLocationController
                       .requestAndUseDeviceLocation()),
-            )
-          else
+            ),
+            // Konum yokken şehir bazlı Supabase önerileri
+            Builder(builder: (context) {
+              final places = SupabasePlacesController.places.value
+                  .where((p) => !p.isUtility)
+                  .take(6)
+                  .toList(growable: false);
+              if (places.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
+                  ...places.map(
+                    (place) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: AppCompactPlaceCard(
+                        place: place,
+                        onTap: () => widget.onOpen(place),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ] else
             FutureBuilder<List<Place>>(
               future: future,
               initialData: NearbyPlacesService.availableNow(widget.target),
@@ -927,27 +1066,36 @@ class _NearbyPlacesSectionState extends State<_NearbyPlacesSection> {
                 }
 
                 if (snapshot.hasError) {
+                  final isDark =
+                      Theme.of(context).brightness == Brightness.dark;
                   return Container(
                     height: 122,
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: isDark ? AppColors.darkSurface : AppColors.surface,
                       borderRadius: BorderRadius.circular(AppRadii.large),
-                      border: Border.all(color: const Color(0xFFE8E4DC)),
+                      border: Border.all(
+                        color: isDark ? AppColors.darkBorder : AppColors.border,
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.location_off_outlined,
-                            color: Color(0xFF77736C), size: 25),
+                        Icon(Icons.location_off_outlined,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                            size: 25),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'Yakındaki doğa noktaları şu anda alınamadı.',
                             style: TextStyle(
                               fontFamily: 'Outfit',
-                              color: Color(0xFF66625C),
-                              fontSize: 11.5,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                              fontSize: AppFontSizes.caption,
                               height: 1.35,
                             ),
                           ),
@@ -1005,25 +1153,27 @@ class _LocationRequiredNearbyCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.medium),
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+          color: AppColors.surfaceMutedOf(context),
           borderRadius: BorderRadius.circular(AppRadii.medium),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.borderOf(context)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.location_off_outlined,
-                color: AppColors.textSecondary, size: AppIconSizes.large),
+            Icon(Icons.location_off_outlined,
+                color: AppColors.textSecondaryOf(context),
+                size: AppIconSizes.large),
             const SizedBox(width: AppSpacing.small),
             Expanded(
               child: Text(
-                'Yakınındaki yerleri görmek için konum izni ver.',
-                style: AppTypography.metadata.copyWith(fontSize: 13),
+                AppStrings.get('home_location_permission_needed'),
+                style: AppTypography.metadataOf(context)
+                    .copyWith(fontSize: AppFontSizes.label),
               ),
             ),
             const SizedBox(width: AppSpacing.small),
             TextButton(
               onPressed: onRequestLocation,
-              child: const Text('Konumu Aç'),
+              child: Text(AppStrings.get('home_open_location')),
             ),
           ],
         ),
@@ -1064,7 +1214,7 @@ class _LatestPlacesSectionState extends State<_LatestPlacesSection> {
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _FigmaSectionTitle('Yeni Eklenen'),
+          _FigmaSectionTitle(AppStrings.get('home_newly_added')),
           const SizedBox(height: 8),
           FutureBuilder<List<Place>>(
             future: future,
@@ -1076,23 +1226,28 @@ class _LatestPlacesSectionState extends State<_LatestPlacesSection> {
               }
 
               if (snapshot.hasError) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
                 return Container(
                   height: 86,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? AppColors.darkSurface : AppColors.surface,
                     borderRadius: BorderRadius.circular(AppRadii.large),
-                    border: Border.all(color: const Color(0xFFE8E4DC)),
+                    border: Border.all(
+                      color: isDark ? AppColors.darkBorder : AppColors.border,
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Güncel yer kayıtları alınamadı.',
                           style: TextStyle(
                             fontFamily: 'Outfit',
-                            color: Color(0xFF66625C),
-                            fontSize: 11.5,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                            fontSize: AppFontSizes.caption,
                           ),
                         ),
                       ),
@@ -1129,14 +1284,14 @@ class _LatestPlacesSectionState extends State<_LatestPlacesSection> {
                       ),
                     ),
                   ),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Son OSM güncellenme tarihine göre sıralandı',
-                      style: TextStyle(
+                      AppStrings.get('home_newly_added_sub'),
+                      style: const TextStyle(
                         fontFamily: 'Outfit',
-                        color: Color(0xFF98938B),
-                        fontSize: 8,
+                        color: AppColors.textTertiary,
+                        fontSize: AppFontSizes.caption,
                       ),
                     ),
                   ),
@@ -1152,53 +1307,64 @@ class _CompactSectionLoading extends StatelessWidget {
   const _CompactSectionLoading();
 
   @override
-  Widget build(BuildContext context) => Container(
-        height: 72,
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .72),
-          borderRadius: BorderRadius.circular(AppRadii.large),
-          border: Border.all(color: const Color(0xFFEAE6DE)),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkSurface
+            : Colors.white.withValues(alpha: .72),
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE9EDE5),
-                borderRadius: BorderRadius.circular(AppRadii.large),
-              ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color:
+                  isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadii.large),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 138,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE3E1DB),
-                      borderRadius: BorderRadius.circular(AppRadii.large),
-                    ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 138,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color:
+                        isDark ? AppColors.darkPrimarySoft : AppColors.border,
+                    borderRadius: BorderRadius.circular(AppRadii.large),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: 88,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECE9E3),
-                      borderRadius: BorderRadius.circular(AppRadii.large),
-                    ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 88,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.darkSurfaceMuted
+                        : AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(AppRadii.large),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _EmptyPlacesCard extends StatelessWidget {
@@ -1219,70 +1385,79 @@ class _EmptyPlacesCard extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) => Container(
-        height: height,
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadii.large),
-          border: Border.all(color: const Color(0xFFE8E4DC)),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: height,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                color: Color(0xFF77736C),
-                fontSize: 11.5,
-                height: 1.3,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+              fontSize: AppFontSizes.caption,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              TextButton.icon(
+                onPressed: onAction,
+                icon: Icon(actionIcon, size: 16),
+                label: Text(actionLabel),
+                style: TextButton.styleFrom(
+                  foregroundColor: isDark ? AppColors.darkPrimaryLight : green,
+                  backgroundColor: isDark ? AppColors.darkPrimarySoft : mint,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  textStyle: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.caption,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                TextButton.icon(
-                  onPressed: onAction,
-                  icon: Icon(actionIcon, size: 16),
-                  label: Text(actionLabel),
-                  style: TextButton.styleFrom(
-                    foregroundColor: green,
-                    backgroundColor: mint,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    textStyle: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    visualDensity: VisualDensity.compact,
+              TextButton(
+                onPressed: onRefresh,
+                style: TextButton.styleFrom(
+                  foregroundColor: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                  textStyle: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.caption,
+                    fontWeight: FontWeight.w600,
                   ),
+                  visualDensity: VisualDensity.compact,
                 ),
-                TextButton(
-                  onPressed: onRefresh,
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF68645E),
-                    textStyle: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  child: const Text('Tekrar dene'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
+                child: const Text('Tekrar dene'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _HomeWeatherCard extends StatefulWidget {
@@ -1332,12 +1507,15 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
           gradient: const LinearGradient(
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
-            colors: [Color(0xFF174A0D), Color(0xFF4AA62B)],
+            colors: [
+              AppColors.weatherGradientStart,
+              AppColors.weatherGradientEnd
+            ],
           ),
           borderRadius: BorderRadius.circular(AppRadii.large),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x382B751A),
+              color: AppColors.weatherCardShadow,
               blurRadius: 17,
               offset: Offset(0, 7),
             ),
@@ -1365,7 +1543,7 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
                   style: const TextStyle(
                     fontFamily: 'Outfit',
                     color: Colors.white70,
-                    fontSize: 11,
+                    fontSize: AppFontSizes.caption,
                   ),
                 ),
               ]);
@@ -1382,7 +1560,7 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       color: Colors.white,
-                      fontSize: 11,
+                      fontSize: AppFontSizes.caption,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -1390,7 +1568,8 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
                 TextButton(
                   onPressed: retry,
                   style: TextButton.styleFrom(foregroundColor: Colors.white),
-                  child: const Text('Yenile', style: TextStyle(fontSize: 10)),
+                  child: const Text('Yenile',
+                      style: TextStyle(fontSize: AppFontSizes.caption)),
                 ),
               ]);
             }
@@ -1406,7 +1585,7 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
                   style: const TextStyle(
                     fontFamily: 'Outfit',
                     color: Colors.white70,
-                    fontSize: 9,
+                    fontSize: AppFontSizes.caption,
                     fontWeight: FontWeight.w700,
                     letterSpacing: .25,
                   ),
@@ -1437,7 +1616,7 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
                         style: const TextStyle(
                           fontFamily: 'Outfit',
                           color: Colors.white,
-                          fontSize: 11.5,
+                          fontSize: AppFontSizes.caption,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1459,8 +1638,8 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
                             height: 6,
                             decoration: BoxDecoration(
                               color: _weatherIsIdeal(weather)
-                                  ? const Color(0xFF72E2B3)
-                                  : const Color(0xFFFFD166),
+                                  ? AppColors.darkPrimaryLight
+                                  : AppColors.rating,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -1473,7 +1652,7 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
                               style: const TextStyle(
                                 fontFamily: 'Outfit',
                                 color: Colors.white,
-                                fontSize: 9.2,
+                                fontSize: AppFontSizes.caption,
                                 height: 1.15,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1483,14 +1662,14 @@ class _HomeWeatherCardState extends State<_HomeWeatherCard> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    _HomeWeatherMetric(
-                        '💧', '${weather.humidity.round()}%', 'Nem'),
+                    _HomeWeatherMetric('💧', '${weather.humidity.round()}%',
+                        AppStrings.get('weather_humidity')),
                     const SizedBox(width: 6),
-                    _HomeWeatherMetric(
-                        '〰', '${weather.windSpeed.round()}km/s', 'Rüzgâr'),
+                    _HomeWeatherMetric('〰', '${weather.windSpeed.round()}km/s',
+                        AppStrings.get('weather_wind')),
                     const SizedBox(width: 6),
-                    _HomeWeatherMetric(
-                        '☀️', weather.uvIndex.round().toString(), 'UV'),
+                    _HomeWeatherMetric('☀️', weather.uvIndex.round().toString(),
+                        AppStrings.get('weather_uv')),
                   ],
                 ),
               ],
@@ -1520,27 +1699,27 @@ class _ResolvingLocationWeatherContent extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Konum belirleniyor',
-                  style: TextStyle(
+                  AppStrings.get('home_locating'),
+                  style: const TextStyle(
                     fontFamily: 'Outfit',
                     color: Colors.white,
-                    fontSize: 12.5,
+                    fontSize: AppFontSizes.label,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
+                const SizedBox(height: 4),
+                const Text(
                   'Hava durumu birazdan bulunduğun yere göre güncellenecek.',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     color: Colors.white70,
-                    fontSize: 10,
+                    fontSize: AppFontSizes.caption,
                     height: 1.3,
                   ),
                 ),
@@ -1573,7 +1752,7 @@ class _HomeWeatherMetric extends StatelessWidget {
               style: const TextStyle(
                 fontFamily: 'Outfit',
                 color: Colors.white,
-                fontSize: 10,
+                fontSize: AppFontSizes.caption,
                 height: 1,
                 fontWeight: FontWeight.w700,
               ),
@@ -1584,7 +1763,7 @@ class _HomeWeatherMetric extends StatelessWidget {
               style: const TextStyle(
                 fontFamily: 'Outfit',
                 color: Colors.white70,
-                fontSize: 8.5,
+                fontSize: AppFontSizes.caption,
                 height: 1,
                 fontWeight: FontWeight.w500,
               ),
@@ -1599,17 +1778,17 @@ bool _weatherIsIdeal(WeatherSnapshot weather) =>
 
 String _weatherOutdoorMessage(WeatherSnapshot weather) =>
     _weatherIsIdeal(weather)
-        ? 'Doğaya çıkmak için ideal bir gün'
-        : 'Doğaya çıkmak için ideal bir gün olmayabilir';
+        ? AppStrings.get('weather_ideal_outdoor')
+        : AppStrings.get('weather_not_ideal_outdoor');
 
 String _weatherUvValue(double value) {
   final level = value < 3
-      ? 'Düşük'
+      ? AppStrings.get('weather_uv_low')
       : value < 6
-          ? 'Orta'
+          ? AppStrings.get('weather_uv_moderate')
           : value < 8
-              ? 'Yüksek'
-              : 'Çok yüksek';
+              ? AppStrings.get('weather_uv_high')
+              : AppStrings.get('weather_uv_very_high');
   return '${value.round()} $level';
 }
 
@@ -1617,81 +1796,87 @@ class _HomeAdBanner extends StatelessWidget {
   const _HomeAdBanner();
 
   @override
-  Widget build(BuildContext context) => Semantics(
-        label: 'Reklam alanı',
-        child: Container(
-          height: 72,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-            border: Border.all(color: AppColors.border),
-          ),
-          // TODO(admob): Gerçek reklam bağlantısında bu içeriği AdWidget ile değiştir.
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: mint,
-                  borderRadius: BorderRadius.circular(AppRadii.small),
-                ),
-                child: const Icon(
-                  Icons.campaign_outlined,
-                  color: green,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'SPONSORLU',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        color: Color(0xFF7D8C73),
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Reklam alanı',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        color: ink,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadii.small),
-                ),
-                child: const Text(
-                  'Reklam',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    color: Color(0xFF8A8680),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Semantics(
+      label: 'Reklam alanı',
+      child: Container(
+        height: 72,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          border: Border.all(color: AppColors.borderOf(context)),
         ),
-      );
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkPrimarySoft : mint,
+                borderRadius: BorderRadius.circular(AppRadii.small),
+              ),
+              child: Icon(
+                Icons.campaign_outlined,
+                color: isDark ? AppColors.darkPrimaryLight : green,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SPONSORLU',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      color: isDark
+                          ? AppColors.darkPrimaryLight
+                          : AppColors.textSecondary,
+                      fontSize: AppFontSizes.caption,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: .8,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Reklam alanı',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      color: AppColors.textPrimaryOf(context),
+                      fontSize: AppFontSizes.label,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMutedOf(context),
+                borderRadius: BorderRadius.circular(AppRadii.small),
+              ),
+              child: Text(
+                'Reklam',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                  fontSize: AppFontSizes.caption,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _FigmaSectionTitle extends StatelessWidget {
@@ -1704,7 +1889,7 @@ class _FigmaSectionTitle extends StatelessWidget {
             child: Text(title,
                 style: const TextStyle(
                     fontFamily: 'Outfit',
-                    fontSize: 19,
+                    fontSize: AppFontSizes.heading,
                     height: 1.12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -.2,
@@ -1713,9 +1898,9 @@ class _FigmaSectionTitle extends StatelessWidget {
           Text(action!,
               style: const TextStyle(
                   fontFamily: 'Outfit',
-                  fontSize: 11,
+                  fontSize: AppFontSizes.caption,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF3A6B1E)))
+                  color: AppColors.primary))
       ]);
 }
 
@@ -1737,48 +1922,61 @@ class _MiniCategory extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        selected: selected,
-        label: '$label kategorisini göster',
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadii.medium),
-          child: SizedBox(
-            width: 70,
-            child: Column(children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 43,
-                height: 43,
-                decoration: BoxDecoration(
-                  color: selected ? green : background,
-                  borderRadius: BorderRadius.circular(AppRadii.medium),
-                  border: Border.all(
-                    color: selected ? green : color.withValues(alpha: .08),
-                    width: selected ? 1.5 : 1,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(icon, style: const TextStyle(fontSize: 20)),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                label,
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 8.5,
-                  height: 1.05,
-                  color: selected ? green : const Color(0xFF5A5650),
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label kategorisini göster',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.medium),
+        child: SizedBox(
+          width: 70,
+          child: Column(children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 43,
+              height: 43,
+              decoration: BoxDecoration(
+                color: selected
+                    ? (isDark ? AppColors.darkPrimarySoft : green)
+                    : (isDark ? AppColors.darkSurfaceMuted : background),
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                border: Border.all(
+                  color: selected
+                      ? (isDark ? AppColors.darkPrimaryLight : green)
+                      : (isDark
+                          ? AppColors.darkBorder
+                          : color.withValues(alpha: .08)),
+                  width: selected ? 1.5 : 1,
                 ),
               ),
-            ]),
-          ),
+              alignment: Alignment.center,
+              child: Text(icon, style: const TextStyle(fontSize: 20)),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                height: 1.05,
+                color: selected
+                    ? (isDark ? AppColors.darkPrimaryLight : green)
+                    : (isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary),
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ]),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _HeroPlace extends StatelessWidget {
@@ -1792,9 +1990,9 @@ class _HeroPlace extends StatelessWidget {
           height: 195,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surfaceOf(context),
               borderRadius: BorderRadius.circular(AppRadii.large),
-              border: Border.all(color: AppColors.border)),
+              border: Border.all(color: AppColors.borderOf(context))),
           child: Stack(fit: StackFit.expand, children: [
             NatureArt(
               place: place,
@@ -1807,7 +2005,7 @@ class _HeroPlace extends StatelessWidget {
                     gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Color(0xCC000000)]))),
+                        colors: [Colors.transparent, AppColors.shadow80]))),
             Positioned(
                 left: 14,
                 top: 12,
@@ -1816,24 +2014,24 @@ class _HeroPlace extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
-                          color: const Color(0xFFC4622D),
+                          color: AppColors.accentOrange,
                           borderRadius: BorderRadius.circular(AppRadii.large)),
                       child: const Text('ÖNE ÇIKAN',
                           style: TextStyle(
                               color: Colors.white,
-                              fontSize: 8,
+                              fontSize: AppFontSizes.caption,
                               fontWeight: FontWeight.w700))),
                   const SizedBox(width: 6),
                   Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
-                          color: const Color(0xCC3A6B1E),
+                          color: AppColors.primary.withValues(alpha: 0.80),
                           borderRadius: BorderRadius.circular(AppRadii.large)),
                       child: Text(place.kind.toUpperCase(),
                           style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 8,
+                              fontSize: AppFontSizes.caption,
                               fontWeight: FontWeight.w700)))
                 ])),
             Positioned(
@@ -1847,21 +2045,22 @@ class _HeroPlace extends StatelessWidget {
                           style: const TextStyle(
                               fontFamily: 'Outfit',
                               color: Colors.white,
-                              fontSize: 20,
+                              fontSize: AppFontSizes.heading,
                               height: 1.08,
                               fontWeight: FontWeight.w600,
                               letterSpacing: -.25)),
                       Text(place.location,
                           style: const TextStyle(
-                              color: Colors.white70, fontSize: 9)),
+                              color: Colors.white70,
+                              fontSize: AppFontSizes.caption)),
                       const SizedBox(height: 7),
                       Row(children: [
                         const Icon(Icons.star_rounded,
-                            color: Color(0xFFFFB22D), size: 13),
+                            color: AppColors.rating, size: 13),
                         Text(' ${place.rating}',
                             style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 9,
+                                fontSize: AppFontSizes.caption,
                                 fontWeight: FontWeight.w700)),
                         const Spacer(),
                       ])
@@ -1881,17 +2080,20 @@ class _SmallPhotoCard extends StatelessWidget {
   final bool kindBelow;
   final double width;
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
       onTap: onTap,
       child: Container(
-          width: width,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppRadii.medium),
-              border: Border.all(color: AppColors.border)),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        width: width,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+            color: AppColors.surfaceOf(context),
+            borderRadius: BorderRadius.circular(AppRadii.medium),
+            border: Border.all(color: AppColors.borderOf(context))),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Expanded(
                 child: Stack(fit: StackFit.expand, children: [
               NatureArt(
@@ -1908,13 +2110,16 @@ class _SmallPhotoCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 7, vertical: 4),
                         decoration: BoxDecoration(
-                            color: const Color(0xFFF5F7EF),
+                            color: isDark
+                                ? AppColors.darkPrimarySoft
+                                : AppColors.surfaceMuted,
                             borderRadius:
                                 BorderRadius.circular(AppRadii.small)),
                         child: Text(place.kind,
-                            style: const TextStyle(
-                                color: green,
-                                fontSize: 7.5,
+                            style: TextStyle(
+                                color:
+                                    isDark ? AppColors.darkPrimaryLight : green,
+                                fontSize: AppFontSizes.caption,
                                 fontWeight: FontWeight.w600)))),
               if (kindBelow)
                 const Positioned(
@@ -1922,63 +2127,74 @@ class _SmallPhotoCard extends StatelessWidget {
                     top: 8,
                     child: CircleAvatar(
                         radius: 13,
-                        backgroundColor: Color(0x88000000),
+                        backgroundColor: AppColors.shadow80,
                         child: Icon(Icons.favorite_border_rounded,
                             color: Colors.white, size: 15)))
             ])),
             Padding(
-                padding: const EdgeInsets.fromLTRB(9, 7, 9, 8),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(place.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13.5,
-                              height: 1.1,
-                              fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      Row(children: [
-                        Expanded(
-                          child: Text(
-                            place.location,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              color: Color(0xFF8A8680),
-                              fontSize: 10.5,
-                            ),
-                          ),
+              padding: const EdgeInsets.fromLTRB(9, 7, 9, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(place.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontFamily: 'Outfit',
+                          color: AppColors.textPrimaryOf(context),
+                          fontSize: AppFontSizes.label,
+                          height: 1.1,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Expanded(
+                      child: Text(
+                        place.location,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
+                          fontSize: AppFontSizes.caption,
                         ),
-                        const SizedBox(width: 6),
-                        if (place.distanceKm != null) ...[
-                          const Icon(Icons.near_me_rounded,
-                              size: 12, color: green),
-                          const SizedBox(width: 3),
-                          Text(
-                            '${place.distanceKm!.toStringAsFixed(1)} km',
-                            style: const TextStyle(
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    if (place.distanceKm != null) ...[
+                      Icon(Icons.near_me_rounded,
+                          size: 12,
+                          color: isDark ? AppColors.darkPrimaryLight : green),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${place.distanceKm!.toStringAsFixed(1)} km',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          color: isDark ? AppColors.darkPrimaryLight : green,
+                          fontSize: AppFontSizes.caption,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ] else ...[
+                      const Icon(Icons.star_rounded,
+                          size: 13, color: AppColors.rating),
+                      Text('${place.rating}',
+                          style: TextStyle(
                               fontFamily: 'Outfit',
-                              color: green,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ] else ...[
-                          const Icon(Icons.star_rounded,
-                              size: 13, color: Color(0xFFFFA000)),
-                          Text('${place.rating}',
-                              style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ])
-                    ]))
-          ])));
+                              color: AppColors.textPrimaryOf(context),
+                              fontSize: AppFontSizes.caption,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ]),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _CommunityCard extends StatelessWidget {
@@ -2006,200 +2222,212 @@ class _CommunityCard extends StatelessWidget {
   }
 
   Color get categoryColor {
-    if (suggestion.place.kind.contains('Göl')) return const Color(0xFF3478B8);
+    if (suggestion.place.kind.contains('Göl')) return AppColors.categoryWater;
     if (suggestion.place.kind.contains('Yürüyüş')) {
-      return const Color(0xFFA56228);
+      return AppColors.categoryRoute;
     }
     if (suggestion.place.kind.contains('Kamp')) {
-      return const Color(0xFFC5672A);
+      return AppColors.categoryCamp;
     }
     return green;
   }
 
   Color get categoryBackground {
-    if (suggestion.place.kind.contains('Göl')) return const Color(0xFFEDF6FC);
+    if (suggestion.place.kind.contains('Göl')) {
+      return AppColors.categoryWater.withValues(alpha: 0.12);
+    }
     if (suggestion.place.kind.contains('Yürüyüş')) {
-      return const Color(0xFFFFF4E7);
+      return AppColors.categoryRoute.withValues(alpha: 0.12);
     }
     if (suggestion.place.kind.contains('Kamp')) {
-      return const Color(0xFFFFF0E8);
+      return AppColors.categoryCamp.withValues(alpha: 0.12);
     }
     return mint;
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: width,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadii.large),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x12000000),
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: width,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.border,
           ),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 142,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    NatureArt(
-                      place: suggestion.place,
-                      radius: 0,
-                      showKind: false,
-                      cacheWidth: 360,
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.shadow08,
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              height: 142,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  NatureArt(
+                    place: suggestion.place,
+                    radius: 0,
+                    showKind: false,
+                    cacheWidth: 360,
+                  ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, AppColors.shadow80],
+                        stops: [.34, 1],
+                      ),
                     ),
-                    const DecoratedBox(
+                  ),
+                  Positioned(
+                    top: 9,
+                    right: 9,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Color(0xD9000000)],
-                          stops: [.34, 1],
-                        ),
+                        color: AppColors.shadow80,
+                        borderRadius: BorderRadius.circular(AppRadii.large),
                       ),
-                    ),
-                    Positioned(
-                      top: 9,
-                      right: 9,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xB8000000),
-                          borderRadius: BorderRadius.circular(AppRadii.large),
-                        ),
-                        child: Text(
-                          '👥 ${suggestion.recommendationCount} kişi önerdi',
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            color: Colors.white,
-                            fontSize: 7.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Positioned(
-                      left: 10,
-                      bottom: 54,
-                      child: _CommunityAvatars(),
-                    ),
-                    Positioned(
-                      left: 10,
-                      right: 8,
-                      bottom: 27,
                       child: Text(
-                        suggestion.place.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        '👥 ${suggestion.recommendationCount} kişi önerdi',
                         style: const TextStyle(
                           fontFamily: 'Outfit',
                           color: Colors.white,
-                          fontSize: 15,
-                          height: 1,
+                          fontSize: AppFontSizes.caption,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 10,
-                      right: 8,
-                      bottom: 10,
-                      child: Text(
-                        '${suggestion.place.location} · $distanceLabel',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          color: Color(0xFFE8E8E3),
-                          fontSize: 9,
-                          height: 1,
-                          fontWeight: FontWeight.w400,
+                  ),
+                  const Positioned(
+                    left: 10,
+                    bottom: 54,
+                    child: _CommunityAvatars(),
+                  ),
+                  Positioned(
+                    left: 10,
+                    right: 8,
+                    bottom: 27,
+                    child: Text(
+                      suggestion.place.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        color: Colors.white,
+                        fontSize: AppFontSizes.title,
+                        height: 1,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 10,
+                    right: 8,
+                    bottom: 10,
+                    child: Text(
+                      '${suggestion.place.location} · $distanceLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        color: AppColors.darkTextPrimary,
+                        fontSize: AppFontSizes.caption,
+                        height: 1,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
                         ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkPrimarySoft
+                              : categoryBackground,
+                          borderRadius: BorderRadius.circular(AppRadii.large),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(categoryEmoji,
+                                style: const TextStyle(
+                                    fontSize: AppFontSizes.caption, height: 1)),
+                            const SizedBox(width: 3),
+                            Flexible(
+                              child: Text(
+                                suggestion.place.kind,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  color: categoryColor,
+                                  fontSize: AppFontSizes.caption,
+                                  height: 1,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(Icons.star_rounded,
+                        color: AppColors.rating, size: 14),
+                    Text(
+                      ' ${suggestion.place.rating}',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        color: isDark ? AppColors.darkTextPrimary : ink,
+                        fontSize: AppFontSizes.caption,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      ' (0)',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textTertiary,
+                        fontSize: AppFontSizes.caption,
                       ),
                     ),
                   ],
                 ),
               ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: categoryBackground,
-                            borderRadius: BorderRadius.circular(AppRadii.large),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(categoryEmoji,
-                                  style:
-                                      const TextStyle(fontSize: 9, height: 1)),
-                              const SizedBox(width: 3),
-                              Flexible(
-                                child: Text(
-                                  suggestion.place.kind,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    color: categoryColor,
-                                    fontSize: 9,
-                                    height: 1,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      const Icon(Icons.star_rounded,
-                          color: Color(0xFFFFA000), size: 14),
-                      Text(
-                        ' ${suggestion.place.rating}',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          color: ink,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const Text(
-                        ' (0)',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          color: Color(0xFF8A8680),
-                          fontSize: 8.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _CommunityAvatars extends StatelessWidget {
@@ -2211,9 +2439,12 @@ class _CommunityAvatars extends StatelessWidget {
         height: 22,
         child: Stack(
           children: const [
-            _CommunityAvatar(left: 0, letter: 'A', color: Color(0xFF4B8A38)),
-            _CommunityAvatar(left: 14, letter: 'B', color: Color(0xFFD36B45)),
-            _CommunityAvatar(left: 28, letter: 'C', color: Color(0xFF3C8DB6)),
+            _CommunityAvatar(
+                left: 0, letter: 'A', color: AppColors.categoryNature),
+            _CommunityAvatar(
+                left: 14, letter: 'B', color: AppColors.categoryCamp),
+            _CommunityAvatar(
+                left: 28, letter: 'C', color: AppColors.categoryWater),
           ],
         ),
       );
@@ -2247,7 +2478,7 @@ class _CommunityAvatar extends StatelessWidget {
             style: const TextStyle(
               fontFamily: 'Outfit',
               color: Colors.white,
-              fontSize: 8,
+              fontSize: AppFontSizes.caption,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -2278,19 +2509,19 @@ class _PlaceRow extends StatelessWidget {
 
   Color get categoryColor {
     if (place.kind.contains('Göl') || place.kind.contains('Kaynak')) {
-      return const Color(0xFF3478B8);
+      return AppColors.categoryWater;
     }
-    if (place.kind.contains('Kamp')) return const Color(0xFFC5672A);
-    if (place.kind.contains('Mağara')) return const Color(0xFF887A70);
-    if (place.kind.contains('Karavan')) return const Color(0xFFC08332);
-    return const Color(0xFF39751E);
+    if (place.kind.contains('Kamp')) return AppColors.categoryCamp;
+    if (place.kind.contains('Mağara')) return AppColors.categoryFormation;
+    if (place.kind.contains('Karavan')) return AppColors.categoryRoute;
+    return AppColors.categoryNature;
   }
 
   String get distance {
     if (place.distanceKm != null) {
       return '${place.distanceKm!.toStringAsFixed(1)} km';
     }
-    return 'Mesafe bilgisi yok';
+    return AppStrings.get('card_distance');
   }
 
   String get updatedLabel {
@@ -2302,17 +2533,22 @@ class _PlaceRow extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
       onTap: onTap,
       child: Container(
           height: 82,
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? AppColors.darkSurface : Colors.white,
               borderRadius: BorderRadius.circular(AppRadii.large),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+              ),
               boxShadow: const [
                 BoxShadow(
-                    color: Color(0x12000000),
+                    color: AppColors.shadow08,
                     blurRadius: 10,
                     offset: Offset(0, 3))
               ]),
@@ -2336,9 +2572,10 @@ class _PlaceRow extends StatelessWidget {
                         child: Text(place.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontSize: 13.5,
+                                color: AppColors.textPrimaryOf(context),
+                                fontSize: AppFontSizes.label,
                                 height: 1.1,
                                 fontWeight: FontWeight.w600))),
                     const SizedBox(width: 6),
@@ -2346,14 +2583,15 @@ class _PlaceRow extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2.5),
                         decoration: BoxDecoration(
-                            color: mint,
+                            color: isDark ? AppColors.darkPrimarySoft : mint,
                             borderRadius:
                                 BorderRadius.circular(AppRadii.medium)),
-                        child: const Text('YENİ',
+                        child: Text(AppStrings.get('home_new_badge'),
                             style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontSize: 8,
-                                color: green,
+                                fontSize: AppFontSizes.caption,
+                                color:
+                                    isDark ? AppColors.darkPrimaryLight : green,
                                 fontWeight: FontWeight.w700)))
                   ]),
                   const SizedBox(height: 7),
@@ -2367,59 +2605,73 @@ class _PlaceRow extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontSize: 10.5,
+                                fontSize: AppFontSizes.caption,
                                 height: 1,
                                 color: categoryColor,
                                 fontWeight: FontWeight.w600))),
-                    const Text('  ·  ',
-                        style:
-                            TextStyle(fontSize: 10, color: Color(0xFFAAA59E))),
+                    Text('  ·  ',
+                        style: TextStyle(
+                            fontSize: AppFontSizes.caption,
+                            color: isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.textTertiary)),
                     Flexible(
                         child: Text(place.location,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontSize: 10.5,
+                                fontSize: AppFontSizes.caption,
                                 height: 1,
-                                color: Color(0xFF8A8680))))
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.textTertiary)))
                   ])
                 ])),
             const SizedBox(width: 8),
             Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               if (place.sourceId != null)
                 Row(children: [
-                  const Icon(Icons.update_rounded, color: green, size: 13),
+                  Icon(Icons.update_rounded,
+                      color: isDark ? AppColors.darkPrimaryLight : green,
+                      size: 13),
                   const SizedBox(width: 3),
                   Text(updatedLabel,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontFamily: 'Outfit',
-                          color: green,
-                          fontSize: 9,
+                          color: isDark ? AppColors.darkPrimaryLight : green,
+                          fontSize: AppFontSizes.caption,
                           fontWeight: FontWeight.w600)),
                 ])
               else
                 Row(children: [
                   const Icon(Icons.star_rounded,
-                      color: Color(0xFFFFA000), size: 15),
+                      color: AppColors.rating, size: 15),
                   Text(' ${place.rating}',
-                      style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700)),
-                  const Text(' (0)',
                       style: TextStyle(
                           fontFamily: 'Outfit',
-                          fontSize: 9,
-                          color: Color(0xFF8A8680)))
+                          color: AppColors.textPrimaryOf(context),
+                          fontSize: AppFontSizes.caption,
+                          fontWeight: FontWeight.w700)),
+                  Text(' (0)',
+                      style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: AppFontSizes.caption,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textTertiary))
                 ]),
               const SizedBox(height: 8),
               Text(distance,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontFamily: 'Outfit',
-                      fontSize: 9.5,
-                      color: Color(0xFF8A8680)))
+                      fontSize: AppFontSizes.caption,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textTertiary))
             ]),
             const SizedBox(width: 4)
-          ])));
+          ])),
+    );
+  }
 }

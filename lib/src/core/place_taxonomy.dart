@@ -5,6 +5,11 @@ class PlaceSubtypeDefinition {
 
   final String key;
   final String label;
+
+  String get localizedLabel {
+    final trans = AppStrings.subtype(key);
+    return trans != key ? trans : label;
+  }
 }
 
 class PlaceCategoryDefinition {
@@ -23,6 +28,11 @@ class PlaceCategoryDefinition {
   final Color foreground;
   final Color background;
   final List<PlaceSubtypeDefinition> subtypes;
+
+  String get localizedLabel {
+    final trans = AppStrings.category(key);
+    return trans != key ? trans : label;
+  }
 }
 
 const placeTaxonomy = <PlaceCategoryDefinition>[
@@ -30,8 +40,8 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
     key: 'water',
     label: 'Su',
     emoji: '💧',
-    foreground: Color(0xFF357FA8),
-    background: Color(0xFFE8F4FA),
+    foreground: AppColors.categoryWater,
+    background: AppColors.categoryWaterSoft,
     subtypes: [
       PlaceSubtypeDefinition('lake', 'Göl'),
       PlaceSubtypeDefinition('waterfall', 'Şelale'),
@@ -45,8 +55,8 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
     key: 'mountain_terrain',
     label: 'Dağ & Arazi',
     emoji: '⛰️',
-    foreground: Color(0xFF617A4A),
-    background: Color(0xFFF0F4EB),
+    foreground: AppColors.categoryMountain,
+    background: AppColors.categoryMountainSoft,
     subtypes: [
       PlaceSubtypeDefinition('mountain', 'Dağ'),
       PlaceSubtypeDefinition('peak', 'Zirve'),
@@ -60,8 +70,8 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
     key: 'natural_formation',
     label: 'Doğal Oluşum',
     emoji: '🪨',
-    foreground: Color(0xFF6F604F),
-    background: Color(0xFFF3EEE8),
+    foreground: AppColors.categoryFormation,
+    background: AppColors.categoryFormationSoft,
     subtypes: [
       PlaceSubtypeDefinition('canyon', 'Kanyon'),
       PlaceSubtypeDefinition('cave', 'Mağara'),
@@ -75,8 +85,8 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
     key: 'nature_area',
     label: 'Doğa Alanı',
     emoji: '🌲',
-    foreground: Color(0xFF2E6D43),
-    background: Color(0xFFEAF3EC),
+    foreground: AppColors.categoryNature,
+    background: AppColors.categoryNatureSoft,
     subtypes: [
       PlaceSubtypeDefinition('forest', 'Orman'),
       PlaceSubtypeDefinition('national_park', 'Milli Park'),
@@ -90,8 +100,8 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
     key: 'camp_caravan',
     label: 'Kamp & Karavan',
     emoji: '🏕️',
-    foreground: Color(0xFFC4622D),
-    background: Color(0xFFFBF0EA),
+    foreground: AppColors.categoryCamp,
+    background: AppColors.categoryCampSoft,
     subtypes: [
       PlaceSubtypeDefinition('camp_site', 'Kamp Alanı'),
       PlaceSubtypeDefinition('caravan_site', 'Karavan Alanı'),
@@ -101,8 +111,8 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
     key: 'route_activity',
     label: 'Rota & Aktivite',
     emoji: '🥾',
-    foreground: Color(0xFF8A5C1A),
-    background: Color(0xFFFBF5EA),
+    foreground: AppColors.categoryRoute,
+    background: AppColors.categoryRouteSoft,
     subtypes: [
       PlaceSubtypeDefinition('hiking', 'Yürüyüş'),
       PlaceSubtypeDefinition('trekking', 'Trekking'),
@@ -115,8 +125,8 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
     key: 'discovery_point',
     label: 'Keşif Noktası',
     emoji: '🔭',
-    foreground: Color(0xFF6B4CAF),
-    background: Color(0xFFF2EEF9),
+    foreground: AppColors.categoryDiscovery,
+    background: AppColors.categoryDiscoverySoft,
     subtypes: [
       PlaceSubtypeDefinition('viewpoint', 'Seyir Noktası'),
       PlaceSubtypeDefinition('sunset_viewpoint', 'Gün Batımı'),
@@ -128,8 +138,8 @@ const placeTaxonomy = <PlaceCategoryDefinition>[
     key: 'wildlife',
     label: 'Yaban Hayatı',
     emoji: '🦅',
-    foreground: Color(0xFF49704A),
-    background: Color(0xFFEDF4E8),
+    foreground: AppColors.categoryWildlife,
+    background: AppColors.categoryWildlifeSoft,
     subtypes: [
       PlaceSubtypeDefinition('birdwatching', 'Kuş Gözlem'),
       PlaceSubtypeDefinition('wildlife_observation', 'Yaban Hayatı Gözlem'),
@@ -225,10 +235,26 @@ String taxonomyDisplayLabel({
   required String fallback,
   String? mainCategory,
   String? subtype,
-}) =>
-    placeSubtypeByKey(subtype)?.label ??
-    placeCategoryByKey(mainCategory)?.label ??
-    fallback.trim();
+}) {
+  if (subtype != null) {
+    final localized = AppStrings.subtype(subtype);
+    if (localized != subtype) return localized;
+    final def = placeSubtypeByKey(subtype);
+    if (def != null) return def.label;
+  }
+  if (mainCategory != null) {
+    final localized = AppStrings.category(mainCategory);
+    if (localized != mainCategory) return localized;
+    final def = placeCategoryByKey(mainCategory);
+    if (def != null) return def.label;
+  }
+  final fallbackTrimmed = fallback.trim();
+  if (fallbackTrimmed.toLowerCase() == 'doğa noktası' ||
+      fallbackTrimmed.isEmpty) {
+    return AppStrings.get('nature_spot');
+  }
+  return fallbackTrimmed;
+}
 
 bool isUtilitySubtype(String? subtype) =>
     subtype == 'toilet' ||
@@ -259,6 +285,12 @@ const nearbyFacilityLabels = <String, String>{
   'nearby_parking': 'Otopark',
   'nearby_shower': 'Duş',
 };
+
+String facilityDisplayLabel(String key) {
+  final localized = AppStrings.facility(key);
+  if (localized != key) return localized;
+  return facilityLabels[key] ?? nearbyFacilityLabels[key] ?? key;
+}
 
 class PlaceFacilities {
   const PlaceFacilities({

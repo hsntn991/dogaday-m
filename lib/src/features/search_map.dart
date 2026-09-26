@@ -78,8 +78,10 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
       ('✓', 'Tümü'),
       ...categories.map((category) => (category.$1, category.$2)),
     ];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor:
+          isDark ? AppColors.darkSurfaceDeep : AppColors.background,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
@@ -91,9 +93,12 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                   autofocus: true,
                   onChanged: (value) => setState(() => query = value),
                   onSubmitted: (_) => submitSearch(),
-                  style: const TextStyle(fontSize: 14),
+                  style: TextStyle(
+                    fontSize: AppFontSizes.body,
+                    color: isDark ? AppColors.darkTextPrimary : Colors.black87,
+                  ),
                   decoration: InputDecoration(
-                    hintText: 'Şelale, göl, kamp alanı...',
+                    hintText: AppStrings.get('search_input_hint'),
                     prefixIcon: const Icon(Icons.search_rounded,
                         color: green, size: 20),
                     suffixIcon: query.isEmpty
@@ -105,10 +110,12 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                             },
                             icon: const Icon(Icons.close_rounded, size: 18)),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor:
+                        isDark ? AppColors.darkSurfaceMuted : Colors.white,
                     enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(AppRadii.large),
-                        borderSide: const BorderSide(color: green)),
+                        borderSide: BorderSide(
+                            color: isDark ? AppColors.darkBorder : green)),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(AppRadii.large),
                         borderSide: const BorderSide(color: green, width: 1.4)),
@@ -123,14 +130,14 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 15),
                   minimumSize: const Size(54, 50),
                 ),
-                child: const Text('Ara'),
+                child: Text(AppStrings.get('search_button')),
               ),
               const SizedBox(width: 4),
               TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('İptal',
-                      style:
-                          TextStyle(color: green, fontWeight: FontWeight.w600)))
+                  child: Text(AppStrings.get('general_cancel'),
+                      style: const TextStyle(
+                          color: green, fontWeight: FontWeight.w600)))
             ]),
             const SizedBox(height: 12),
             SizedBox(
@@ -141,16 +148,31 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                     .map((item) => Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
-                            label: Text('${item.$1}  ${item.$2}'),
+                            label: Text('${item.$1}  ${item.$2}',
+                                style: TextStyle(
+                                    fontSize: AppFontSizes.caption,
+                                    color: isDark
+                                        ? AppColors.darkTextPrimary
+                                        : Colors.black87)),
                             selected: filter == item.$2,
                             onSelected: (_) => setState(() => filter = item.$2),
-                            labelStyle: const TextStyle(fontSize: 10),
-                            backgroundColor: Colors.white,
-                            selectedColor: const Color(0xFFF0F7E9),
+                            labelStyle: TextStyle(
+                                fontSize: AppFontSizes.caption,
+                                color: isDark
+                                    ? AppColors.darkTextPrimary
+                                    : Colors.black87),
+                            backgroundColor: isDark
+                                ? AppColors.darkSurfaceMuted
+                                : Colors.white,
+                            selectedColor: isDark
+                                ? AppColors.darkPrimarySoft
+                                : AppColors.primarySoft,
                             side: BorderSide(
                                 color: filter == item.$2
                                     ? green
-                                    : const Color(0xFFE1DED6)),
+                                    : isDark
+                                        ? AppColors.darkBorder
+                                        : AppColors.border),
                             visualDensity: VisualDensity.compact,
                           ),
                         ))
@@ -163,15 +185,22 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                   filter == 'Tümü'
                       ? '${results.length} sonuç "$query" için'
                       : '${results.length} sonuç · $filter',
-                  style:
-                      const TextStyle(fontSize: 11, color: Color(0xFF8A8680))),
+                  style: TextStyle(
+                      fontSize: AppFontSizes.caption,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary)),
               const SizedBox(height: 10),
               if (results.isEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 34),
                   alignment: Alignment.center,
-                  child: const Text('Bu aramaya uygun bir yer bulunamadı.',
-                      style: TextStyle(color: Color(0xFF8A8680), fontSize: 12)),
+                  child: Text(AppStrings.get('search_no_results'),
+                      style: TextStyle(
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
+                          fontSize: AppFontSizes.caption)),
                 )
               else
                 ...results.map((place) => Padding(
@@ -185,7 +214,9 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                     )),
             ] else ...[
               Row(children: [
-                const Expanded(child: _SearchHeading('Son Aramalar')),
+                Expanded(
+                    child: _SearchHeading(
+                        AppStrings.get('search_recent_searches'))),
                 if (recentSearches.isNotEmpty)
                   TextButton(
                     onPressed: () => setState(recentSearches.clear),
@@ -194,10 +225,10 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                       padding: EdgeInsets.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text('Temizle',
-                        style: TextStyle(
+                    child: Text(AppStrings.get('search_clear'),
+                        style: const TextStyle(
                             color: green,
-                            fontSize: 10,
+                            fontSize: AppFontSizes.caption,
                             fontWeight: FontWeight.w600)),
                   )
               ]),
@@ -206,8 +237,12 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                 Container(
                   height: 58,
                   alignment: Alignment.centerLeft,
-                  child: const Text('Henüz son arama yok.',
-                      style: TextStyle(color: Color(0xFF9A968E), fontSize: 11)),
+                  child: Text(AppStrings.get('search_no_recent'),
+                      style: TextStyle(
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
+                          fontSize: AppFontSizes.caption)),
                 )
               else
                 ...recentSearches.map((text) => _RecentSearch(
@@ -228,9 +263,15 @@ class _SearchHeading extends StatelessWidget {
   const _SearchHeading(this.text);
   final String text;
   @override
-  Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
-          fontFamily: 'Outfit', fontSize: 17, fontWeight: FontWeight.w600));
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Text(text,
+        style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: AppFontSizes.title,
+            fontWeight: FontWeight.w600,
+            color: isDark ? AppColors.darkTextPrimary : Colors.black87));
+  }
 }
 
 class _RecentSearch extends StatelessWidget {
@@ -238,27 +279,46 @@ class _RecentSearch extends StatelessWidget {
   final String text;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => InkWell(
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InkWell(
         onTap: onTap,
         child: Container(
             height: 48,
-            decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Color(0xFFE5E2DB)))),
+            decoration: BoxDecoration(
+                border: Border(
+                    bottom: BorderSide(
+                        color:
+                            isDark ? AppColors.darkBorder : AppColors.border))),
             child: Row(children: [
               Container(
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                      color: const Color(0xFFEDEBE5),
+                      color: isDark
+                          ? AppColors.darkSurfaceMuted
+                          : AppColors.surfaceMuted,
                       borderRadius: BorderRadius.circular(AppRadii.large)),
-                  child: const Icon(Icons.history_rounded,
-                      size: 15, color: Color(0xFF9A968E))),
+                  child: Icon(Icons.history_rounded,
+                      size: 15,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary)),
               const SizedBox(width: 12),
-              Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
-              const Icon(Icons.north_east_rounded,
-                  size: 13, color: Color(0xFF9A968E))
-            ])),
-      );
+              Expanded(
+                  child: Text(text,
+                      style: TextStyle(
+                          fontSize: AppFontSizes.caption,
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : AppColors.textPrimary))),
+              Icon(Icons.north_east_rounded,
+                  size: 13,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textTertiary)
+            ])));
+  }
 }
 
 String _userDistanceLabel(Place place) {
@@ -286,42 +346,78 @@ class _SearchResultCard extends StatelessWidget {
   final Place place;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadii.large),
-      child: Container(
-          height: 72,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppRadii.large),
-              boxShadow: const [
-                BoxShadow(color: Color(0x0E000000), blurRadius: 8)
-              ]),
-          child: Row(children: [
-            SizedBox(
-                width: 58,
-                child: NatureArt(place: place, radius: 11, showKind: false)),
-            const SizedBox(width: 11),
-            Expanded(
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text(place.name,
-                      style: const TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text('${place.kind}  ·  ${place.location}',
-                      style: const TextStyle(
-                          color: Color(0xFF8A8680), fontSize: 8)),
-                  const SizedBox(height: 4),
-                  Text('⭐ ${place.rating}  ·  ${_userDistanceLabel(place)}',
-                      style: const TextStyle(fontSize: 8))
-                ])),
-            const Icon(Icons.chevron_right_rounded,
-                size: 17, color: Color(0xFF9A968E))
-          ])));
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Semantics(
+      button: true,
+      label: '${place.name}, ${place.kind}, detayları gör',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        child: Container(
+            height: 80,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(AppRadii.large),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                ),
+                boxShadow: const [
+                  BoxShadow(color: AppColors.shadow08, blurRadius: 8)
+                ]),
+            child: Row(children: [
+              SizedBox(
+                  width: 58,
+                  child: NatureArt(place: place, radius: 11, showKind: false)),
+              const SizedBox(width: 11),
+              Expanded(
+                  child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(place.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.textPrimary,
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text('${place.kind}  ·  ${place.location}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                            fontSize: AppFontSizes.caption)),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Text(
+                            '⭐ ${place.rating}  ·  ${_userDistanceLabel(place)}',
+                            style: TextStyle(
+                                color: isDark
+                                    ? AppColors.darkTextPrimary
+                                    : AppColors.textPrimary,
+                                fontSize: AppFontSizes.caption)),
+                        const SizedBox(width: 6),
+                        AppPlaceTrustBadge(place: place, compact: true),
+                      ],
+                    ),
+                  ])),
+              Icon(Icons.chevron_right_rounded,
+                  size: 17,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textTertiary)
+            ])),
+      ),
+    );
+  }
 }
 
 class _MapCategoryStyle {
@@ -338,11 +434,19 @@ class _MapCategoryStyle {
   final String label;
   final Color foreground;
   final Color background;
+
+  String get localizedLabel {
+    if (key == 'all') return AppStrings.get('all');
+    if (key == 'toilet') return AppStrings.subtype('toilet');
+    if (key == 'drinking_water') return AppStrings.subtype('drinking_water');
+    if (key == 'water_fountain') return AppStrings.subtype('water_fountain');
+    return AppStrings.category(key);
+  }
 }
 
 final _mapCategories = <_MapCategoryStyle>[
   const _MapCategoryStyle(
-      'all', '✦', 'Tümü', Color(0xFF1B3A0A), Color(0xFFEAF2E3)),
+      'all', '✦', 'Tümü', AppColors.primary, AppColors.primarySoft),
   ...placeTaxonomy.map((item) => _MapCategoryStyle(
         item.key,
         item.emoji,
@@ -351,19 +455,27 @@ final _mapCategories = <_MapCategoryStyle>[
         item.background,
       )),
   const _MapCategoryStyle(
-      'toilet', '🚻', 'WC', Color(0xFF68747B), Color(0xFFEEF1F2)),
+      'toilet', '🚻', 'WC', AppColors.categoryUtility, AppColors.primarySoft),
   const _MapCategoryStyle('drinking_water', '🚰', 'İçme Suyu',
-      Color(0xFF4A8EC4), Color(0xFFEBF4FB)),
-  const _MapCategoryStyle(
-      'water_fountain', '⛲', 'Çeşme', Color(0xFF287A9B), Color(0xFFE6F5FA)),
+      AppColors.categoryWater, AppColors.primarySoft),
+  const _MapCategoryStyle('water_fountain', '⛲', 'Çeşme',
+      AppColors.categoryWater, AppColors.primarySoft),
 ];
 
-bool _matchesMapFilter(Place place, String filterLabel, String? subtype) {
-  if (filterLabel == 'Tümü') return true;
+bool _matchesMapFilter(Place place, String filterKey, String? subtype) {
+  if (filterKey == 'all' ||
+      filterKey == 'Tümü' ||
+      filterKey == AppStrings.get('all')) {
+    return true;
+  }
   final style = _mapCategories.firstWhere(
-    (item) => item.label == filterLabel,
+    (item) =>
+        item.key == filterKey ||
+        item.label == filterKey ||
+        item.localizedLabel == filterKey,
     orElse: () => _mapCategories.first,
   );
+  if (style.key == 'all') return true;
   final taxonomy = place.resolvedTaxonomy;
   if (isUtilitySubtype(style.key)) return taxonomy.subtype == style.key;
   return taxonomy.mainCategory == style.key &&
@@ -392,10 +504,17 @@ bool _isPlaceNearClusterViewport(LatLng place, LatLngBounds visibleBounds) {
 }
 
 class _MapCluster {
-  const _MapCluster({required this.center, required this.placeIndexes});
+  const _MapCluster({
+    required this.center,
+    required this.placeIndexes,
+    this.dominantCategory,
+    this.isMixed = false,
+  });
 
   final LatLng center;
   final List<int> placeIndexes;
+  final String? dominantCategory;
+  final bool isMixed;
 }
 
 class MapScreen extends StatefulWidget {
@@ -407,6 +526,8 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
+enum _MapStyle { standart, uydu, topo }
+
 class _MapScreenState extends State<MapScreen> {
   static const initialCenter = LatLng(39.0, 35.2);
   static const initialZoom = 5.4;
@@ -416,6 +537,7 @@ class _MapScreenState extends State<MapScreen> {
   int? selectedIndex;
   String selectedFilter = 'Tümü';
   String? selectedSubtype;
+  _MapStyle _mapStyle = _MapStyle.standart;
   StreamSubscription<DeviceCoordinates>? _locationSubscription;
   LatLng? _liveUserCoordinate;
   double _mapZoom = initialZoom;
@@ -516,14 +638,31 @@ class _MapScreenState extends State<MapScreen> {
     final clusters = grouped.values.map((indexes) {
       var latitude = 0.0;
       var longitude = 0.0;
+      final categoryCounts = <String, int>{};
       for (final index in indexes) {
         final point = coordinateFor(index);
         latitude += point.latitude;
         longitude += point.longitude;
+        final cat = mapPlaces[index].resolvedTaxonomy.mainCategory;
+        if (cat != null) {
+          categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
+        }
       }
+      String? dominant;
+      var maxCount = 0;
+      for (final entry in categoryCounts.entries) {
+        if (entry.value > maxCount) {
+          maxCount = entry.value;
+          dominant = entry.key;
+        }
+      }
+      final isDominant =
+          dominant != null && maxCount >= (indexes.length * 0.40);
       return _MapCluster(
         center: LatLng(latitude / indexes.length, longitude / indexes.length),
         placeIndexes: List.unmodifiable(indexes),
+        dominantCategory: isDominant ? dominant : null,
+        isMixed: !isDominant,
       );
     }).toList(growable: false);
     _clusterCache = clusters;
@@ -761,25 +900,25 @@ class _MapScreenState extends State<MapScreen> {
     required String tooltip,
     required VoidCallback onTap,
   }) =>
-      Tooltip(
-        message: tooltip,
-        child: Material(
-          color: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-            side: const BorderSide(color: AppColors.border),
+      GlassIconButton(
+        icon: icon,
+        tooltip: tooltip,
+        onTap: onTap,
+        size: 43,
+        iconSize: 20,
+        iconColor: green,
+        blur: 0,
+        color: Colors.white.withValues(alpha: 0.82),
+        borderColor: Colors.white.withValues(alpha: 0.90),
+        borderWidth: 1.2,
+        borderRadius: BorderRadius.circular(AppRadii.medium),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadow08,
+            blurRadius: 12,
+            offset: Offset(0, 3),
           ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-            child: SizedBox(
-              width: 43,
-              height: 43,
-              child: Icon(icon, size: 20, color: green),
-            ),
-          ),
-        ),
+        ],
       );
 
   void showOfflineMapInfo() {
@@ -797,7 +936,7 @@ class _MapScreenState extends State<MapScreen> {
                 'Çevrimdışı harita',
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontSize: 19,
+                  fontSize: AppFontSizes.heading,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -808,8 +947,8 @@ class _MapScreenState extends State<MapScreen> {
                 'kendi eklediğin noktalar görünmeye devam eder.',
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  color: Color(0xFF686E69),
-                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  fontSize: AppFontSizes.label,
                   height: 1.45,
                 ),
               ),
@@ -820,19 +959,192 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  void _showLayerPicker() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.get('map_layer_title'),
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.title,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    AppStrings.get('map_layer_desc'),
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.caption,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _buildLayerOption(
+                        style: _MapStyle.standart,
+                        title: AppStrings.get('map_standard'),
+                        subtitle: 'OpenStreetMap',
+                        icon: Icons.map_outlined,
+                        isDark: isDark,
+                        onTap: () {
+                          setState(() => _mapStyle = _MapStyle.standart);
+                          setSheetState(() {});
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      _buildLayerOption(
+                        style: _MapStyle.uydu,
+                        title: AppStrings.get('map_satellite'),
+                        subtitle: 'Esri World',
+                        icon: Icons.satellite_alt_rounded,
+                        isDark: isDark,
+                        onTap: () {
+                          setState(() => _mapStyle = _MapStyle.uydu);
+                          setSheetState(() {});
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      _buildLayerOption(
+                        style: _MapStyle.topo,
+                        title: AppStrings.get('map_topo'),
+                        subtitle: AppStrings.get('map_topo_subtitle'),
+                        icon: Icons.terrain_rounded,
+                        isDark: isDark,
+                        onTap: () {
+                          setState(() => _mapStyle = _MapStyle.topo);
+                          setSheetState(() {});
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLayerOption({
+    required _MapStyle style,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = _mapStyle == style;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? (isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft)
+                : (isDark
+                    ? AppColors.darkSurfaceMuted
+                    : AppColors.surfaceMuted),
+            borderRadius: BorderRadius.circular(AppRadii.large),
+            border: Border.all(
+              color: isSelected
+                  ? green
+                  : (isDark ? AppColors.darkBorder : AppColors.border),
+              width: isSelected ? 1.8 : 1.0,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 26,
+                color: isSelected
+                    ? green
+                    : (isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.caption,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected
+                      ? (isDark ? AppColors.darkPrimaryLight : green)
+                      : (isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.caption,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final selectedPlace =
-                selectedIndex == null ? null : mapPlaces[selectedIndex!];
-            final sheetHeight = selectedPlace == null ? 0.0 : 204.0;
-            return Stack(
-              children: [
-                Positioned.fill(
-                  child: ClipRect(
-                    child: ColoredBox(
-                      color: const Color(0xFFDDE8E3),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final selectedPlace =
+              selectedIndex == null ? null : mapPlaces[selectedIndex!];
+          final sheetHeight = selectedPlace == null ? 0.0 : 204.0;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: ClipRect(
+                  child: ColoredBox(
+                    color:
+                        isDark ? AppColors.darkSurface : AppColors.surfaceMuted,
+                    child: RepaintBoundary(
                       child: FlutterMap(
                         mapController: mapController,
                         options: MapOptions(
@@ -845,10 +1157,20 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                         children: [
                           TileLayer(
-                            urlTemplate:
+                            urlTemplate: switch (_mapStyle) {
+                              _MapStyle.standart =>
                                 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              _MapStyle.uydu =>
+                                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                              _MapStyle.topo =>
+                                'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+                            },
+                            subdomains: _mapStyle == _MapStyle.topo
+                                ? const ['a', 'b', 'c']
+                                : const ['a'],
                             userAgentPackageName: 'com.dogadagezi.dogada_gezi',
-                            maxNativeZoom: 19,
+                            maxNativeZoom:
+                                _mapStyle == _MapStyle.topo ? 17 : 19,
                             panBuffer: 2,
                             tileProvider: tileProvider,
                           ),
@@ -868,23 +1190,27 @@ class _MapScreenState extends State<MapScreen> {
                               if (cluster.placeIndexes.length > 1) {
                                 return Marker(
                                   point: cluster.center,
-                                  width: 58,
-                                  height: 58,
+                                  width: 36,
+                                  height: 36,
+                                  alignment: Alignment.center,
                                   child: _MapClusterMarker(
-                                    count: cluster.placeIndexes.length,
+                                    cluster: cluster,
                                     onTap: () => openCluster(cluster),
                                   ),
                                 );
                               }
                               final index = cluster.placeIndexes.single;
                               final selected = selectedIndex == index;
+                              final showLabel = _mapZoom >= 13.0;
                               return Marker(
                                 point: cluster.center,
-                                width: selected ? 70 : 54,
-                                height: selected ? 74 : 54,
+                                width: selected ? 130 : 110,
+                                height: selected ? 74 : (showLabel ? 58 : 46),
+                                alignment: Alignment.bottomCenter,
                                 child: _MapMarker(
                                   place: mapPlaces[index],
                                   selected: selected,
+                                  showLabel: showLabel,
                                   onTap: () => selectPlace(mapPlaces[index]),
                                 ),
                               );
@@ -894,11 +1220,13 @@ class _MapScreenState extends State<MapScreen> {
                             MarkerLayer(markers: [
                               Marker(
                                 point: coordinateFor(selectedIndex!),
-                                width: 70,
+                                width: 130,
                                 height: 74,
+                                alignment: Alignment.bottomCenter,
                                 child: _MapMarker(
                                     place: selectedPlace,
                                     selected: true,
+                                    showLabel: true,
                                     onTap: () => selectPlace(selectedPlace)),
                               )
                             ]),
@@ -907,37 +1235,54 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                 ),
-                Positioned(
-                  left: 8,
-                  bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .88),
-                      borderRadius: BorderRadius.circular(AppRadii.medium),
-                    ),
-                    child: const Text(
-                      '© OpenStreetMap contributors',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        color: Color(0xFF5E625B),
-                        fontSize: 8,
-                      ),
+              ),
+              Positioned(
+                left: 8,
+                bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
+                child: GlassContainer(
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  blur: 10,
+                  color: Colors.white.withValues(alpha: 0.75),
+                  borderColor: Colors.white.withValues(alpha: 0.65),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  child: Text(
+                    switch (_mapStyle) {
+                      _MapStyle.standart => '© OpenStreetMap contributors',
+                      _MapStyle.uydu => '© Esri, Maxar, Earthstar',
+                      _MapStyle.topo => '© OpenTopoMap, OSM contributors',
+                    },
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
+                      fontSize: AppFontSizes.caption,
                     ),
                   ),
                 ),
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  top: 12,
-                  child: Material(
-                    color: Colors.white,
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.large),
-                      side: const BorderSide(color: AppColors.border),
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                top: 12,
+                child: GlassContainer(
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                  blur: 8,
+                  color: Colors.white.withValues(alpha: 0.72),
+                  darkColor: AppColors.darkGlass,
+                  borderColor: Colors.white.withValues(alpha: 0.85),
+                  darkBorderColor: Colors.white.withValues(alpha: 0.14),
+                  borderWidth: 1.2,
+                  boxShadow: [
+                    BoxShadow(
+                      color: isDark ? AppColors.shadow33 : AppColors.shadow08,
+                      blurRadius: 18,
+                      offset: const Offset(0, 4),
                     ),
+                  ],
+                  child: Material(
+                    color: Colors.transparent,
                     child: InkWell(
                       onTap: searchPlace,
                       borderRadius: BorderRadius.circular(AppRadii.large),
@@ -946,24 +1291,34 @@ class _MapScreenState extends State<MapScreen> {
                         child: Row(
                           children: [
                             const SizedBox(width: 16),
-                            Icon(Icons.search_rounded, color: green, size: 21),
+                            Icon(Icons.search_rounded,
+                                color:
+                                    isDark ? AppColors.darkPrimaryLight : green,
+                                size: 21),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                selectedFilter == 'Tümü'
-                                    ? 'Haritada yer ara'
-                                    : '$selectedFilter içinde ara',
+                                selectedFilter == 'Tümü' ||
+                                        selectedFilter == 'all'
+                                    ? AppStrings.get('map_search_places')
+                                    : '${_mapCategories.firstWhere((item) => item.key == selectedFilter || item.label == selectedFilter, orElse: () => _mapCategories.first).localizedLabel} ${AppStrings.get('map_search_in')}',
                                 style: TextStyle(
                                   fontFamily: 'Outfit',
-                                  color: Color(0xFF77736C),
-                                  fontSize: 12.5,
+                                  color: isDark
+                                      ? AppColors.darkTextPrimary
+                                      : AppColors.textSecondary,
+                                  fontSize: AppFontSizes.label,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
                             Semantics(
                               label: 'Harita filtreleri',
                               child: Icon(Icons.tune_rounded,
-                                  color: Color(0xFF77736C), size: 20),
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.textSecondary,
+                                  size: 20),
                             ),
                             const SizedBox(width: 16),
                           ],
@@ -972,36 +1327,120 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                 ),
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  top: 72,
-                  child: SizedBox(
-                    height: 44,
-                    child: ScrollConfiguration(
-                      behavior: const _MapCategoryScrollBehavior(),
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        itemCount: _mapCategories.length + 1,
-                        separatorBuilder: (_, __) => const SizedBox(width: 7),
-                        itemBuilder: (_, index) {
-                          if (index == 0) {
-                            return _MapLocationChip(
-                              label: HomeWeatherLocationController
-                                  .current.value.label,
-                              onTap: centerOnUserLocation,
-                            );
-                          }
-                          final category = _mapCategories[index - 1];
-                          final selected = selectedFilter == category.label;
-                          return Material(
-                            color: selected ? green : Colors.white,
-                            elevation: 0,
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                top: 72,
+                child: SizedBox(
+                  height: 44,
+                  child: ScrollConfiguration(
+                    behavior: const _MapCategoryScrollBehavior(),
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      itemCount: _mapCategories.length + 1,
+                      separatorBuilder: (_, __) => const SizedBox(width: 7),
+                      itemBuilder: (_, index) {
+                        if (index == 0) {
+                          return _MapLocationChip(
+                            label: HomeWeatherLocationController
+                                .current.value.label,
+                            onTap: centerOnUserLocation,
+                          );
+                        }
+                        final category = _mapCategories[index - 1];
+                        final selected = selectedFilter == category.label ||
+                            selectedFilter == category.key;
+                        final chipContent = Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 11, vertical: 7),
+                          decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(AppRadii.pill),
+                            border: Border.all(
+                              color: selected
+                                  ? green
+                                  : Colors.white.withValues(alpha: 0.70),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _mapIconForCategory(category.key),
+                                size: 16,
+                                color: selected
+                                    ? Colors.white
+                                    : (isDark
+                                        ? AppColors.darkPrimaryLight
+                                        : AppColors.primary),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                category.localizedLabel,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  color: selected
+                                      ? Colors.white
+                                      : (isDark
+                                          ? AppColors.darkTextPrimary
+                                          : ink),
+                                  fontSize: AppFontSizes.caption,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (selected) {
+                          return GlassContainer(
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                            blur: 0,
+                            color: green.withValues(alpha: 0.92),
+                            darkColor:
+                                AppColors.darkPrimary.withValues(alpha: 0.95),
+                            borderColor: Colors.white.withValues(alpha: 0.50),
+                            borderWidth: 1.2,
+                            boxShadow: const [
+                              BoxShadow(
+                                color: AppColors.shadow26,
+                                blurRadius: 10,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => setState(() {
+                                  selectedFilter = category.key;
+                                  selectedSubtype = null;
+                                  selectedIndex = null;
+                                  _selectionHistory.clear();
+                                  _clusterCache = null;
+                                }),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                child: chipContent,
+                              ),
+                            ),
+                          );
+                        }
+
+                        return GlassContainer(
+                          borderRadius: BorderRadius.circular(AppRadii.pill),
+                          blur: 0,
+                          color: Colors.white.withValues(alpha: 0.82),
+                          borderColor: Colors.white.withValues(alpha: 0.85),
+                          borderWidth: 1.2,
+                          boxShadow: AppShadows.soft,
+                          child: Material(
+                            color: Colors.transparent,
                             child: InkWell(
                               onTap: () => setState(() {
-                                selectedFilter = category.label;
+                                selectedFilter = category.key;
                                 selectedSubtype = null;
                                 selectedIndex = null;
                                 _selectionHistory.clear();
@@ -1009,38 +1448,92 @@ class _MapScreenState extends State<MapScreen> {
                               }),
                               borderRadius:
                                   BorderRadius.circular(AppRadii.pill),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 11, vertical: 7),
-                                decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.pill),
-                                  border: Border.all(
-                                    color: selected
-                                        ? green
-                                        : const Color(0xFFE2E0DA),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      _mapIconForCategory(category.key),
-                                      size: 16,
-                                      color: selected
+                              child: chipContent,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              if (placeCategoryByKey(
+                _mapCategories
+                    .firstWhere(
+                        (item) =>
+                            item.key == selectedFilter ||
+                            item.label == selectedFilter,
+                        orElse: () => _mapCategories.first)
+                    .key,
+              )
+                  case final category?)
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  top: 119,
+                  child: SizedBox(
+                    height: 36,
+                    child: ScrollConfiguration(
+                      behavior: const _MapCategoryScrollBehavior(),
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        itemCount: category.subtypes.length + 1,
+                        separatorBuilder: (_, __) => const SizedBox(width: 7),
+                        itemBuilder: (_, index) {
+                          final subtype =
+                              index == 0 ? null : category.subtypes[index - 1];
+                          final isSelected = selectedSubtype == subtype?.key;
+                          return GlassContainer(
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                            blur: 0,
+                            color: isSelected
+                                ? green.withValues(alpha: 0.92)
+                                : Colors.white.withValues(alpha: 0.82),
+                            darkColor: isSelected
+                                ? AppColors.darkPrimary.withValues(alpha: 0.95)
+                                : AppColors.darkSurfaceMuted
+                                    .withValues(alpha: 0.90),
+                            borderColor: isSelected
+                                ? Colors.white.withValues(alpha: 0.50)
+                                : Colors.white.withValues(alpha: 0.70),
+                            darkBorderColor: isSelected
+                                ? Colors.white.withValues(alpha: 0.30)
+                                : Colors.white.withValues(alpha: 0.14),
+                            borderWidth: 1.2,
+                            boxShadow: AppShadows.soft,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => setState(() {
+                                  selectedSubtype =
+                                      isSelected ? null : subtype?.key;
+                                  selectedIndex = null;
+                                  _selectionHistory.clear();
+                                  _clusterCache = null;
+                                }),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  child: Text(
+                                    subtype?.localizedLabel ??
+                                        AppStrings.get('all'),
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: AppFontSizes.caption,
+                                      fontWeight: FontWeight.w600,
+                                      color: isSelected
                                           ? Colors.white
-                                          : AppColors.primary,
+                                          : (isDark
+                                              ? AppColors.darkTextPrimary
+                                              : ink),
                                     ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      category.label,
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        color: selected ? Colors.white : ink,
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -1050,84 +1543,82 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                 ),
-                if (placeCategoryByKey(
-                  _mapCategories
-                      .firstWhere((item) => item.label == selectedFilter,
-                          orElse: () => _mapCategories.first)
-                      .key,
-                )
-                    case final category?)
-                  Positioned(
-                    left: 12,
-                    right: 12,
-                    top: 119,
-                    child: SizedBox(
-                      height: 36,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: category.subtypes.length + 1,
-                        separatorBuilder: (_, __) => const SizedBox(width: 7),
-                        itemBuilder: (_, index) {
-                          final subtype =
-                              index == 0 ? null : category.subtypes[index - 1];
-                          final selected = selectedSubtype == subtype?.key;
-                          return ChoiceChip(
-                            label: Text(subtype?.label ?? 'Tümü'),
-                            selected: selected,
-                            onSelected: (_) => setState(() {
-                              selectedSubtype = selected ? null : subtype?.key;
-                              selectedIndex = null;
-                              _selectionHistory.clear();
-                              _clusterCache = null;
-                            }),
-                          );
-                        },
-                      ),
+              Positioned(
+                right: 14,
+                bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
+                child: Column(
+                  children: [
+                    mapControl(
+                      icon: Icons.my_location_rounded,
+                      tooltip: 'Konumum',
+                      onTap: centerOnUserLocation,
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    mapControl(
+                      icon: Icons.layers_rounded,
+                      tooltip: 'Harita Stili',
+                      onTap: _showLayerPicker,
+                    ),
+                    const SizedBox(height: 8),
+                    GlassIconButton(
+                      icon: Icons.warning_amber_rounded,
+                      tooltip: 'Yardım çağrıları',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const EmergencyHelpMapScreen(),
+                        ),
+                      ),
+                      size: 43,
+                      iconSize: 20,
+                      iconColor: AppColors.error,
+                      blur: 0,
+                      color: Colors.white.withValues(alpha: 0.82),
+                      borderColor: AppColors.error.withValues(alpha: 0.35),
+                      borderWidth: 1.2,
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: AppColors.shadow08,
+                          blurRadius: 12,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    mapControl(
+                      icon: Icons.offline_pin_outlined,
+                      tooltip: 'Çevrimdışı harita',
+                      onTap: showOfflineMapInfo,
+                    ),
+                  ],
+                ),
+              ),
+              if (selectedPlace != null)
                 Positioned(
-                  right: 14,
-                  bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
-                  child: Column(
-                    children: [
-                      mapControl(
-                        icon: Icons.my_location_rounded,
-                        tooltip: 'Konumum',
-                        onTap: centerOnUserLocation,
-                      ),
-                      const SizedBox(height: 8),
-                      mapControl(
-                        icon: Icons.offline_pin_outlined,
-                        tooltip: 'Çevrimdışı harita',
-                        onTap: showOfflineMapInfo,
-                      ),
-                    ],
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: sheetHeight,
+                  child: _MapDiscoverySheet(
+                    place: selectedPlace,
+                    onClose: () => setState(() {
+                      selectedIndex = null;
+                      _clusterCache = null;
+                      _selectionHistory.clear();
+                    }),
+                    onPrevious:
+                        _selectionHistory.isEmpty ? null : previousPlace,
+                    onNext: hasNextPlace ? nextPlace : null,
+                    onOpen: widget.onOpen,
                   ),
                 ),
-                if (selectedPlace != null)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: sheetHeight,
-                    child: _MapDiscoverySheet(
-                      place: selectedPlace,
-                      onClose: () => setState(() {
-                        selectedIndex = null;
-                        _clusterCache = null;
-                        _selectionHistory.clear();
-                      }),
-                      onPrevious:
-                          _selectionHistory.isEmpty ? null : previousPlace,
-                      onNext: hasNextPlace ? nextPlace : null,
-                      onOpen: widget.onOpen,
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-      );
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _MapLocationChip extends StatelessWidget {
@@ -1137,11 +1628,21 @@ class _MapLocationChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-        message: 'Konumuma dön',
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: 'Konumuma dön',
+      child: GlassContainer(
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        blur: 0,
+        color: Colors.white.withValues(alpha: 0.82),
+        darkColor: AppColors.darkGlass,
+        borderColor: Colors.white.withValues(alpha: 0.85),
+        darkBorderColor: Colors.white.withValues(alpha: 0.14),
+        borderWidth: 1.2,
+        boxShadow: AppShadows.softOf(context),
         child: Material(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadii.pill),
+          color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -1149,37 +1650,40 @@ class _MapLocationChip extends StatelessWidget {
               height: 40,
               constraints: const BoxConstraints(maxWidth: 178),
               padding: const EdgeInsets.symmetric(horizontal: 11),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-                border: const Border.fromBorderSide(AppBorders.thin),
-                boxShadow: AppShadows.soft,
-              ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.location_on_rounded,
-                      color: AppColors.primary, size: 16),
+                  Icon(Icons.location_on_rounded,
+                      color: isDark
+                          ? AppColors.darkPrimaryLight
+                          : AppColors.primary,
+                      size: 16),
                   const SizedBox(width: 5),
                   Flexible(
                     child: Text(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.metadata.copyWith(
-                        color: AppColors.textPrimary,
-                        fontSize: 11,
+                      style: AppTypography.metadataOf(context).copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                        fontSize: AppFontSizes.caption,
                       ),
                     ),
                   ),
                   const SizedBox(width: 3),
-                  const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.textSecondary, size: 16),
+                  Icon(Icons.keyboard_arrow_down_rounded,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
+                      size: 16),
                 ],
               ),
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _MapDiscoverySheet extends StatelessWidget {
@@ -1197,36 +1701,54 @@ class _MapDiscoverySheet extends StatelessWidget {
   final VoidCallback? onNext;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: AppColors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-          child: Column(children: [
-            Row(children: [
-              IconButton(
-                  tooltip: 'Önceki yer',
-                  onPressed: onPrevious,
-                  icon: const Icon(Icons.chevron_left_rounded)),
-              const Expanded(
-                  child: Text('Seçili yer',
-                      style: TextStyle(
-                          color: Color(0xFFB65B23),
-                          fontWeight: FontWeight.w600))),
-              IconButton(
-                  tooltip: 'En yakın sonraki yer',
-                  onPressed: onNext,
-                  icon: const Icon(Icons.chevron_right_rounded)),
-              IconButton(
-                  tooltip: 'Kartı kapat',
-                  onPressed: onClose,
-                  icon: const Icon(Icons.close_rounded)),
-            ]),
-            AppMapPreviewCard(
-                place: place, onTap: () => onOpen(place), prominent: true),
-          ]),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GlassContainer(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      blur: 16,
+      color: Colors.white.withValues(alpha: 0.82),
+      darkColor: AppColors.darkGlass,
+      border: Border(
+        top: BorderSide(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.90),
+          width: 1.2,
         ),
-      );
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: isDark ? AppColors.shadow80 : AppColors.shadow08,
+          blurRadius: 20,
+          offset: const Offset(0, -4),
+        ),
+      ],
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: Column(children: [
+        Row(children: [
+          IconButton(
+              tooltip: AppStrings.get('map_prev_place'),
+              onPressed: onPrevious,
+              icon: const Icon(Icons.chevron_left_rounded)),
+          Expanded(
+              child: Text(AppStrings.get('map_selected_place'),
+                  style: TextStyle(
+                      color: AppColors.accentOrangeOf(context),
+                      fontWeight: FontWeight.w600))),
+          IconButton(
+              tooltip: AppStrings.get('map_next_place'),
+              onPressed: onNext,
+              icon: const Icon(Icons.chevron_right_rounded)),
+          IconButton(
+              tooltip: AppStrings.get('map_close_card'),
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded)),
+        ]),
+        AppMapPreviewCard(
+            place: place, onTap: () => onOpen(place), prominent: true),
+      ]),
+    );
+  }
 }
 
 class _UserLocationMarker extends StatelessWidget {
@@ -1238,11 +1760,11 @@ class _UserLocationMarker extends StatelessWidget {
           width: 22,
           height: 22,
           decoration: BoxDecoration(
-            color: const Color(0xFF2375D8),
+            color: AppColors.categoryWater,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 4),
             boxShadow: const [
-              BoxShadow(color: Color(0x55000000), blurRadius: 8),
+              BoxShadow(color: AppColors.shadow33, blurRadius: 8),
             ],
           ),
         ),
@@ -1256,47 +1778,52 @@ class _MapCategoryScrollBehavior extends MaterialScrollBehavior {
   Set<PointerDeviceKind> get dragDevices => {
         ...super.dragDevices,
         PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
       };
 }
 
 class _MapClusterMarker extends StatelessWidget {
-  const _MapClusterMarker({required this.count, required this.onTap});
+  const _MapClusterMarker({
+    required this.cluster,
+    required this.onTap,
+  });
 
-  final int count;
+  final _MapCluster cluster;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Center(
-          child: Container(
-            width: 50,
-            height: 50,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: green,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x44000000),
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
+  Widget build(BuildContext context) {
+    final count = cluster.placeIndexes.length;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.clusterMarker,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.clusterMarkerShadow,
+              blurRadius: 6,
+              offset: Offset(0, 2),
             ),
-            child: Text(
-              '$count',
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '$count',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: AppFontSizes.label,
+            fontWeight: FontWeight.w700,
+            height: 1.0,
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 // A consistent rounded-stroke pictogram family for landforms absent from
@@ -1450,84 +1977,149 @@ class _MapMarker extends StatelessWidget {
     required this.place,
     required this.selected,
     required this.onTap,
+    this.showLabel = false,
   });
 
   final Place place;
   final bool selected;
   final VoidCallback onTap;
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
     final isUtility = isUtilitySubtype(place.resolvedTaxonomy.subtype);
-    final fill = selected || !isUtility ? AppColors.primary : AppColors.surface;
-    final iconColor =
-        selected || !isUtility ? AppColors.onPrimary : AppColors.primary;
+    final taxonomy = place.resolvedTaxonomy;
+    // Kategoriye göre renk
+    final catColor = _markerColorForCategory(
+      taxonomy.mainCategory,
+      taxonomy.subtype,
+      isUtility: isUtility,
+    );
+
     return Semantics(
       label: 'Haritada ${place.name}',
       button: true,
       selected: selected,
       child: GestureDetector(
         onTap: onTap,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 180),
-          scale: selected ? 1.16 : 1,
-          child: selected
-              ? Stack(
-                  alignment: Alignment.topCenter,
-                  children: [
-                    const Icon(
-                      Icons.location_on_rounded,
-                      size: 70,
-                      color: Color(0xFFB65B23),
-                      shadows: [
-                        Shadow(color: Color(0x44000000), blurRadius: 10),
-                      ],
-                    ),
-                    Positioned(
-                      top: 9,
-                      child: Container(
-                        width: 48,
-                        height: 48,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFB65B23),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                        ),
-                        child: _MapPlaceSymbol(
-                            place: place, color: AppColors.onPrimary, size: 23),
-                      ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            // Yer adı etiketi (zoom ≥ 13 veya seçili)
+            if (showLabel || selected)
+              Container(
+                constraints: const BoxConstraints(maxWidth: 100),
+                margin: const EdgeInsets.only(bottom: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: AppColors.shadow20,
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
                     ),
                   ],
-                )
-              : Center(
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: fill,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isUtility ? AppColors.primary : Colors.white,
-                        width: isUtility ? 2 : 3,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x44000000),
-                          blurRadius: 10,
-                          offset: Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: _MapPlaceSymbol(
-                        place: place, color: iconColor, size: 24),
+                ),
+                child: Text(
+                  place.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.caption,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? catColor : AppColors.textPrimary,
+                    height: 1.2,
                   ),
                 ),
+              ),
+
+            // Marker dairesi
+            AnimatedScale(
+              duration: const Duration(milliseconds: 180),
+              scale: selected ? 1.18 : 1.0,
+              child: selected
+                  ? Stack(
+                      alignment: Alignment.topCenter,
+                      children: [
+                        Icon(
+                          Icons.location_on_rounded,
+                          size: 46,
+                          color: catColor,
+                          shadows: const [
+                            Shadow(color: AppColors.shadow33, blurRadius: 8),
+                          ],
+                        ),
+                        Positioned(
+                          top: 4,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: catColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: _MapPlaceSymbol(
+                                place: place, color: Colors.white, size: 14),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: isUtility ? Colors.white : catColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isUtility ? catColor : Colors.white,
+                          width: 2,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: AppColors.shadow26,
+                            blurRadius: 6,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: _MapPlaceSymbol(
+                        place: place,
+                        color: isUtility ? catColor : Colors.white,
+                        size: 15,
+                      ),
+                    ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+Color _markerColorForCategory(
+  String? mainCategory,
+  String? subtype, {
+  bool isUtility = false,
+}) {
+  if (isUtility) return AppColors.categoryUtility;
+  return switch (mainCategory) {
+    'water' => AppColors.categoryWater,
+    'mountain_terrain' => AppColors.categoryMountain,
+    'natural_formation' => AppColors.categoryFormation,
+    'nature_area' => AppColors.categoryNature,
+    'camp_caravan' => AppColors.categoryCamp,
+    'route_activity' => AppColors.categoryRoute,
+    'discovery_point' => AppColors.categoryDiscovery,
+    'wildlife' => AppColors.categoryWildlife,
+    _ => AppColors.clusterMarker,
+  };
 }
 
 IconData _mapIconForCategory(String key) => switch (key) {
@@ -1624,6 +2216,7 @@ class _MapPlaceSearchDelegate extends SearchDelegate<Place?> {
   }
 
   Widget results(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final found = matches();
     if (found.isEmpty) {
       return Center(
@@ -1632,7 +2225,10 @@ class _MapPlaceSearchDelegate extends SearchDelegate<Place?> {
               ? 'Aramana uygun bir yer bulunamadı.'
               : '$category kategorisinde gösterilecek yer bulunamadı.',
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Color(0xFF77736C)),
+          style: TextStyle(
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          ),
         ),
       );
     }
@@ -1644,22 +2240,69 @@ class _MapPlaceSearchDelegate extends SearchDelegate<Place?> {
         final place = found[index];
         return ListTile(
           onTap: () => close(context, place),
-          tileColor: Colors.white,
+          tileColor: isDark ? AppColors.darkSurface : Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.large),
+            side: BorderSide(
+              color: isDark ? AppColors.darkBorder : AppColors.border,
+            ),
           ),
           leading: CircleAvatar(
-            backgroundColor: mint,
-            child: Icon(place.icon, color: green, size: 20),
+            backgroundColor: isDark ? AppColors.darkPrimarySoft : mint,
+            child: Icon(
+              place.icon,
+              color: isDark ? AppColors.darkPrimaryLight : green,
+              size: 20,
+            ),
           ),
-          title: Text(place.name,
-              style: const TextStyle(fontWeight: FontWeight.w600)),
+          title: Text(
+            place.name,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: isDark ? AppColors.darkTextPrimary : Colors.black87,
+            ),
+          ),
           subtitle: Text(
             '${place.kind} · ${place.location} · ${_userDistanceLabel(place)}',
+            style: TextStyle(
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+              fontSize: AppFontSizes.caption,
+            ),
           ),
-          trailing: const Icon(Icons.north_west_rounded, size: 17),
+          trailing: Icon(
+            Icons.north_east_rounded,
+            size: 17,
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textTertiary,
+          ),
         );
       },
+    );
+  }
+
+  @override
+  ThemeData appBarTheme(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return theme.copyWith(
+      scaffoldBackgroundColor:
+          isDark ? AppColors.darkSurfaceDeep : AppColors.background,
+      appBarTheme: AppBarTheme(
+        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+        iconTheme: IconThemeData(
+          color: isDark ? AppColors.darkTextPrimary : Colors.black87,
+        ),
+        elevation: 0,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        hintStyle: TextStyle(
+          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          fontSize: AppFontSizes.title,
+        ),
+        border: InputBorder.none,
+      ),
     );
   }
 

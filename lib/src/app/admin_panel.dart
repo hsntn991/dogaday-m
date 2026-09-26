@@ -10,10 +10,10 @@ class DogaAdminApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF175C38),
+            seedColor: AppColors.primary,
             surface: Colors.white,
           ),
-          scaffoldBackgroundColor: const Color(0xFFF5F6F3),
+          scaffoldBackgroundColor: AppColors.surfaceMuted,
           fontFamily: 'Outfit',
           inputDecorationTheme: const InputDecorationTheme(
             filled: true,
@@ -171,7 +171,7 @@ class _AdminLoginState extends State<_AdminLogin> {
                 elevation: 0,
                 color: Colors.white,
                 shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: Color(0xFFE0E4DE)),
+                  side: const BorderSide(color: AppColors.border),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Padding(
@@ -190,7 +190,7 @@ class _AdminLoginState extends State<_AdminLogin> {
                           'Yönetici Paneli',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 26,
+                            fontSize: AppFontSizes.display,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -198,7 +198,7 @@ class _AdminLoginState extends State<_AdminLogin> {
                         const Text(
                           'Yalnızca yetkili hesaplar giriş yapabilir.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFF697168)),
+                          style: TextStyle(color: AppColors.textSecondary),
                         ),
                         const SizedBox(height: 28),
                         TextFormField(
@@ -231,7 +231,7 @@ class _AdminLoginState extends State<_AdminLogin> {
                           const SizedBox(height: 14),
                           Text(
                             _error ?? widget.error!,
-                            style: const TextStyle(color: Color(0xFFB3261E)),
+                            style: const TextStyle(color: AppColors.error),
                           ),
                         ],
                         const SizedBox(height: 20),
@@ -530,10 +530,10 @@ class _SubmissionList extends StatelessWidget {
               category is Map ? category['name']?.toString() : null;
           return ListTile(
             selected: selectedId == submission['id']?.toString(),
-            selectedTileColor: const Color(0xFFE7F1E9),
+            selectedTileColor: AppColors.primarySoft,
             tileColor: Colors.white,
             shape: RoundedRectangleBorder(
-              side: const BorderSide(color: Color(0xFFE1E5DF)),
+              side: const BorderSide(color: AppColors.border),
               borderRadius: BorderRadius.circular(10),
             ),
             title: Text(
@@ -590,14 +590,14 @@ class _SubmissionDetail extends StatelessWidget {
                 Text(
                   submission['name']?.toString() ?? 'Adsız yer',
                   style: const TextStyle(
-                    fontSize: 28,
+                    fontSize: AppFontSizes.display,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   '${categoryName ?? 'Kategori yok'} · ${submission['district'] ?? ''}, ${submission['city'] ?? ''}',
-                  style: const TextStyle(color: Color(0xFF697168)),
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -609,7 +609,7 @@ class _SubmissionDetail extends StatelessWidget {
           title: 'Açıklama',
           child: Text(
             submission['description']?.toString() ?? '-',
-            style: const TextStyle(fontSize: 16, height: 1.5),
+            style: const TextStyle(fontSize: AppFontSizes.title, height: 1.5),
           ),
         ),
         if (photoPaths.isNotEmpty) ...[
@@ -784,7 +784,7 @@ class _AdminSection extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: const Color(0xFFE1E5DF)),
+          border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
@@ -807,13 +807,13 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: const Color(0xFFE7F1E9),
+          color: AppColors.primarySoft,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           _statusLabel(status),
           style: const TextStyle(
-            color: Color(0xFF175C38),
+            color: AppColors.primary,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -832,7 +832,7 @@ class _AdminEmpty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 46, color: const Color(0xFF7D867C)),
+            Icon(icon, size: 46, color: AppColors.textTertiary),
             const SizedBox(height: 12),
             Text(title),
             if (action != null) action!,

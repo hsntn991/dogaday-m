@@ -32,7 +32,7 @@ class DeviceLocationService {
     try {
       return await _requestBrowserPosition(
         enableHighAccuracy: true,
-        timeout: const Duration(seconds: 14),
+        timeout: const Duration(seconds: 25),
         maximumAge: Duration.zero,
       );
     } on DeviceLocationException catch (error) {
@@ -42,8 +42,8 @@ class DeviceLocationService {
     try {
       return await _requestBrowserPosition(
         enableHighAccuracy: false,
-        timeout: const Duration(seconds: 7),
-        maximumAge: const Duration(seconds: 30),
+        timeout: const Duration(seconds: 15),
+        maximumAge: const Duration(minutes: 5),
       );
     } on DeviceLocationException {
       rethrow;

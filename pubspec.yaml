@@ -9,7 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_map: ^8.3.1
+  flutter_svg: ^2.2.3
   geolocator: ^14.0.3
   http: ^1.2.2
   image_picker: ^1.1.2
@@ -30,8 +33,10 @@ flutter:
     - assets/branding/dogadayim_logo_full.png
     - assets/branding/dogadayim_logo_mark.png
     - assets/maps/turkiye_provinces_paintmaps.png
+    - assets/maps/turkiye_il_haritasi.svg
     - assets/data/marmara_place_enrichment.json
     - assets/data/akdeniz_research_places.json
+    - assets/data/turkiye_research_places.json
     - assets/data/research_photos.json
     - assets/data/research_photo_places.json
   fonts:

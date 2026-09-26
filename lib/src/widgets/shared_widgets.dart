@@ -37,13 +37,30 @@ class PlaceImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = resolveProvider(place);
     if (provider == null) {
+      final syncEnrichment = PlaceEnrichmentService.findSync(place);
+      if (syncEnrichment != null) {
+        final photo = syncEnrichment.primaryPhoto;
+        if (photo != null && photo.url.startsWith('https://')) {
+          return Image.network(
+            photo.url,
+            fit: fit,
+            cacheWidth: cacheWidth,
+            errorBuilder: (_, __, ___) => fallback,
+          );
+        }
+        return fallback;
+      }
       return FutureBuilder<PlaceEnrichment?>(
         future: PlaceEnrichmentService.find(place),
         builder: (context, snapshot) {
           final photo = snapshot.data?.primaryPhoto;
-          if (photo == null || !photo.url.startsWith('https://')) return fallback;
-          return Image.network(photo.url, fit: fit, cacheWidth: cacheWidth,
-            errorBuilder: (_, __, ___) => fallback);
+          if (photo == null || !photo.url.startsWith('https://')) {
+            return fallback;
+          }
+          return Image.network(photo.url,
+              fit: fit,
+              cacheWidth: cacheWidth,
+              errorBuilder: (_, __, ___) => fallback);
         },
       );
     }
@@ -100,7 +117,7 @@ class NatureArt extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Color(0x55000000)],
+                colors: [Colors.transparent, AppColors.shadow33],
               ),
             ),
           ),
@@ -118,7 +135,7 @@ class NatureArt extends StatelessWidget {
                 child: Text(
                   place.kind,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: AppFontSizes.caption,
                     fontWeight: FontWeight.w700,
                     color: green,
                   ),
@@ -168,13 +185,14 @@ class CompactPlaceCard extends StatelessWidget {
                         maxLines: 2,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
-                          fontSize: 16,
+                          fontSize: AppFontSizes.title,
                         ),
                       ),
                       const SizedBox(height: 5),
                       Text(
                         '${place.kind} • ${place.location}',
-                        style: const TextStyle(color: Colors.black54),
+                        style: TextStyle(
+                            color: AppColors.textSecondaryOf(context)),
                       ),
                       const SizedBox(height: 5),
                       Row(
@@ -182,7 +200,7 @@ class CompactPlaceCard extends StatelessWidget {
                           const Icon(
                             Icons.star_rounded,
                             size: 17,
-                            color: Color(0xFFF5A623),
+                            color: AppColors.rating,
                           ),
                           Text('${place.rating}'),
                         ],
@@ -190,7 +208,8 @@ class CompactPlaceCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: Colors.black38),
+                Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textTertiaryOf(context)),
               ],
             ),
           ),

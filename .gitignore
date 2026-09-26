@@ -27,3 +27,10 @@ key.properties
 .vscode/
 design_backups/
 supabase/.temp/
+__pycache__/
+*.pyc
+*.pyo
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db

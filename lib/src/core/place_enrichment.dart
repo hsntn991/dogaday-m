@@ -220,7 +220,12 @@ class RegionalResearchPlaces {
   RegionalResearchPlaces._();
 
   static Future<List<Place>>? _future;
-  static const _genericNames = {'piknik alani', 'kamp alani', 'camping', 'bungalows'};
+  static const _genericNames = {
+    'piknik alani',
+    'kamp alani',
+    'camping',
+    'bungalows'
+  };
 
   static List<Place> decodeRecords(List<dynamic> rows) {
     final places = <Place>[];
@@ -232,10 +237,16 @@ class RegionalResearchPlaces {
       final province = row['province']?.toString().trim() ?? '';
       final latitude = row['latitude'];
       final longitude = row['longitude'];
-      if (id.isEmpty || name.isEmpty || province.isEmpty ||
+      if (id.isEmpty ||
+          name.isEmpty ||
+          province.isEmpty ||
           _genericNames.contains(AddPlaceQualityService.normalizeName(name)) ||
-          latitude is! num || longitude is! num || !latitude.isFinite ||
-          !longitude.isFinite || latitude.abs() > 90 || longitude.abs() > 180) {
+          latitude is! num ||
+          longitude is! num ||
+          !latitude.isFinite ||
+          !longitude.isFinite ||
+          latitude.abs() > 90 ||
+          longitude.abs() > 180) {
         continue;
       }
       final subtype = row['subtype']?.toString();
@@ -250,16 +261,17 @@ class RegionalResearchPlaces {
         ),
         0,
         Icons.place_rounded,
-        const [Color(0xFF315F45), Color(0xFF9BBF82)],
+        AppColors.defaultGradient,
         null,
         description: row['description']?.toString() ?? '',
         latitude: latitude.toDouble(),
         longitude: longitude.toDouble(),
-        sourceId: 'research:${id}',
+        sourceId: 'research:$id',
         source: PlaceSource.osm,
         verificationStatus: VerificationStatus.verified,
         mainCategory: mainCategory,
         subtype: subtype,
+        googlePhotoSearchUrl: row['google_photo_search_url']?.toString(),
       ));
     }
     return places;
@@ -268,25 +280,33 @@ class RegionalResearchPlaces {
   static Future<List<Place>> load() => _future ??= _load();
 
   static Future<List<Place>> _load() async {
-    final raw = await rootBundle.loadString('assets/data/akdeniz_research_places.json');
+    final raw =
+        await rootBundle.loadString('assets/data/turkiye_research_places.json');
     return decodeRecords(jsonDecode(raw) as List);
   }
 
   static Future<List<Place>> merge(List<Place> existing) async =>
-      ResearchPhotoPlaces.mergePlaces(existing: existing, incoming: await load());
+      ResearchPhotoPlaces.mergePlaces(
+          existing: existing, incoming: await load());
 }
 
 class ResearchPhotoPlaces {
   static Future<List<Place>>? _future;
   static Future<List<Map<String, dynamic>>>? _records;
-  static Future<List<Map<String, dynamic>>> records() => _records ??= readRecords(
-    remote: () async {
-      final rows = await Supabase.instance.client.from('research_photo_places')
-          .select('payload').order('id').limit(1000).timeout(const Duration(seconds: 8));
-      return rows.map((row) => row['payload']).toList();
-    },
-    fallback: () async => jsonDecode(await rootBundle.loadString('assets/data/research_photo_places.json')) as List,
-  );
+  static Future<List<Map<String, dynamic>>> records() =>
+      _records ??= readRecords(
+        remote: () async {
+          final rows = await Supabase.instance.client
+              .from('research_photo_places')
+              .select('payload')
+              .order('id')
+              .limit(1000)
+              .timeout(const Duration(seconds: 8));
+          return rows.map((row) => row['payload']).toList();
+        },
+        fallback: () async => jsonDecode(await rootBundle
+            .loadString('assets/data/research_photo_places.json')) as List,
+      );
 
   static Future<List<Map<String, dynamic>>> readRecords({
     required Future<List<dynamic>> Function() remote,
@@ -298,19 +318,38 @@ class ResearchPhotoPlaces {
         if (value is! Map) continue;
         final row = Map<String, dynamic>.from(value);
         final lat = row['latitude'], lon = row['longitude'];
-        if (row['id'] is! String || row['name'] is! String ||
-            lat is! num || lon is! num || !lat.isFinite || !lon.isFinite ||
-            lat.abs() > 90 || lon.abs() > 180 || row['photos'] is! List) continue;
-        final photos = (row['photos'] as List).where((p) => p is Map &&
-          p['photo_quality_status'] == 'approved' && p['license_verified'] == true &&
-          const ['A', 'B'].contains(p['confidence_level']) &&
-          const ['author', 'license', 'license_url', 'description_url', 'original_url'].every(
-            (key) => p[key] is String && (p[key] as String).trim().isNotEmpty) &&
-          Uri.tryParse(p['original_url'])?.scheme == 'https').toList();
+        if (row['id'] is! String ||
+            row['name'] is! String ||
+            lat is! num ||
+            lon is! num ||
+            !lat.isFinite ||
+            !lon.isFinite ||
+            lat.abs() > 90 ||
+            lon.abs() > 180 ||
+            row['photos'] is! List) {
+          continue;
+        }
+        final photos = (row['photos'] as List)
+            .where((p) =>
+                p is Map &&
+                p['photo_quality_status'] == 'approved' &&
+                p['license_verified'] == true &&
+                const ['A', 'B'].contains(p['confidence_level']) &&
+                const [
+                  'author',
+                  'license',
+                  'license_url',
+                  'description_url',
+                  'original_url'
+                ].every((key) =>
+                    p[key] is String && (p[key] as String).trim().isNotEmpty) &&
+                Uri.tryParse(p['original_url'])?.scheme == 'https')
+            .toList();
         if (photos.isNotEmpty) result.add({...row, 'photos': photos});
       }
       return result;
     }
+
     try {
       final rows = accepted(await remote());
       if (rows.isNotEmpty) return rows;
@@ -319,22 +358,32 @@ class ResearchPhotoPlaces {
     }
     return accepted(await fallback());
   }
+
   static Future<List<Place>> load() => _future ??= _load();
   static Future<List<Place>> _load() async {
     final rows = await records();
     return rows.map((row) {
       final data = Map<String, dynamic>.from(row as Map);
       final enrichment = PlaceEnrichment.fromJson(data);
-      return Place(data['name'] as String, data['province'] as String? ?? '',
-        taxonomyDisplayLabel(fallback: 'Doğa Noktası', subtype: data['subtype']),
-        0, Icons.place_rounded, const [Color(0xFF315F45), Color(0xFF9BBF82)],
-        enrichment.primaryPhoto?.url,
-        latitude: enrichment.latitude, longitude: enrichment.longitude,
-        sourceId: 'research:${data['id']}', source: PlaceSource.osm,
-        verificationStatus: VerificationStatus.community,
-        mainCategory: data['main_category'], subtype: data['subtype']);
+      return Place(
+          data['name'] as String,
+          data['province'] as String? ?? '',
+          taxonomyDisplayLabel(
+              fallback: 'Doğa Noktası', subtype: data['subtype']),
+          0,
+          Icons.place_rounded,
+          AppColors.defaultGradient,
+          enrichment.primaryPhoto?.url,
+          latitude: enrichment.latitude,
+          longitude: enrichment.longitude,
+          sourceId: 'research:${data['id']}',
+          source: PlaceSource.osm,
+          verificationStatus: VerificationStatus.community,
+          mainCategory: data['main_category'],
+          subtype: data['subtype']);
     }).toList();
   }
+
   static List<Place> mergePlaces({
     required List<Place> existing,
     required List<Place> incoming,
@@ -400,12 +449,18 @@ class PlaceEnrichmentService {
   PlaceEnrichmentService._();
 
   static Future<Map<String, List<PlaceEnrichment>>>? _indexFuture;
+  static Map<String, List<PlaceEnrichment>>? _loadedIndex;
+  static final Map<String, PlaceEnrichment?> _matchCache = {};
 
-  static Future<PlaceEnrichment?> find(Place place) async {
-    if (!place.hasCoordinates) return null;
-    final index = await (_indexFuture ??= _loadIndex());
+  static PlaceEnrichment? findSync(Place place) {
+    if (!place.hasCoordinates || _loadedIndex == null) return null;
+    final cacheKey = place.sourceId ??
+        '${place.name}:${place.latitude!.toStringAsFixed(4)}:${place.longitude!.toStringAsFixed(4)}';
+    if (_matchCache.containsKey(cacheKey)) {
+      return _matchCache[cacheKey];
+    }
     final candidates =
-        index[AddPlaceQualityService.normalizeName(place.name)] ??
+        _loadedIndex![AddPlaceQualityService.normalizeName(place.name)] ??
             const <PlaceEnrichment>[];
     PlaceEnrichment? closest;
     var closestDistance = double.infinity;
@@ -422,29 +477,56 @@ class PlaceEnrichmentService {
         closestDistance = distance;
       }
     }
+    _matchCache[cacheKey] = closest;
     return closest;
+  }
+
+  static Future<PlaceEnrichment?> find(Place place) async {
+    if (!place.hasCoordinates) return null;
+    final syncHit = findSync(place);
+    if (syncHit != null) return syncHit;
+    final index = await (_indexFuture ??= _loadIndex());
+    _loadedIndex = index;
+    return findSync(place);
   }
 
   static Future<Map<String, List<PlaceEnrichment>>> _loadIndex() async {
     try {
       final raw = await rootBundle
           .loadString('assets/data/marmara_place_enrichment.json');
-      final records = (await compute(_decodePlaceEnrichment, raw)).map((r) =>
-          PlaceEnrichment(name: r.name, latitude: r.latitude, longitude: r.longitude,
-            aboutText: r.aboutText, aboutSources: r.aboutSources, amenities: r.amenities,
-            amenitiesStatus: r.amenitiesStatus, photos: const <PlacePhotoInfo>[])).toList();
-      final photoRecords = (await ResearchPhotoPlaces.records()).map(PlaceEnrichment.fromJson).toList();
+      final records = (await compute(_decodePlaceEnrichment, raw))
+          .map((r) => PlaceEnrichment(
+              name: r.name,
+              latitude: r.latitude,
+              longitude: r.longitude,
+              aboutText: r.aboutText,
+              aboutSources: r.aboutSources,
+              amenities: r.amenities,
+              amenitiesStatus: r.amenitiesStatus,
+              photos: const <PlacePhotoInfo>[]))
+          .toList();
+      final photoRecords = (await ResearchPhotoPlaces.records())
+          .map(PlaceEnrichment.fromJson)
+          .toList();
       for (final photoRecord in photoRecords) {
         final position = records.indexWhere((r) =>
-            AddPlaceQualityService.normalizeName(r.name) == AddPlaceQualityService.normalizeName(photoRecord.name) &&
-            r.latitude == photoRecord.latitude && r.longitude == photoRecord.longitude);
+            AddPlaceQualityService.normalizeName(r.name) ==
+                AddPlaceQualityService.normalizeName(photoRecord.name) &&
+            r.latitude == photoRecord.latitude &&
+            r.longitude == photoRecord.longitude);
         if (position < 0) {
           records.add(photoRecord);
         } else {
           final old = records[position];
-          records[position] = PlaceEnrichment(name: old.name, latitude: old.latitude,
-            longitude: old.longitude, aboutText: old.aboutText, aboutSources: old.aboutSources,
-            amenities: old.amenities, amenitiesStatus: old.amenitiesStatus, photos: photoRecord.photos);
+          records[position] = PlaceEnrichment(
+              name: old.name,
+              latitude: old.latitude,
+              longitude: old.longitude,
+              aboutText: old.aboutText,
+              aboutSources: old.aboutSources,
+              amenities: old.amenities,
+              amenitiesStatus: old.amenitiesStatus,
+              photos: photoRecord.photos);
         }
       }
       final index = <String, List<PlaceEnrichment>>{};
@@ -456,5 +538,86 @@ class PlaceEnrichmentService {
     } catch (_) {
       return const <String, List<PlaceEnrichment>>{};
     }
+  }
+}
+
+class PlacePublicationStandard {
+  PlacePublicationStandard._();
+
+  /// Pilot iller ve genel sistem için belirlenen minimum yayın standardı eşiği:
+  /// 1. Gerçek geçerli fotoğraf (URL veya yerel dosya)
+  /// 2. Anlamlı kısa açıklama (>= 10 karakter)
+  /// 3. Geçerli koordinat (enlem ve boylam)
+  /// 4. Doğrulanmış özgül kategori ('Doğa Noktası' generic fallback'i haricinde)
+  /// 5. En az bir saha veya güven bilgisi (olanaktan en az biri tanımlı veya doğrulama durumu)
+  static bool meetsThreshold(Place place) {
+    if (!place.hasCoordinates) return false;
+    if (place.latitude!.abs() > 90 || place.longitude!.abs() > 180) return false;
+
+    final kindLower = place.kind.trim().toLowerCase();
+    if (kindLower.isEmpty || kindLower == 'doğa noktası' || kindLower == 'nature spot') {
+      return false;
+    }
+
+    final hasDirectPhoto = place.image != null && place.image!.trim().isNotEmpty;
+    final hasEnrichedPhoto = PlaceEnrichmentService.findSync(place)?.primaryPhoto != null;
+    if (!hasDirectPhoto && !hasEnrichedPhoto) return false;
+
+    if (place.description.trim().length < 10) return false;
+
+    final hasTrust = place.verificationStatus != VerificationStatus.unverified;
+    final hasFacilities = place.facilities.hasVerifiedData || place.features.isNotEmpty;
+    if (!hasTrust && !hasFacilities) return false;
+
+    return true;
+  }
+
+  /// Bir il veya liste için yayın standardı kalite oranı (0.0 - 1.0)
+  static double publicationRate(Iterable<Place> places) {
+    if (places.isEmpty) return 0.0;
+    int passing = 0;
+    int total = 0;
+    for (final place in places) {
+      if (!place.isUtility) {
+        total++;
+        if (meetsThreshold(place)) passing++;
+      }
+    }
+    if (total == 0) return 0.0;
+    return passing / total;
+  }
+
+  /// Pilot iller
+  static const pilotProvinces = <String>{
+    'Bolu',
+    'İstanbul',
+    'Antalya',
+    'Muğla',
+    'Rize',
+    'Trabzon',
+    'Artvin',
+    'İzmir',
+    'Bursa',
+  };
+
+  /// İl bazlı yayın ve kalite özeti
+  static Map<String, ({int total, int published, double rate})> provinceStats(
+    Iterable<Place> places,
+  ) {
+    final grouped = <String, List<Place>>{};
+    for (final place in places) {
+      if (!place.isUtility && place.location.trim().isNotEmpty) {
+        grouped.putIfAbsent(place.location.trim(), () => []).add(place);
+      }
+    }
+
+    final result = <String, ({int total, int published, double rate})>{};
+    for (final entry in grouped.entries) {
+      final total = entry.value.length;
+      final published = entry.value.where(meetsThreshold).length;
+      final rate = total > 0 ? published / total : 0.0;
+      result[entry.key] = (total: total, published: published, rate: rate);
+    }
+    return result;
   }
 }

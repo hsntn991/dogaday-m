@@ -64,8 +64,8 @@ class AppSecondaryButton extends StatelessWidget {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, AppControlSizes.button),
-        foregroundColor: AppColors.textPrimary,
-        side: AppBorders.thin,
+        foregroundColor: AppColors.textPrimaryOf(context),
+        side: AppBorders.thinOf(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.medium),
         ),
@@ -75,7 +75,7 @@ class AppSecondaryButton extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (leading != null) ...[leading!, const SizedBox(width: 8)],
-          Text(label, style: AppTypography.label),
+          Text(label, style: AppTypography.labelOf(context)),
         ],
       ),
     );
@@ -133,20 +133,20 @@ class AppSearchField extends StatelessWidget {
   const AppSearchField({
     super.key,
     this.controller,
-    this.hintText = 'Keşfetmek istediğin yeri ara...',
+    this.hintText,
     this.onChanged,
     this.onFilterTap,
   });
 
   final TextEditingController? controller;
-  final String hintText;
+  final String? hintText;
   final ValueChanged<String>? onChanged;
   final VoidCallback? onFilterTap;
 
   @override
   Widget build(BuildContext context) => AppTextField(
         controller: controller,
-        hintText: hintText,
+        hintText: hintText ?? AppStrings.get('home_search_hint'),
         onChanged: onChanged,
         prefixIcon: const Icon(Icons.search_rounded, size: AppIconSizes.medium),
         suffixIcon: onFilterTap == null
@@ -185,16 +185,20 @@ class AppCategoryChip extends StatelessWidget {
           avatar: Icon(
             icon,
             size: AppIconSizes.small,
-            color: selected ? AppColors.onPrimary : AppColors.textPrimary,
+            color: selected
+                ? AppColors.onPrimary
+                : AppColors.textPrimaryOf(context),
           ),
-          label: Text(label, style: AppTypography.label),
+          label: Text(label, style: AppTypography.labelOf(context)),
           labelStyle: AppTypography.label.copyWith(
-            color: selected ? AppColors.onPrimary : AppColors.textPrimary,
+            color: selected
+                ? AppColors.onPrimary
+                : AppColors.textPrimaryOf(context),
           ),
-          side: selected ? BorderSide.none : AppBorders.thin,
-          backgroundColor: AppColors.surface,
+          side: selected ? BorderSide.none : AppBorders.thinOf(context),
+          backgroundColor: AppColors.surfaceOf(context),
           selectedColor: AppColors.primary,
-          disabledColor: AppColors.surfaceMuted,
+          disabledColor: AppColors.surfaceMutedOf(context),
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           shape: RoundedRectangleBorder(
@@ -222,7 +226,8 @@ class AppSectionHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: AppTypography.heading.copyWith(fontSize: 22),
+              style: AppTypography.headingOf(context)
+                  .copyWith(fontSize: AppFontSizes.heading),
             ),
           ),
           if (actionLabel != null)
@@ -231,7 +236,7 @@ class AppSectionHeader extends StatelessWidget {
               iconAlignment: IconAlignment.end,
               icon: const Icon(Icons.chevron_right_rounded,
                   size: AppIconSizes.medium),
-              label: Text(actionLabel!, style: AppTypography.label),
+              label: Text(actionLabel!, style: AppTypography.labelOf(context)),
             ),
         ],
       );
@@ -253,7 +258,7 @@ class AppPlaceThumbnail extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
         borderRadius: BorderRadius.circular(radius),
         child: ColoredBox(
-          color: AppColors.surfaceMuted,
+          color: AppColors.surfaceMutedOf(context),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -264,16 +269,19 @@ class AppPlaceThumbnail extends StatelessWidget {
                   child: Icon(
                     place.icon,
                     size: AppIconSizes.large,
-                    color: AppColors.textTertiary,
+                    color: AppColors.textTertiaryOf(context),
                   ),
                 ),
               ),
-              const DecoratedBox(
+              DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0x140F5A35)],
+                    colors: [
+                      Colors.transparent,
+                      AppColors.primary.withValues(alpha: 0.08),
+                    ],
                   ),
                 ),
               ),
@@ -310,13 +318,15 @@ class AppBookmarkButton extends StatelessWidget {
               color: onImage
                   ? Colors.white
                   : isSaved
-                      ? AppColors.primary
-                      : AppColors.textSecondary,
+                      ? (AppColors.isDark(context)
+                          ? AppColors.darkPrimaryLight
+                          : AppColors.primary)
+                      : AppColors.textSecondaryOf(context),
             ),
             style: onImage
                 ? IconButton.styleFrom(
-                    backgroundColor: const Color(0x66000000),
-                    disabledBackgroundColor: const Color(0x55000000),
+                    backgroundColor: AppColors.shadow40,
+                    disabledBackgroundColor: AppColors.shadow33,
                   )
                 : null,
           ),
@@ -384,7 +394,7 @@ class AppPlaceHeroCard extends StatelessWidget {
         ? place.kind
         : place.description.trim();
     return Material(
-      color: AppColors.surface,
+      color: AppColors.surfaceOf(context),
       borderRadius: BorderRadius.circular(AppRadii.large),
       child: InkWell(
         onTap: onTap,
@@ -393,8 +403,8 @@ class AppPlaceHeroCard extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadii.large),
-            border: Border.all(color: AppColors.border),
-            boxShadow: AppShadows.soft,
+            border: Border.all(color: AppColors.borderOf(context)),
+            boxShadow: AppShadows.softOf(context),
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -413,6 +423,14 @@ class AppPlaceHeroCard extends StatelessWidget {
                           place: place,
                           radius: 0,
                           cacheWidth: 380,
+                        ),
+                        Positioned(
+                          left: 6,
+                          top: 6,
+                          child: AppPlaceTrustBadge(
+                            place: place,
+                            compact: true,
+                          ),
                         ),
                         Positioned(
                           right: 6,
@@ -436,15 +454,16 @@ class AppPlaceHeroCard extends StatelessWidget {
                             place.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTypography.heading.copyWith(fontSize: 15),
+                            style: AppTypography.headingOf(context)
+                                .copyWith(fontSize: AppFontSizes.body),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             description,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTypography.metadata.copyWith(
-                              fontSize: 12,
+                            style: AppTypography.metadataOf(context).copyWith(
+                              fontSize: AppFontSizes.caption,
                               height: 1.25,
                             ),
                           ),
@@ -494,7 +513,7 @@ class AppMapPreviewCard extends StatelessWidget {
     final cardHeight = prominent ? 128.0 : 108.0;
     final imageWidth = prominent ? 136.0 : 88.0;
     return Material(
-      color: AppColors.surface,
+      color: AppColors.surfaceOf(context),
       borderRadius: BorderRadius.circular(AppRadii.medium),
       child: InkWell(
         onTap: onTap,
@@ -504,15 +523,28 @@ class AppMapPreviewCard extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.small),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadii.medium),
-            border: Border.all(color: AppColors.border),
-            boxShadow: AppShadows.soft,
+            border: Border.all(color: AppColors.borderOf(context)),
+            boxShadow: AppShadows.softOf(context),
           ),
           child: Row(
             children: [
               SizedBox(
                 width: imageWidth,
                 height: double.infinity,
-                child: AppPlaceThumbnail(place: place, cacheWidth: 200),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    AppPlaceThumbnail(place: place, cacheWidth: 200),
+                    Positioned(
+                      left: 4,
+                      top: 4,
+                      child: AppPlaceTrustBadge(
+                        place: place,
+                        compact: true,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: AppSpacing.small),
               Expanded(
@@ -523,8 +555,8 @@ class AppMapPreviewCard extends StatelessWidget {
                       place.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.heading.copyWith(
-                        fontSize: prominent ? 17 : 16,
+                      style: AppTypography.headingOf(context).copyWith(
+                        fontSize: AppFontSizes.title,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -532,8 +564,8 @@ class AppMapPreviewCard extends StatelessWidget {
                       description,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.metadata.copyWith(
-                        fontSize: prominent ? 12.5 : 12,
+                      style: AppTypography.metadataOf(context).copyWith(
+                        fontSize: AppFontSizes.caption,
                       ),
                     ),
                     const Spacer(),
@@ -592,11 +624,13 @@ class _PlaceMeta extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: compact ? 13 : 15, color: AppColors.textSecondary),
+          Icon(icon,
+              size: compact ? 13 : 15,
+              color: AppColors.textSecondaryOf(context)),
           const SizedBox(width: 3),
           Text(label,
-              style:
-                  AppTypography.metadata.copyWith(fontSize: compact ? 11 : 12)),
+              style: AppTypography.metadataOf(context)
+                  .copyWith(fontSize: AppFontSizes.caption)),
         ],
       );
 }
@@ -608,22 +642,413 @@ class _PlaceKindTag extends StatelessWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(maxWidth: 96),
-        padding: EdgeInsets.symmetric(
-            horizontal: compact ? 6 : 7, vertical: compact ? 2 : 3),
-        decoration: BoxDecoration(
-          color: AppColors.primarySoft,
-          borderRadius: BorderRadius.circular(AppRadii.small),
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 96),
+      padding: EdgeInsets.symmetric(
+          horizontal: compact ? 6 : 7, vertical: compact ? 2 : 3),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(AppRadii.small),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTypography.labelOf(context).copyWith(
+          color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+          fontSize: AppFontSizes.caption,
         ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.label.copyWith(
-            color: AppColors.primary,
-            fontSize: compact ? 10 : 11,
+      ),
+    );
+  }
+}
+
+class AppPlaceTrustBadge extends StatelessWidget {
+  const AppPlaceTrustBadge({
+    super.key,
+    required this.place,
+    this.compact = false,
+  });
+
+  final Place place;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    final status = place.verificationStatus;
+
+    final (String label, IconData icon, Color color, Color bg) =
+        switch (status) {
+      VerificationStatus.verified => (
+          AppStrings.get('trust_verified'),
+          Icons.verified_rounded,
+          isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+          isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
+        ),
+      VerificationStatus.community => (
+          AppStrings.get('trust_community'),
+          Icons.people_outline_rounded,
+          AppColors.categoryRoute,
+          isDark
+              ? AppColors.darkSurfaceMuted
+              : AppColors.categoryRoute.withValues(alpha: 0.12),
+        ),
+      VerificationStatus.unverified => (
+          AppStrings.get('trust_unverified'),
+          Icons.help_outline_rounded,
+          isDark ? AppColors.darkTextSecondary : AppColors.textTertiary,
+          isDark ? AppColors.darkSurface : AppColors.surfaceMuted,
+        ),
+    };
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 5 : 7,
+        vertical: compact ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadii.small),
+        border: Border.all(
+          color: color.withValues(alpha: 0.28),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: compact ? 11 : 13, color: color),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: AppTypography.labelOf(context).copyWith(
+              fontSize: AppFontSizes.caption,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppPlaceTrustSummary extends StatelessWidget {
+  const AppPlaceTrustSummary({
+    super.key,
+    required this.place,
+    this.compact = false,
+  });
+
+  final Place place;
+  final bool compact;
+
+  static ({String label, IconData icon, Color color})? secondaryTrustItem(
+    BuildContext context,
+    Place place,
+  ) {
+    final isDark = AppColors.isDark(context);
+    final fac = place.facilities.values;
+
+    if (fac['drinking_water'] == true) {
+      return (
+        label: AppStrings.facility('drinking_water'),
+        icon: Icons.water_drop_outlined,
+        color: AppColors.categoryWater,
+      );
+    }
+    if (fac['toilets'] == true) {
+      return (
+        label: AppStrings.facility('toilets'),
+        icon: Icons.wc_outlined,
+        color: isDark ? AppColors.darkTextPrimary : AppColors.textSecondary,
+      );
+    }
+    if (fac['parking'] == true) {
+      return (
+        label: AppStrings.facility('parking'),
+        icon: Icons.local_parking_rounded,
+        color: AppColors.categoryDiscovery,
+      );
+    }
+    if (fac['picnic_allowed'] == true || fac['picnic_facility'] == true) {
+      return (
+        label: AppStrings.facility('picnic_facility'),
+        icon: Icons.deck_outlined,
+        color: AppColors.categoryNature,
+      );
+    }
+    if (place.updatedAt != null) {
+      return (
+        label: '${place.updatedAt!.year}',
+        icon: Icons.history_rounded,
+        color: isDark ? AppColors.darkTextSecondary : AppColors.textTertiary,
+      );
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    final secondary = secondaryTrustItem(context, place);
+
+    return Wrap(
+      spacing: compact ? 5 : 7,
+      runSpacing: 3,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        AppPlaceTrustBadge(place: place, compact: compact),
+        if (secondary != null)
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 5 : 7,
+              vertical: compact ? 2 : 3,
+            ),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadii.small),
+              border: Border.all(
+                color: secondary.color.withValues(alpha: 0.25),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(secondary.icon,
+                    size: compact ? 11 : 13, color: secondary.color),
+                const SizedBox(width: 3),
+                Text(
+                  secondary.label,
+                  style: AppTypography.labelOf(context).copyWith(
+                    fontSize: AppFontSizes.caption,
+                    color: secondary.color,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class GlassContainer extends StatelessWidget {
+  const GlassContainer({
+    super.key,
+    required this.child,
+    this.borderRadius,
+    this.blur = 16.0,
+    this.color,
+    this.darkColor,
+    this.border,
+    this.borderColor,
+    this.darkBorderColor,
+    this.borderWidth = 1.2,
+    this.boxShadow,
+    this.darkBoxShadow,
+    this.padding,
+    this.margin,
+    this.width,
+    this.height,
+    this.clipBehavior = Clip.antiAlias,
+  });
+
+  final Widget child;
+  final BorderRadiusGeometry? borderRadius;
+  final double blur;
+  final Color? color;
+  final Color? darkColor;
+  final BoxBorder? border;
+  final Color? borderColor;
+  final Color? darkBorderColor;
+  final double borderWidth;
+  final List<BoxShadow>? boxShadow;
+  final List<BoxShadow>? darkBoxShadow;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
+  final double? width;
+  final double? height;
+  final Clip clipBehavior;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveRadius =
+        borderRadius ?? BorderRadius.circular(AppRadii.large);
+    final isWhiteLike =
+        color != null && color!.r > 0.82 && color!.g > 0.82 && color!.b > 0.82;
+    final effectiveColor = isDark
+        ? (darkColor ??
+            (color != null && !isWhiteLike
+                ? color!.withValues(alpha: (color!.a * 0.7).clamp(0.12, 0.45))
+                : AppColors.darkGlassTint))
+        : (color ?? Colors.white.withValues(alpha: 0.32));
+    final effectiveBorder = border ??
+        Border.all(
+          color: isDark
+              ? (darkBorderColor ?? Colors.white.withValues(alpha: 0.14))
+              : (borderColor ?? Colors.white.withValues(alpha: 0.85)),
+          width: borderWidth,
+        );
+    final effectiveShadow = isDark
+        ? (darkBoxShadow ??
+            boxShadow ??
+            const [
+              BoxShadow(
+                color: AppColors.shadow20,
+                blurRadius: 16,
+                offset: Offset(0, 4),
+              ),
+            ])
+        : (boxShadow ??
+            const [
+              BoxShadow(
+                color: AppColors.shadow08,
+                blurRadius: 16,
+                offset: Offset(0, 4),
+              ),
+            ]);
+
+    Widget content = Container(
+      width: width,
+      height: height,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: effectiveColor,
+        borderRadius: effectiveRadius,
+        border: effectiveBorder,
+      ),
+      child: child,
+    );
+
+    if (blur > 0) {
+      content = BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: content,
+      );
+    }
+
+    content = ClipRRect(
+      borderRadius: effectiveRadius,
+      clipBehavior: clipBehavior,
+      child: content,
+    );
+
+    if (effectiveShadow.isNotEmpty) {
+      content = DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: effectiveRadius,
+          boxShadow: effectiveShadow,
+        ),
+        child: content,
+      );
+    }
+
+    if (margin != null) {
+      content = Padding(padding: margin!, child: content);
+    }
+
+    return content;
+  }
+}
+
+class GlassIconButton extends StatelessWidget {
+  const GlassIconButton({
+    super.key,
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+    this.size = 43,
+    this.iconSize = 20,
+    this.color,
+    this.darkColor,
+    this.iconColor,
+    this.darkIconColor,
+    this.borderColor,
+    this.darkBorderColor,
+    this.borderWidth = 1.2,
+    this.borderRadius,
+    this.blur = 10,
+    this.boxShadow,
+    this.darkBoxShadow,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+  final double size;
+  final double iconSize;
+  final Color? color;
+  final Color? darkColor;
+  final Color? iconColor;
+  final Color? darkIconColor;
+  final Color? borderColor;
+  final Color? darkBorderColor;
+  final double borderWidth;
+  final BorderRadiusGeometry? borderRadius;
+  final double blur;
+  final List<BoxShadow>? boxShadow;
+  final List<BoxShadow>? darkBoxShadow;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final radius = borderRadius ?? BorderRadius.circular(AppRadii.medium);
+    final resolvedIconColor = isDark
+        ? (darkIconColor ?? iconColor ?? AppColors.darkPrimaryLight)
+        : (iconColor ?? AppColors.primary);
+    final button = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius is BorderRadius ? radius : null,
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Icon(
+            icon,
+            size: iconSize,
+            color: resolvedIconColor,
           ),
         ),
+      ),
+    );
+
+    final glass = GlassContainer(
+      width: size,
+      height: size,
+      borderRadius: radius,
+      blur: blur,
+      color: color ?? Colors.white.withValues(alpha: 0.35),
+      darkColor: darkColor ?? AppColors.darkGlassTint,
+      borderColor: borderColor ?? Colors.white.withValues(alpha: 0.85),
+      darkBorderColor: darkBorderColor ?? Colors.white.withValues(alpha: 0.14),
+      borderWidth: borderWidth,
+      boxShadow: boxShadow,
+      darkBoxShadow: darkBoxShadow,
+      child: button,
+    );
+
+    Widget result = glass;
+    if (size < AppControlSizes.minimumTouchTarget) {
+      result = ConstrainedBox(
+        constraints: const BoxConstraints(
+          minWidth: AppControlSizes.minimumTouchTarget,
+          minHeight: AppControlSizes.minimumTouchTarget,
+        ),
+        child: Center(child: glass),
       );
+    }
+
+    if (tooltip != null) {
+      return Tooltip(message: tooltip!, child: result);
+    }
+    return result;
+  }
 }

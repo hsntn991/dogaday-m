@@ -3,6 +3,54 @@ part of '../../main.dart';
 bool isSafeExternalUrl(Uri? uri) =>
     uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
 
+List<Place> filterNearbyDetailPlaces({
+  required Place origin,
+  required Iterable<Place> candidates,
+}) {
+  if (!origin.hasCoordinates) return const <Place>[];
+  final seen = <String>{};
+  final result = <Place>[];
+  for (final place in candidates) {
+    if (!place.hasCoordinates || place.isUtility) continue;
+    final distance = NearbyPlacesService.calculateDistanceKm(
+      origin.latitude!,
+      origin.longitude!,
+      place.latitude!,
+      place.longitude!,
+    );
+    if (distance < .05 || distance > NearbyPlacesService.queryRadiusKm) {
+      continue;
+    }
+    final key = place.sourceId ??
+        '${place.name.trim().toLowerCase()}:'
+            '${place.latitude!.toStringAsFixed(4)}:'
+            '${place.longitude!.toStringAsFixed(4)}';
+    if (!seen.add(key)) continue;
+    result.add(Place(
+      place.name,
+      place.location,
+      place.kind,
+      place.rating,
+      place.icon,
+      place.colors,
+      place.image,
+      description: place.description,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      distanceKm: distance,
+      sourceId: place.sourceId,
+      updatedAt: place.updatedAt,
+      source: place.source,
+      verificationStatus: place.verificationStatus,
+      mainCategory: place.resolvedTaxonomy.mainCategory,
+      subtype: place.resolvedTaxonomy.subtype,
+      facilities: place.facilities,
+    ));
+  }
+  result.sort((a, b) => a.distanceKm!.compareTo(b.distanceKm!));
+  return result.take(12).toList(growable: false);
+}
+
 class DetailScreen extends StatefulWidget {
   const DetailScreen({
     super.key,
@@ -79,60 +127,26 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     return urls.map(placeWithImage).toList(growable: false);
   }
 
-  List<Place> get nearbyPlaces {
-    if (!widget.place.hasCoordinates) return const <Place>[];
-    final target = widget.place.weatherTarget;
-    final candidates = <Place>[
-      ...NearbyPlacesService.availableNow(target),
-      ...SupabasePlacesController.places.value,
-      ...UserPlacesController.places.value,
-    ];
-    final seen = <String>{};
-    final result = <Place>[];
-    for (final place in candidates) {
-      if (!place.hasCoordinates) continue;
-      final distance = NearbyPlacesService.calculateDistanceKm(
-        widget.place.latitude!,
-        widget.place.longitude!,
-        place.latitude!,
-        place.longitude!,
+  List<Place> get nearbyPlaces => filterNearbyDetailPlaces(
+        origin: widget.place,
+        candidates: [
+          ...NearbyPlacesService.availableNow(widget.place.weatherTarget),
+          ...SupabasePlacesController.places.value,
+          ...UserPlacesController.places.value,
+        ],
       );
-      if (distance < .05 || distance > NearbyPlacesService.queryRadiusKm) {
-        continue;
-      }
-      final key = place.sourceId ??
-          '${place.name.trim().toLowerCase()}:'
-              '${place.latitude!.toStringAsFixed(4)}:'
-              '${place.longitude!.toStringAsFixed(4)}';
-      if (!seen.add(key)) continue;
-      result.add(Place(
-        place.name,
-        place.location,
-        place.kind,
-        place.rating,
-        place.icon,
-        place.colors,
-        place.image,
-        description: place.description,
-        latitude: place.latitude,
-        longitude: place.longitude,
-        distanceKm: distance,
-        sourceId: place.sourceId,
-        updatedAt: place.updatedAt,
-        source: place.source,
-        verificationStatus: place.verificationStatus,
-        mainCategory: place.resolvedTaxonomy.mainCategory,
-        subtype: place.resolvedTaxonomy.subtype,
-        facilities: place.facilities,
-      ));
-    }
-    result.sort((a, b) => a.distanceKm!.compareTo(b.distanceKm!));
-    return result.take(12).toList(growable: false);
-  }
 
   List<ReviewEntry> get allReviews {
+    final savedRecords = UserReviewsController.forPlace(widget.place);
+    final entries = <ReviewEntry>[];
+    for (final r in savedRecords) {
+      if (r.content.isNotEmpty) {
+        entries.add(r.toEntry());
+      }
+    }
+    if (entries.isNotEmpty) return entries;
     final now = DateTime.now();
-    if (userReview == null) return const <ReviewEntry>[];
+    if (userReview == null || userReview!.isEmpty) return const <ReviewEntry>[];
     return <ReviewEntry>[
       ReviewEntry(
         id: 'user-${widget.place.name}',
@@ -152,12 +166,14 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     final aboutText = enrichment?.aboutText.trim() ?? '';
     if (aboutText.isNotEmpty) return aboutText;
     return widget.place.description.trim().isEmpty
-        ? 'Bu yer için kayıtlı bir açıklama henüz eklenmemiş.'
+        ? AppStrings.get('card_no_description')
         : widget.place.description.trim();
   }
 
   String get coordinateLabel {
-    if (!widget.place.hasCoordinates) return 'Koordinat yok';
+    if (!widget.place.hasCoordinates) {
+      return AppStrings.get('card_no_coordinates');
+    }
     final latitude = widget.place.latitude!;
     final longitude = widget.place.longitude!;
     return '${latitude.abs().toStringAsFixed(5)}°${latitude >= 0 ? 'K' : 'G'}  '
@@ -166,13 +182,13 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
 
   String get sourceLabel => switch (widget.place.source) {
         PlaceSource.osm => 'OpenStreetMap',
-        PlaceSource.user => 'Topluluk katkısı',
+        PlaceSource.user => AppStrings.get('source_community'),
         PlaceSource.curated => 'Supabase',
       };
 
   String get updatedAtLabel {
     final date = widget.place.updatedAt;
-    if (date == null) return 'Tarih bilgisi yok';
+    if (date == null) return AppStrings.get('card_no_date');
     return '${date.day.toString().padLeft(2, '0')}.'
         '${date.month.toString().padLeft(2, '0')}.${date.year}';
   }
@@ -180,7 +196,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
   String get userDistanceLabel {
     final target = HomeWeatherLocationController.current.value;
     if (!target.usesCoordinates || !widget.place.hasCoordinates) {
-      return 'Konum gerekli';
+      return AppStrings.get('card_location_required');
     }
     final distance = NearbyPlacesService.calculateDistanceKm(
       target.latitude!,
@@ -228,26 +244,29 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         builder: (context, snapshot) {
           final route = snapshot.data;
           final waiting = snapshot.connectionState == ConnectionState.waiting;
-          final fallbackDistance = userDistanceLabel == 'Konum gerekli'
-              ? userDistanceLabel
-              : '~$userDistanceLabel';
+          final fallbackDistance =
+              userDistanceLabel == AppStrings.get('card_location_required')
+                  ? userDistanceLabel
+                  : '~$userDistanceLabel';
           final distance = route?.distanceLabel ??
-              (waiting ? 'Hesaplanıyor' : fallbackDistance);
+              (waiting ? AppStrings.get('card_calculating') : fallbackDistance);
           final distanceTitle = route != null
-              ? 'Yol Mesafesi'
+              ? AppStrings.get('card_road_distance')
               : waiting
-                  ? 'Mesafe'
-                  : 'Kuş Uçuşu';
+                  ? AppStrings.get('card_distance')
+                  : AppStrings.get('card_crow_distance');
           final duration = route?.durationLabel ??
-              (waiting ? 'Hesaplanıyor' : 'Rota bulunamadı');
+              (waiting
+                  ? AppStrings.get('card_calculating')
+                  : AppStrings.get('card_route_not_found'));
           return Row(children: [
             stat('📍', distance, distanceTitle),
             const SizedBox(width: 9),
-            stat('⏱', duration, 'Ortalama Varış Süresi'),
+            stat('⏱', duration, AppStrings.get('card_arrival_time')),
             const SizedBox(width: 9),
-            stat('🧭', widget.place.kind, 'Yer Türü'),
+            stat('🧭', widget.place.kind, AppStrings.get('card_place_type')),
             const SizedBox(width: 9),
-            stat('✓', placeSourceLabel, 'Veri Kaynağı'),
+            stat('✓', placeSourceLabel, AppStrings.get('card_data_source')),
           ]);
         },
       );
@@ -255,19 +274,14 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
   Widget facilitiesSection() {
     final facilities = widget.place.facilities;
     final enrichedAmenities = enrichment?.amenities ?? const [];
-    final available = facilityLabels.entries
-        .where((entry) => facilities.values[entry.key] == true)
+    final available = facilityLabels.keys
+        .where((key) => facilities.values[key] == true)
+        .map((key) => MapEntry(key, facilityDisplayLabel(key)))
         .toList(growable: false);
-    final nearby = nearbyFacilityLabels.entries
-        .where((entry) => facilities.values[entry.key] == true)
+    final nearby = nearbyFacilityLabels.keys
+        .where((key) => facilities.values[key] == true)
+        .map((key) => MapEntry(key, facilityDisplayLabel(key)))
         .toList(growable: false);
-    if (available.isEmpty && nearby.isEmpty && enrichedAmenities.isEmpty) {
-      return unavailableData(
-        enrichment?.amenitiesStatus == 'not_found'
-            ? 'Bu yer için doğrulanmış olanak bulunamadı.'
-            : 'Bu yer için doğrulanmış olanak bilgisi henüz yok.',
-      );
-    }
 
     Widget chips(Iterable<MapEntry<String, String>> entries,
             {bool showDistance = false}) =>
@@ -283,8 +297,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
               avatar: const Icon(Icons.check_circle_outline_rounded,
                   size: 17, color: green),
               label: Text(label),
-              backgroundColor: const Color(0xFFF3F7EF),
-              side: const BorderSide(color: Color(0xFFDDE8D8)),
+              backgroundColor: AppColors.primarySoft,
+              side: const BorderSide(color: AppColors.border),
             );
           }).toList(growable: false),
         );
@@ -292,42 +306,54 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (enrichedAmenities.isNotEmpty)
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: enrichedAmenities.map((amenity) {
-              final distance = amenity.distanceMeters;
-              final label = distance == null
-                  ? amenity.label
-                  : '${amenity.label} · $distance m';
-              return Tooltip(
-                message: [amenity.name, amenity.source]
-                    .whereType<String>()
-                    .where((value) => value.isNotEmpty)
-                    .join(' · '),
-                child: Chip(
-                  avatar: const Icon(Icons.verified_outlined,
-                      size: 17, color: green),
-                  label: Text(label),
-                  backgroundColor: const Color(0xFFF3F7EF),
-                  side: const BorderSide(color: Color(0xFFDDE8D8)),
-                ),
-              );
-            }).toList(growable: false),
-          ),
-        if (enrichedAmenities.isNotEmpty &&
-            (available.isNotEmpty || nearby.isNotEmpty))
-          const SizedBox(height: 10),
-        if (available.isNotEmpty) chips(available),
-        if (nearby.isNotEmpty) ...[
-          if (available.isNotEmpty) const SizedBox(height: 14),
-          const Text(
-            'Yakında',
-            style: TextStyle(fontWeight: FontWeight.w700, color: green),
-          ),
-          const SizedBox(height: 8),
-          chips(nearby, showDistance: true),
+        _FieldConditionsCard(
+          place: widget.place,
+          enrichment: enrichment,
+        ),
+        if (enrichedAmenities.isNotEmpty ||
+            available.isNotEmpty ||
+            nearby.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          if (enrichedAmenities.isNotEmpty)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: enrichedAmenities.map((amenity) {
+                final localizedName = facilityDisplayLabel(amenity.type);
+                final display = localizedName != amenity.type
+                    ? localizedName
+                    : amenity.label;
+                final distance = amenity.distanceMeters;
+                final label =
+                    distance == null ? display : '$display · $distance m';
+                return Tooltip(
+                  message: [amenity.name, amenity.source]
+                      .whereType<String>()
+                      .where((value) => value.isNotEmpty)
+                      .join(' · '),
+                  child: Chip(
+                    avatar: const Icon(Icons.verified_outlined,
+                        size: 17, color: green),
+                    label: Text(label),
+                    backgroundColor: AppColors.primarySoft,
+                    side: const BorderSide(color: AppColors.border),
+                  ),
+                );
+              }).toList(growable: false),
+            ),
+          if (enrichedAmenities.isNotEmpty &&
+              (available.isNotEmpty || nearby.isNotEmpty))
+            const SizedBox(height: 10),
+          if (available.isNotEmpty) chips(available),
+          if (nearby.isNotEmpty) ...[
+            if (available.isNotEmpty) const SizedBox(height: 14),
+            Text(
+              AppStrings.get('detail_nearby'),
+              style: const TextStyle(fontWeight: FontWeight.w700, color: green),
+            ),
+            const SizedBox(height: 8),
+            chips(nearby, showDistance: true),
+          ],
         ],
       ],
     );
@@ -335,6 +361,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
 
   Widget nearbyPlacesSection() {
     final nearby = nearbyPlaces;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -342,10 +369,11 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         const SizedBox(height: 3),
         Text(
           '${widget.place.name} merkez alınarak yakından uzağa sıralanır.',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'Outfit',
-            color: Color(0xFF8A8680),
-            fontSize: 10.5,
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textTertiary,
+            fontSize: AppFontSizes.caption,
           ),
         ),
         const SizedBox(height: 12),
@@ -354,17 +382,21 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? AppColors.darkSurface : AppColors.surface,
               borderRadius: BorderRadius.circular(AppRadii.large),
-              border: Border.all(color: const Color(0xFFE8E4DC)),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+              ),
             ),
             child: Text(
               'Bu noktaya ${NearbyPlacesService.queryRadiusKm} km mesafede '
               'başka bir doğa noktası bulunamadı.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF77736C),
-                fontSize: 11.5,
+              style: TextStyle(
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+                fontSize: AppFontSizes.caption,
               ),
             ),
           )
@@ -394,6 +426,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSavedReview();
+    UserReviewsController.reviews.addListener(_onReviewsChanged);
     weatherFuture = WeatherService.fetchTarget(widget.place.weatherTarget);
     drivingRouteFuture = loadDrivingRoute();
     HomeWeatherLocationController.current.addListener(refreshUserDistance);
@@ -405,6 +439,27 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       final next = scrollController.offset > 250;
       if (next != collapsed) setState(() => collapsed = next);
     });
+  }
+
+  void _onReviewsChanged() {
+    if (!mounted) return;
+    _loadSavedReview();
+    setState(() {});
+  }
+
+  void _loadSavedReview() {
+    final saved = UserReviewsController.userReviewForPlace(widget.place);
+    if (saved != null) {
+      if (saved.content.isNotEmpty) {
+        userReview = saved.content;
+        userRating = saved.rating;
+        userReviewCreatedAt = saved.createdAt;
+      }
+      if (saved.recommended != null) {
+        userRecommendation = saved.recommended;
+        userRecommendationReasons = saved.recommendationReasons;
+      }
+    }
   }
 
   Future<void> loadEnrichment() async {
@@ -440,6 +495,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
 
   @override
   void dispose() {
+    UserReviewsController.reviews.removeListener(_onReviewsChanged);
     HomeWeatherLocationController.current.removeListener(refreshUserDistance);
     NearbyPlacesService.revision.removeListener(refreshNearbyPlaces);
     UserPlacesController.places.removeListener(refreshNearbyPlaces);
@@ -462,43 +518,67 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       return;
     }
 
+    final rawName = widget.place.name.trim();
+    final rawLocation = widget.place.location.trim();
+    final searchTarget = rawLocation.isNotEmpty &&
+            !rawName.toLowerCase().contains(rawLocation.toLowerCase())
+        ? '$rawName, $rawLocation'
+        : rawName;
+
     final provider = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.surfaceOf(context),
       showDragHandle: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.large),
       ),
       builder: (sheetContext) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Navigasyon uygulamasını seç',
+              Text(
+                AppStrings.get('nav_select_app'),
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontSize: 18,
+                  color: AppColors.textPrimaryOf(context),
+                  fontSize: AppFontSizes.title,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 10),
               _NavigationProviderTile(
-                icon: Icons.map_outlined,
-                label: 'Google Maps',
-                onTap: () => Navigator.pop(sheetContext, 'google'),
+                icon: Icons.place_rounded,
+                label: AppStrings.get('nav_google_smart'),
+                subtitle: AppStrings.get('nav_google_smart_desc'),
+                onTap: () => Navigator.pop(sheetContext, 'google_smart'),
+              ),
+              _NavigationProviderTile(
+                icon: Icons.gps_fixed_rounded,
+                label: AppStrings.get('nav_google_coord'),
+                subtitle: AppStrings.get('nav_google_coord_desc'),
+                onTap: () => Navigator.pop(sheetContext, 'google_coord'),
               ),
               _NavigationProviderTile(
                 icon: Icons.directions_outlined,
-                label: 'Apple Haritalar',
+                label: AppStrings.get('nav_apple'),
+                subtitle: AppStrings.get('nav_apple_desc'),
                 onTap: () => Navigator.pop(sheetContext, 'apple'),
               ),
               _NavigationProviderTile(
                 icon: Icons.navigation_outlined,
-                label: 'Yandex Maps',
+                label: AppStrings.get('nav_yandex'),
+                subtitle: AppStrings.get('nav_yandex_desc'),
                 onTap: () => Navigator.pop(sheetContext, 'yandex'),
+              ),
+              _NavigationProviderTile(
+                icon: Icons.copy_rounded,
+                label: AppStrings.get('nav_copy_coords'),
+                subtitle:
+                    '${widget.place.latitude!.toStringAsFixed(5)}, ${widget.place.longitude!.toStringAsFixed(5)}',
+                onTap: () => Navigator.pop(sheetContext, 'copy'),
               ),
             ],
           ),
@@ -507,18 +587,33 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     );
     if (provider == null || !mounted) return;
 
+    if (provider == 'copy') {
+      await Clipboard.setData(
+        ClipboardData(
+          text: '${widget.place.latitude},${widget.place.longitude}',
+        ),
+      );
+      if (mounted) {
+        message(AppStrings.get('nav_coords_copied'));
+      }
+      return;
+    }
+
     final latitude = widget.place.latitude!;
     final longitude = widget.place.longitude!;
     final destination = '$latitude,$longitude';
     final uri = switch (provider) {
+      'google_smart' => Uri.parse(
+          'https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(searchTarget)}',
+        ),
       'apple' => Uri.parse(
-          'https://maps.apple.com/?daddr=$destination&dirflg=d',
+          'https://maps.apple.com/?daddr=$destination&q=${Uri.encodeComponent(rawName)}&dirflg=d',
         ),
       'yandex' => Uri.parse(
           'https://yandex.com/maps/?rtext=~$destination&rtt=auto',
         ),
       _ => Uri.parse(
-          'https://www.google.com/maps/dir/?api=1&destination=$destination&travelmode=driving',
+          'https://www.google.com/maps/dir/?api=1&destination=$destination',
         ),
     };
 
@@ -569,7 +664,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     if (galleryPlaces.isEmpty) return Future.value();
     return showDialog<void>(
       context: context,
-      barrierColor: const Color(0xB3000000),
+      barrierColor: AppColors.shadow80,
       builder: (_) => _PhotoGalleryDialog(
         photos: galleryPlaces,
         placeName: widget.place.name,
@@ -586,7 +681,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
 
   Future<void> openAllReviews() => showDialog<void>(
         context: context,
-        barrierColor: const Color(0x99000000),
+        barrierColor: AppColors.shadow80,
         builder: (_) => _AllReviewsDialog(
           placeName: widget.place.name,
           reviews: allReviews,
@@ -611,22 +706,36 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       builder: (_) => _ReviewRecommendSheet(
         placeName: widget.place.name,
         initialTab: initialTab,
+        initialRating: userRating,
+        initialReview: userReview ?? '',
       ),
     );
     if (!mounted || result == null) return;
 
+    final hasReview = result.reviewText.isNotEmpty;
+    final hasRec = result.reasons.isNotEmpty || !hasReview;
+
     setState(() {
-      if (result.reviewText.isNotEmpty) {
+      if (hasReview) {
         userReview = result.reviewText;
         userRating = result.rating;
         userReviewCreatedAt = DateTime.now();
-      } else {
+      }
+      if (hasRec) {
         userRecommendation = result.recommended;
         userRecommendationReasons = result.reasons;
       }
     });
 
-    message(result.reviewText.isNotEmpty
+    await UserReviewsController.saveReview(
+      place: widget.place,
+      rating: hasReview ? result.rating : userRating,
+      content: hasReview ? result.reviewText : (userReview ?? ''),
+      recommended: hasRec ? result.recommended : userRecommendation,
+      reasons: hasRec ? result.reasons : userRecommendationReasons,
+    );
+
+    message(hasReview
         ? 'Değerlendirmen yayınlandı.'
         : result.recommended
             ? 'Önerin topluluğa eklendi.'
@@ -641,16 +750,18 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
                 foregroundColor: green,
-                side: const BorderSide(color: Color(0xFFD9D7CF)),
+                side: const BorderSide(color: AppColors.border),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadii.large),
                 ),
               ),
               icon: const Icon(Icons.star_outline_rounded, size: 18),
-              label: const Text(
-                'Değerlendirme Yaz',
+              label: Text(
+                AppStrings.get('detail_write_review'),
                 maxLines: 1,
-                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                    fontSize: AppFontSizes.caption,
+                    fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -663,16 +774,18 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                 backgroundColor: mint,
                 foregroundColor: green,
                 elevation: 0,
-                side: const BorderSide(color: Color(0xFFCADDBB)),
+                side: const BorderSide(color: AppColors.border),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadii.large),
                 ),
               ),
               icon: const Icon(Icons.groups_2_outlined, size: 18),
-              label: const Text(
-                'Topluluk ile Öner',
+              label: Text(
+                AppStrings.get('detail_recommend_community'),
                 maxLines: 1,
-                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                    fontSize: AppFontSizes.caption,
+                    fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -684,13 +797,11 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: userRecommendation!
-              ? const Color(0xFFEDF6E6)
-              : const Color(0xFFF2EFE9),
+              ? AppColors.primarySoft
+              : AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(AppRadii.large),
           border: Border.all(
-            color: userRecommendation!
-                ? const Color(0xFFC9DFBB)
-                : const Color(0xFFDDD9D1),
+            color: AppColors.border,
           ),
         ),
         child: Row(
@@ -710,11 +821,11 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                     : 'Topluluk geri bildirimin kaydedildi${userRecommendationReasons.isEmpty ? '.' : ': ${userRecommendationReasons.join(', ')}'}',
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontSize: 11.5,
+                  fontSize: AppFontSizes.caption,
                   height: 1.35,
                   color: userRecommendation!
-                      ? const Color(0xFF567845)
-                      : const Color(0xFF77736C),
+                      ? AppColors.primary
+                      : AppColors.textSecondary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -729,7 +840,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
             child: Text(text,
                 style: const TextStyle(
                     fontFamily: 'Outfit',
-                    fontSize: 19,
+                    fontSize: AppFontSizes.heading,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -.15))),
         if (action != null)
@@ -740,89 +851,136 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
               child: Text(action,
                   style: const TextStyle(
-                      color: green, fontSize: 11, fontWeight: FontWeight.w600)),
+                      color: green,
+                      fontSize: AppFontSizes.caption,
+                      fontWeight: FontWeight.w600)),
             ),
           )
       ]);
 
-  Widget stat(String icon, String value, String label) => Expanded(
-        child: Container(
-          height: 88,
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppRadii.large),
-              boxShadow: const [
-                BoxShadow(color: Color(0x10000000), blurRadius: 8)
-              ]),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(icon, style: const TextStyle(fontSize: 19)),
-            const SizedBox(height: 7),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.fade,
-                softWrap: false,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 11.5, fontWeight: FontWeight.w600),
+  Widget stat(String icon, String value, String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Expanded(
+      child: Container(
+        height: 88,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.border,
+          ),
+          boxShadow: isDark
+              ? const [BoxShadow(color: AppColors.shadow26, blurRadius: 8)]
+              : const [BoxShadow(color: AppColors.shadow08, blurRadius: 8)],
+        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Text(icon, style: const TextStyle(fontSize: 19)),
+          const SizedBox(height: 7),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                fontWeight: FontWeight.w600,
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(label,
-                maxLines: 1,
-                overflow: TextOverflow.fade,
-                softWrap: false,
-                style: const TextStyle(fontSize: 8.5, color: Color(0xFF949089)))
-          ]),
-        ),
-      );
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            softWrap: false,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.caption,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 
-  Widget info(String icon, String label, String value) => Expanded(
-        child: Container(
-          height: 89,
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppRadii.large),
-              border: Border.all(color: const Color(0xFFE9E6DF))),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(icon, style: const TextStyle(fontSize: 17)),
-            const Spacer(),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 9,
-                    color: Color(0xFF98938D),
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 3),
-            Text(value,
-                style:
-                    const TextStyle(fontSize: 11, fontWeight: FontWeight.w600))
-          ]),
+  Widget info(String icon, String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Expanded(
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 89),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.border,
+          ),
         ),
-      );
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 17)),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget unavailableData(String message) => Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+          color: AppColors.surfaceMutedOf(context),
           borderRadius: BorderRadius.circular(AppRadii.large),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.borderOf(context)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline_rounded,
-                size: 19, color: AppColors.textSecondary),
+            Icon(Icons.info_outline_rounded,
+                size: 19, color: AppColors.textSecondaryOf(context)),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 message,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11.5,
+                style: TextStyle(
+                  color: AppColors.textSecondaryOf(context),
+                  fontSize: AppFontSizes.caption,
                   height: 1.35,
                 ),
               ),
@@ -832,315 +990,388 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: AppColors.surface,
-        body: CustomScrollView(controller: scrollController, slivers: [
-          SliverAppBar(
-            expandedHeight: 330,
-            pinned: true,
-            backgroundColor: AppColors.surface,
-            surfaceTintColor: Colors.transparent,
-            titleSpacing: 4,
-            title: collapsed
-                ? Text(widget.place.name,
-                    style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700))
-                : null,
-            leading: Padding(
-              padding: const EdgeInsets.all(8),
-              child: IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xA6222921),
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white24)),
-                  icon: const Icon(Icons.arrow_back_rounded)),
-            ),
-            actions: [
-              IconButton(
-                  onPressed: () => message('Paylaşım bağlantısı hazırlandı.'),
-                  style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xA6222921),
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white24)),
-                  icon: const Icon(Icons.share_outlined, size: 20)),
-              const SizedBox(width: 7),
-              IconButton(
-                  onPressed: toggleFavorite,
-                  style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xA6222921),
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white24)),
-                  icon: Icon(favorite
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded)),
-              const SizedBox(width: 10)
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              collapseMode: CollapseMode.parallax,
-              background: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(AppRadii.large),
-                  bottomRight: Radius.circular(AppRadii.large),
-                ),
-                child: Stack(fit: StackFit.expand, children: [
-                  NatureArt(place: displayPlace, radius: 0, showKind: false),
-                  const DecoratedBox(
-                      decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                        Color(0x22000000),
-                        Colors.transparent,
-                        Color(0xC511150F)
-                      ]))),
-                  Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: 22,
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(widget.place.name,
-                                style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    color: Colors.white,
-                                    fontSize: 27,
-                                    height: 1.06,
-                                    fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 8),
-                            Row(children: [
-                              const Icon(Icons.location_on_rounded,
-                                  size: 15, color: Colors.white70),
-                              Text(' ${widget.place.location}',
-                                  style: const TextStyle(
-                                      color: Colors.white70, fontSize: 11)),
-                              const Spacer(),
-                              if (galleryPlaces.isNotEmpty)
-                                InkWell(
-                                  onTap: scrollToPhotos,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.large),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 5, vertical: 5),
-                                    child: Row(children: [
-                                      const Icon(Icons.photo_camera_outlined,
-                                          size: 14, color: Colors.white),
-                                      Text('  ${galleryPlaces.length} fotoğraf',
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600))
-                                    ]),
-                                  ),
-                                )
-                            ])
-                          ]))
-                ]),
-              ),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: AppColors.surfaceOf(context),
+      body: CustomScrollView(controller: scrollController, slivers: [
+        SliverAppBar(
+          expandedHeight: 330,
+          pinned: true,
+          backgroundColor: AppColors.surfaceOf(context),
+          surfaceTintColor: Colors.transparent,
+          titleSpacing: 4,
+          title: collapsed
+              ? Text(widget.place.name,
+                  style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.title,
+                      fontWeight: FontWeight.w700))
+              : null,
+          leading: Center(
+            child: GlassIconButton(
+              icon: Icons.arrow_back_rounded,
+              tooltip: 'Geri',
+              size: 40,
+              iconSize: 20,
+              iconColor: Colors.white,
+              color: AppColors.darkGlass,
+              borderColor: Colors.white.withValues(alpha: 0.30),
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+              blur: 12,
+              onTap: () => Navigator.pop(context),
             ),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 118),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Semantics(
-                      button: true,
-                      label: 'Değerlendirmelere git',
-                      child: InkWell(
-                        onTap: scrollToReviews,
-                        borderRadius: BorderRadius.circular(AppRadii.large),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 2, vertical: 7),
-                          child: Row(children: [
-                            Icon(
-                              allReviews.isEmpty
-                                  ? Icons.star_border_rounded
-                                  : Icons.star_rounded,
-                              color: const Color(0xFFFFA000),
-                              size: 19,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              allReviews.isEmpty
-                                  ? 'Henüz değerlendirme yok'
-                                  : '$userRating · 1 değerlendirme',
+          actions: [
+            GlassIconButton(
+              icon: Icons.share_outlined,
+              tooltip: 'Paylaş',
+              size: 40,
+              iconSize: 19,
+              iconColor: Colors.white,
+              color: AppColors.darkGlass,
+              borderColor: Colors.white.withValues(alpha: 0.30),
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+              blur: 12,
+              onTap: () => message('Paylaşım bağlantısı hazırlandı.'),
+            ),
+            const SizedBox(width: 8),
+            GlassIconButton(
+              icon: favorite
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+              tooltip: favorite ? 'Favorilerden çıkar' : 'Favorilere ekle',
+              size: 40,
+              iconSize: 20,
+              iconColor: favorite ? AppColors.error : Colors.white,
+              color: AppColors.darkGlass,
+              borderColor: Colors.white.withValues(alpha: 0.30),
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+              blur: 12,
+              onTap: toggleFavorite,
+            ),
+            const SizedBox(width: 12)
+          ],
+          flexibleSpace: FlexibleSpaceBar(
+            collapseMode: CollapseMode.parallax,
+            background: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(AppRadii.large),
+                bottomRight: Radius.circular(AppRadii.large),
+              ),
+              child: Stack(fit: StackFit.expand, children: [
+                NatureArt(place: displayPlace, radius: 0, showKind: false),
+                const DecoratedBox(
+                    decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                      AppColors.shadow08,
+                      Colors.transparent,
+                      AppColors.shadow80,
+                    ]))),
+                Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 22,
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(widget.place.name,
                               style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
+                                  fontFamily: 'Outfit',
+                                  color: Colors.white,
+                                  fontSize: AppFontSizes.display,
+                                  height: 1.06,
+                                  fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 8),
+                          Row(children: [
+                            const Icon(Icons.location_on_rounded,
+                                size: 15, color: Colors.white70),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(widget.place.location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: AppFontSizes.caption)),
                             ),
-                            const SizedBox(width: 5),
-                            const Icon(Icons.keyboard_arrow_down_rounded,
-                                size: 17, color: Color(0xFF8A8680)),
-                          ]),
+                            if (galleryPlaces.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: scrollToPhotos,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.large),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.photo_camera_outlined,
+                                          size: 14, color: Colors.white),
+                                      Text(
+                                          '  ${galleryPlaces.length} ${AppStrings.get('detail_photo_count_label')}',
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: AppFontSizes.caption,
+                                              fontWeight: FontWeight.w600))
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ])
+                        ]))
+              ]),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 118),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Semantics(
+                button: true,
+                label: 'Değerlendirmelere git',
+                child: InkWell(
+                  onTap: scrollToReviews,
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          allReviews.isEmpty
+                              ? Icons.star_border_rounded
+                              : Icons.star_rounded,
+                          color: AppColors.rating,
+                          size: 19,
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    journeyStats(),
-                    const SizedBox(height: 28),
-                    Container(
-                      key: photoSectionKey,
-                      child: heading(
-                        'Fotoğraflar',
-                        action: galleryPlaces.isEmpty ? null : 'Görüntüle',
-                        onAction:
-                            galleryPlaces.isEmpty ? null : () => openGallery(0),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (galleryPlaces.isEmpty)
-                      unavailableData(
-                          'Bu yer için gerçek bir fotoğraf henüz eklenmemiş.')
-                    else
-                      SizedBox(
-                          height: 86,
-                          child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: galleryPlaces.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 8),
-                              itemBuilder: (_, i) => GestureDetector(
-                                    onTap: () => openGallery(i),
-                                    child: SizedBox(
-                                        width: 112,
-                                        child: NatureArt(
-                                            place: galleryPlaces[i],
-                                            radius: 14,
-                                            showKind: false)),
-                                  ))),
-                    const SizedBox(height: 28),
-                    heading('Hakkında'),
-                    const SizedBox(height: 10),
-                    Text(detailDescription,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            height: 1.72,
-                            fontWeight: FontWeight.w400,
-                            color: Color(0xFF625F58))),
-                    for (final photo in enrichment?.photos ?? const <PlacePhotoInfo>[])
-                      ListTile(
-                        dense: true,
-                        title: Text(photo.attribution ?? 'Fotoğraf: ${photo.author ?? photo.source} / ${photo.source}'),
-                        subtitle: Text(photo.license ?? ''),
-                        trailing: const Icon(Icons.open_in_new, size: 16),
-                        onTap: () {
-                          final uri = Uri.tryParse(photo.sourcePageUrl ?? '');
-                          if (isSafeExternalUrl(uri)) launchUrl(uri!);
-                        },
-                      ),
-                    aboutSourcesSection(),
-                    const SizedBox(height: 22),
-                    Row(children: [
-                      info('🧭', 'KOORDİNATLAR', coordinateLabel),
-                      const SizedBox(width: 10),
-                      info('↗', 'VERİ KAYNAĞI', sourceLabel)
-                    ]),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      info('◉', 'VERİ KAYNAĞI', placeSourceLabel),
-                      const SizedBox(width: 10),
-                      info('↻', 'SON GÜNCELLEME', updatedAtLabel)
-                    ]),
-                    const SizedBox(height: 20),
-                    _PlaceTrustSummary(place: widget.place),
-                    const SizedBox(height: 26),
-                    heading('Bölge Havası'),
-                    const SizedBox(height: 11),
-                    _LiveWeatherCard(
-                      place: widget.place,
-                      future: weatherFuture,
-                      onRetry: refreshWeather,
-                    ),
-                    const SizedBox(height: 27),
-                    heading('Olanaklar'),
-                    const SizedBox(height: 12),
-                    facilitiesSection(),
-                    const SizedBox(height: 28),
-                    Container(
-                      key: reviewsSectionKey,
-                      child: heading(
-                        'Değerlendirmeler',
-                        action: allReviews.isEmpty ? null : 'Tümünü Gör',
-                        onAction: allReviews.isEmpty ? null : openAllReviews,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    contributionActions(),
-                    if (userRecommendation != null) ...[
-                      const SizedBox(height: 10),
-                      recommendationStatus(),
-                    ],
-                    const SizedBox(height: 14),
-                    if (allReviews.isEmpty) ...[
-                      const SizedBox(height: 14),
-                      unavailableData(
-                          'Bu yer için henüz gerçek bir değerlendirme yapılmamış.'),
-                    ],
-                    const SizedBox(height: 14),
-                    ...allReviews.take(3).map(
-                          (entry) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _ReviewCard(
-                              review: entry,
-                              helpful: helpfulReviewIds.contains(entry.id),
-                              onHelpful: () => toggleHelpful(entry.id),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            allReviews.isEmpty
+                                ? AppStrings.get('detail_no_reviews_yet')
+                                : '$userRating · 1 ${AppStrings.get('detail_review')}',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: AppFontSizes.caption,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
-                    const SizedBox(height: 28),
-                    nearbyPlacesSection(),
-                  ]),
-            ),
-          )
-        ]),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-            decoration: const BoxDecoration(
-                color: AppColors.surface,
-                boxShadow: [
-                  BoxShadow(
-                      color: Color(0x22000000),
-                      blurRadius: 20,
-                      offset: Offset(0, -5))
-                ]),
-            child: Row(children: [
-              _DetailActionIcon(
-                  icon: favorite
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  onTap: toggleFavorite),
-              const SizedBox(width: 9),
-              _DetailActionIcon(
-                  icon: Icons.share_outlined,
-                  onTap: () => message('Paylaşım bağlantısı hazırlandı.')),
-              const SizedBox(width: 11),
-              Expanded(
-                  child: FilledButton.icon(
-                      onPressed: startNavigation,
-                      style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(53),
-                          backgroundColor: green,
-                          shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.large))),
-                      icon: const Icon(Icons.navigation_outlined),
-                      label: const Text('Navigasyonu Başlat')))
+                        const SizedBox(width: 5),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 17,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textTertiary),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              journeyStats(),
+              const SizedBox(height: 28),
+              Container(
+                key: photoSectionKey,
+                child: heading(
+                  AppStrings.get('detail_photos'),
+                  action: galleryPlaces.isEmpty
+                      ? null
+                      : AppStrings.get('detail_view_photos'),
+                  onAction: galleryPlaces.isEmpty ? null : () => openGallery(0),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (galleryPlaces.isEmpty)
+                unavailableData(AppStrings.get('card_no_photos'))
+              else
+                SizedBox(
+                    height: 86,
+                    child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: galleryPlaces.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) => GestureDetector(
+                              onTap: () => openGallery(i),
+                              child: SizedBox(
+                                  width: 112,
+                                  child: NatureArt(
+                                      place: galleryPlaces[i],
+                                      radius: 14,
+                                      showKind: false)),
+                            ))),
+              const SizedBox(height: 28),
+              heading(AppStrings.get('detail_about')),
+              const SizedBox(height: 10),
+              Text(detailDescription,
+                  style: TextStyle(
+                      fontSize: AppFontSizes.body,
+                      height: 1.72,
+                      fontWeight: FontWeight.w400,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary)),
+              if (isSafeExternalUrl(
+                  Uri.tryParse(widget.place.googlePhotoSearchUrl ?? '')))
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: OutlinedButton.icon(
+                    onPressed: () => launchUrl(
+                      Uri.parse(widget.place.googlePhotoSearchUrl!),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Google Fotoğraflarına Git'),
+                  ),
+                ),
+              for (final photo
+                  in enrichment?.photos ?? const <PlacePhotoInfo>[])
+                ListTile(
+                  dense: true,
+                  title: Text(photo.attribution ??
+                      'Fotoğraf: ${photo.author ?? photo.source} / ${photo.source}'),
+                  subtitle: Text(photo.license ?? ''),
+                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  onTap: () {
+                    final uri = Uri.tryParse(photo.sourcePageUrl ?? '');
+                    if (isSafeExternalUrl(uri)) launchUrl(uri!);
+                  },
+                ),
+              aboutSourcesSection(),
+              const SizedBox(height: 22),
+              Row(children: [
+                info('🧭', AppStrings.get('card_coordinates'), coordinateLabel),
+                const SizedBox(width: 10),
+                info('↗', AppStrings.get('card_data_source'), sourceLabel)
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                info('◉', AppStrings.get('card_data_source'), placeSourceLabel),
+                const SizedBox(width: 10),
+                info('↻', AppStrings.get('card_last_updated'), updatedAtLabel)
+              ]),
+              const SizedBox(height: 20),
+              _PlaceTrustSummary(place: widget.place),
+              const SizedBox(height: 26),
+              heading(AppStrings.get('detail_weather_title')),
+              const SizedBox(height: 11),
+              _LiveWeatherCard(
+                place: widget.place,
+                future: weatherFuture,
+                onRetry: refreshWeather,
+              ),
+              const SizedBox(height: 27),
+              heading(AppStrings.get('detail_field_conditions')),
+              const SizedBox(height: 12),
+              facilitiesSection(),
+              const SizedBox(height: 28),
+              Container(
+                key: reviewsSectionKey,
+                child: heading(
+                  AppStrings.get('detail_reviews'),
+                  action: allReviews.isEmpty
+                      ? null
+                      : AppStrings.get('detail_view_all'),
+                  onAction: allReviews.isEmpty ? null : openAllReviews,
+                ),
+              ),
+              const SizedBox(height: 12),
+              contributionActions(),
+              if (userRecommendation != null) ...[
+                const SizedBox(height: 10),
+                recommendationStatus(),
+              ],
+              const SizedBox(height: 14),
+              if (allReviews.isEmpty) ...[
+                const SizedBox(height: 14),
+                unavailableData(AppStrings.get('card_no_reviews')),
+              ],
+              const SizedBox(height: 14),
+              ...allReviews.take(3).map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _ReviewCard(
+                        review: entry,
+                        helpful: helpfulReviewIds.contains(entry.id),
+                        onHelpful: () => toggleHelpful(entry.id),
+                      ),
+                    ),
+                  ),
+              const SizedBox(height: 28),
+              nearbyPlacesSection(),
             ]),
           ),
+        )
+      ]),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: GlassContainer(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(AppRadii.hero),
+            topRight: Radius.circular(AppRadii.hero),
+          ),
+          blur: 16.0,
+          color: Colors.white.withValues(alpha: 0.88),
+          darkColor: AppColors.darkGlass,
+          border: Border(
+            top: BorderSide(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.12)
+                  : Colors.white.withValues(alpha: 0.85),
+              width: 1.2,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? AppColors.shadow80 : AppColors.shadow08,
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: Row(children: [
+            _DetailActionIcon(
+                icon: favorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                iconColor: favorite ? Colors.redAccent : null,
+                tooltip: favorite ? 'Favorilerden çıkar' : 'Favorilere ekle',
+                onTap: toggleFavorite),
+            const SizedBox(width: 9),
+            _DetailActionIcon(
+                icon: Icons.share_outlined,
+                tooltip: 'Paylaş',
+                onTap: () => message(AppStrings.get('share_prepared'))),
+            const SizedBox(width: 11),
+            Expanded(
+                child: Semantics(
+              button: true,
+              label: AppStrings.get('detail_nav_start'),
+              child: FilledButton.icon(
+                  onPressed: startNavigation,
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(53),
+                      backgroundColor: isDark ? AppColors.darkPrimary : green,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadii.large))),
+                  icon: const Icon(Icons.navigation_outlined),
+                  label: Text(AppStrings.get('detail_nav_start'))),
+            ))
+          ]),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _NavigationProviderTile extends StatelessWidget {
@@ -1148,35 +1379,60 @@ class _NavigationProviderTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.subtitle,
   });
 
   final IconData icon;
   final String label;
+  final String? subtitle;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        onTap: onTap,
-        contentPadding: EdgeInsets.zero,
-        leading: Container(
-          width: 42,
-          height: 42,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.primarySoft,
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-          ),
-          child: Icon(icon, color: green, size: 21),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ListTile(
+      onTap: onTap,
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 42,
+        height: 42,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
+          borderRadius: BorderRadius.circular(AppRadii.medium),
         ),
-        title: Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w500,
-          ),
+        child: Icon(
+          icon,
+          color: isDark ? AppColors.darkPrimaryLight : green,
+          size: 21,
         ),
-        trailing: const Icon(Icons.chevron_right_rounded),
-      );
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          color: isDark ? AppColors.darkTextPrimary : null,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle!,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+              ),
+            )
+          : null,
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: isDark ? AppColors.darkTextSecondary : null,
+      ),
+    );
+  }
 }
 
 class _ReviewCard extends StatelessWidget {
@@ -1194,128 +1450,149 @@ class _ReviewCard extends StatelessWidget {
       '${List.filled(review.rating, '★').join()}${List.filled(5 - review.rating, '☆').join()}';
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadii.large),
-          boxShadow: const [
-            BoxShadow(color: Color(0x0F000000), blurRadius: 8),
-          ],
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: review.color,
-                  foregroundColor: Colors.white,
-                  child: Text(review.initial),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        review.name,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$stars  ${review.timeLabel}',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          color: Color(0xFFFFA000),
-                          fontSize: 9,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+        boxShadow: isDark
+            ? const [
+                BoxShadow(color: AppColors.shadow26, blurRadius: 8),
+              ]
+            : const [
+                BoxShadow(color: AppColors.shadow08, blurRadius: 8),
               ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              review.content,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 12.5,
-                height: 1.5,
-                color: Color(0xFF65635E),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: review.color,
+                foregroundColor: Colors.white,
+                child: Text(review.initial),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review.name,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: AppFontSizes.caption,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? AppColors.darkTextPrimary : null,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$stars  ${review.timeLabel}',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        color: AppColors.rating,
+                        fontSize: AppFontSizes.caption,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            review.content,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.body,
+              height: 1.5,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Semantics(
-                  button: true,
-                  selected: helpful,
-                  label: helpful
-                      ? 'Faydalı işaretini kaldır'
-                      : 'Yorumu faydalı olarak işaretle',
-                  child: InkWell(
-                    onTap: onHelpful,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Semantics(
+                button: true,
+                selected: helpful,
+                label: helpful
+                    ? 'Faydalı işaretini kaldır'
+                    : 'Yorumu faydalı olarak işaretle',
+                child: InkWell(
+                  onTap: onHelpful,
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: helpful
+                          ? (isDark
+                              ? AppColors.darkPrimarySoft
+                              : AppColors.primarySoft)
+                          : (isDark
+                              ? AppColors.darkSurfaceMuted
+                              : AppColors.surfaceMuted),
+                      borderRadius: BorderRadius.circular(AppRadii.large),
+                      border: Border.all(
                         color: helpful
-                            ? const Color(0xFFEAF2E3)
-                            : const Color(0xFFF5F3EE),
-                        borderRadius: BorderRadius.circular(AppRadii.large),
-                        border: Border.all(
-                          color: helpful
-                              ? const Color(0xFFBFD5AE)
-                              : const Color(0xFFE7E3DB),
+                            ? (isDark
+                                ? AppColors.darkPrimary
+                                : AppColors.primarySoft)
+                            : (isDark
+                                ? AppColors.darkBorder
+                                : AppColors.border),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          helpful
+                              ? Icons.thumb_up_alt_rounded
+                              : Icons.thumb_up_alt_outlined,
+                          size: 15,
+                          color: helpful ? green : AppColors.textTertiary,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            helpful
-                                ? Icons.thumb_up_alt_rounded
-                                : Icons.thumb_up_alt_outlined,
-                            size: 15,
-                            color: helpful ? green : const Color(0xFF8C8983),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${AppStrings.get('detail_helpful')} (${review.helpfulCount + (helpful ? 1 : 0)})',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: AppFontSizes.caption,
+                            color: helpful ? green : AppColors.textTertiary,
+                            fontWeight:
+                                helpful ? FontWeight.w600 : FontWeight.w400,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Faydalı (${review.helpfulCount + (helpful ? 1 : 0)})',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 9.5,
-                              color: helpful ? green : const Color(0xFF8C8983),
-                              fontWeight:
-                                  helpful ? FontWeight.w600 : FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 13),
-                const Text(
-                  'Yanıtla',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 9.5,
-                    color: Color(0xFF8C8983),
-                  ),
+              ),
+              const SizedBox(width: 13),
+              Text(
+                AppStrings.get('detail_reply'),
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.caption,
+                  color: AppColors.textTertiary,
                 ),
-              ],
-            ),
-          ],
-        ),
-      );
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AllReviewsDialog extends StatefulWidget {
@@ -1356,6 +1633,7 @@ class _AllReviewsDialogState extends State<_AllReviewsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenHeight = MediaQuery.sizeOf(context).height;
     final dialogHeight = screenHeight * .84 > 720 ? 720.0 : screenHeight * .84;
     return Dialog(
@@ -1367,11 +1645,12 @@ class _AllReviewsDialogState extends State<_AllReviewsDialog> {
         child: Container(
           height: dialogHeight,
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: isDark ? AppColors.darkSurface : AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadii.large),
+            border: isDark ? Border.all(color: AppColors.darkBorder) : null,
             boxShadow: const [
               BoxShadow(
-                color: Color(0x55000000),
+                color: AppColors.shadow33,
                 blurRadius: 32,
                 offset: Offset(0, 14),
               ),
@@ -1388,12 +1667,12 @@ class _AllReviewsDialogState extends State<_AllReviewsDialog> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Tüm Değerlendirmeler',
                             style: TextStyle(
                               fontFamily: 'Outfit',
-                              color: ink,
-                              fontSize: 21,
+                              color: isDark ? AppColors.darkTextPrimary : ink,
+                              fontSize: AppFontSizes.heading,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1402,10 +1681,12 @@ class _AllReviewsDialogState extends State<_AllReviewsDialog> {
                             '${widget.placeName} · En yeniden en eskiye',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'Outfit',
-                              color: Color(0xFF827E77),
-                              fontSize: 10.5,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                              fontSize: AppFontSizes.caption,
                             ),
                           ),
                         ],
@@ -1414,16 +1695,23 @@ class _AllReviewsDialogState extends State<_AllReviewsDialog> {
                     IconButton(
                       onPressed: () => Navigator.pop(context),
                       style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: ink,
-                        side: const BorderSide(color: Color(0xFFE4E0D8)),
+                        backgroundColor:
+                            isDark ? AppColors.darkSurfaceMuted : Colors.white,
+                        foregroundColor:
+                            isDark ? AppColors.darkTextPrimary : ink,
+                        side: BorderSide(
+                          color:
+                              isDark ? AppColors.darkBorder : AppColors.border,
+                        ),
                       ),
                       icon: const Icon(Icons.close_rounded, size: 20),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1, color: Color(0xFFE3DFD7)),
+              Divider(
+                  height: 1,
+                  color: isDark ? AppColors.darkBorder : AppColors.border),
               Expanded(
                 child: Scrollbar(
                   child: ListView.separated(
@@ -1467,10 +1755,14 @@ class _ReviewRecommendSheet extends StatefulWidget {
   const _ReviewRecommendSheet({
     required this.placeName,
     required this.initialTab,
+    this.initialRating = 0,
+    this.initialReview = '',
   });
 
   final String placeName;
   final int initialTab;
+  final int initialRating;
+  final String initialReview;
 
   @override
   State<_ReviewRecommendSheet> createState() => _ReviewRecommendSheetState();
@@ -1509,6 +1801,10 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
   void initState() {
     super.initState();
     tab = widget.initialTab.clamp(0, 1);
+    rating = widget.initialRating;
+    if (widget.initialReview.isNotEmpty) {
+      reviewController.text = widget.initialReview;
+    }
   }
 
   @override
@@ -1532,6 +1828,7 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final keyboard = MediaQuery.of(context).viewInsets.bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: keyboard),
@@ -1539,10 +1836,14 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * .88,
         ),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.surface,
           borderRadius:
-              BorderRadius.vertical(top: Radius.circular(AppRadii.large)),
+              const BorderRadius.vertical(top: Radius.circular(AppRadii.large)),
+          border: isDark
+              ? Border(
+                  top: BorderSide(color: Colors.white.withValues(alpha: 0.12)))
+              : null,
         ),
         child: SafeArea(
           top: false,
@@ -1556,7 +1857,7 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                     width: 42,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD4D0C8),
+                      color: isDark ? AppColors.darkBorder : AppColors.border,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -1569,10 +1870,10 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                       children: [
                         Text(
                           tab == 0 ? 'Deneyimini paylaş' : 'Topluluk ile öner',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Outfit',
-                            color: ink,
-                            fontSize: 22,
+                            color: isDark ? AppColors.darkTextPrimary : ink,
+                            fontSize: AppFontSizes.heading,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -1581,10 +1882,12 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                           widget.placeName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Outfit',
-                            color: Color(0xFF8A8680),
-                            fontSize: 11,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                            fontSize: AppFontSizes.caption,
                           ),
                         ),
                       ],
@@ -1593,9 +1896,12 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: ink,
-                      side: const BorderSide(color: Color(0xFFE4E0D8)),
+                      backgroundColor:
+                          isDark ? AppColors.darkSurfaceMuted : Colors.white,
+                      foregroundColor: isDark ? AppColors.darkTextPrimary : ink,
+                      side: BorderSide(
+                        color: isDark ? AppColors.darkBorder : AppColors.border,
+                      ),
                     ),
                     icon: const Icon(Icons.close_rounded, size: 20),
                   ),
@@ -1605,7 +1911,9 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                   height: 47,
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFECE8DF),
+                    color: isDark
+                        ? AppColors.darkSurfaceDeep
+                        : AppColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(AppRadii.large),
                   ),
                   child: Row(children: [
@@ -1635,9 +1943,12 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                   child: FilledButton(
                     onPressed: canSubmit ? submit : null,
                     style: FilledButton.styleFrom(
-                      backgroundColor: green,
-                      disabledBackgroundColor: const Color(0xFFE1DED6),
-                      disabledForegroundColor: const Color(0xFFA29E96),
+                      backgroundColor: isDark ? AppColors.darkPrimary : green,
+                      disabledBackgroundColor:
+                          isDark ? AppColors.darkPrimarySoft : AppColors.border,
+                      disabledForegroundColor: isDark
+                          ? AppColors.darkTextTertiary
+                          : AppColors.textTertiary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadii.large),
                       ),
@@ -1651,7 +1962,7 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                               : 'Toplulukla Paylaş',
                           style: const TextStyle(
                             fontFamily: 'Outfit',
-                            fontSize: 14,
+                            fontSize: AppFontSizes.body,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1669,130 +1980,144 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
     );
   }
 
-  Widget _reviewBody() => Column(
-        key: const ValueKey('review'),
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Bu yeri nasıl buldun?',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              color: ink,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
+  Widget _reviewBody() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      key: const ValueKey('review'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Bu yeri nasıl buldun?',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? AppColors.darkTextPrimary : ink,
+            fontSize: AppFontSizes.title,
+            fontWeight: FontWeight.w700,
           ),
-          const SizedBox(height: 5),
-          const Text(
-            'Deneyimini yıldızlarla değerlendir.',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              color: Color(0xFF8A8680),
-              fontSize: 11,
-            ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          'Deneyimini yıldızlarla değerlendir.',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            fontSize: AppFontSizes.caption,
           ),
-          const SizedBox(height: 13),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(
-              5,
-              (i) => InkWell(
-                onTap: () => setState(() => rating = i + 1),
-                borderRadius: BorderRadius.circular(AppRadii.large),
-                child: Container(
-                  width: 54,
-                  height: 50,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: i < rating ? const Color(0xFFFFF3D8) : Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                    border: Border.all(
-                      color: i < rating
-                          ? const Color(0xFFFFD47B)
-                          : const Color(0xFFE4E0D8),
-                    ),
+        ),
+        const SizedBox(height: 13),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(
+            5,
+            (i) => InkWell(
+              onTap: () => setState(() => rating = i + 1),
+              borderRadius: BorderRadius.circular(AppRadii.large),
+              child: Container(
+                width: 54,
+                height: 50,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: i < rating
+                      ? (isDark
+                          ? AppColors.rating.withValues(alpha: 0.20)
+                          : AppColors.rating.withValues(alpha: 0.12))
+                      : (isDark ? AppColors.darkSurfaceMuted : Colors.white),
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                  border: Border.all(
+                    color: i < rating
+                        ? AppColors.rating
+                        : (isDark ? AppColors.darkBorder : AppColors.border),
                   ),
-                  child: Icon(
-                    i < rating ? Icons.star_rounded : Icons.star_border_rounded,
-                    color: const Color(0xFFFFA000),
-                    size: 28,
-                  ),
+                ),
+                child: Icon(
+                  i < rating ? Icons.star_rounded : Icons.star_border_rounded,
+                  color: AppColors.rating,
+                  size: 28,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 18),
-          const Text(
-            'Yorumun',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              color: ink,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Yorumun',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? AppColors.darkTextPrimary : ink,
+            fontSize: AppFontSizes.caption,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: reviewController,
+          minLines: 4,
+          maxLines: 5,
+          maxLength: 500,
+          onChanged: (_) => setState(() {}),
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? AppColors.darkTextPrimary : ink,
+            fontSize: 13,
+            height: 1.45,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Neleri beğendin? Ziyaret edecek kişilere yardımcı ol...',
+            hintStyle: TextStyle(
+              color:
+                  isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+              fontSize: AppFontSizes.caption,
+              height: 1.4,
+            ),
+            filled: true,
+            fillColor: isDark ? AppColors.darkSurfaceMuted : Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadii.large),
+              borderSide: BorderSide(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadii.large),
+              borderSide: BorderSide(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadii.large),
+              borderSide: const BorderSide(color: green, width: 1.4),
             ),
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: reviewController,
-            minLines: 4,
-            maxLines: 5,
-            maxLength: 500,
-            onChanged: (_) => setState(() {}),
-            style: const TextStyle(
-              fontFamily: 'Outfit',
-              color: ink,
-              fontSize: 13,
-              height: 1.45,
-            ),
-            decoration: InputDecoration(
-              hintText:
-                  'Neleri beğendin? Ziyaret edecek kişilere yardımcı ol...',
-              hintStyle: const TextStyle(
-                color: Color(0xFFA19D95),
-                fontSize: 12,
-                height: 1.4,
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadii.large),
-                borderSide: const BorderSide(color: Color(0xFFE1DED6)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadii.large),
-                borderSide: const BorderSide(color: Color(0xFFE1DED6)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadii.large),
-                borderSide: const BorderSide(color: green, width: 1.4),
-              ),
-            ),
-          ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 
   Widget _recommendBody() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final reasons = recommended ? positiveReasons : negativeReasons;
     return Column(
       key: const ValueKey('recommend'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Topluluğa önerir misin?',
           style: TextStyle(
             fontFamily: 'Outfit',
-            color: ink,
-            fontSize: 17,
+            color: isDark ? AppColors.darkTextPrimary : ink,
+            fontSize: AppFontSizes.title,
             fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 5),
-        const Text(
+        Text(
           'Seçimin diğer doğaseverlere yol gösterecek.',
           style: TextStyle(
             fontFamily: 'Outfit',
-            color: Color(0xFF8A8680),
-            fontSize: 11,
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            fontSize: AppFontSizes.caption,
           ),
         ),
         const SizedBox(height: 15),
@@ -1822,10 +2147,10 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
         const SizedBox(height: 21),
         Text(
           recommended ? 'Neden öneriyorsun?' : 'Neden önermiyorsun?',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'Outfit',
-            color: ink,
-            fontSize: 12,
+            color: isDark ? AppColors.darkTextPrimary : ink,
+            fontSize: AppFontSizes.caption,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1844,16 +2169,21 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                   : selectedReasons.add(reason)),
               labelStyle: TextStyle(
                 fontFamily: 'Outfit',
-                color: selected ? green : const Color(0xFF706C65),
-                fontSize: 10.5,
+                color: selected
+                    ? (isDark ? AppColors.darkPrimaryLight : green)
+                    : (isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary),
+                fontSize: AppFontSizes.caption,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
-              selectedColor: mint,
-              backgroundColor: Colors.white,
+              selectedColor: isDark ? AppColors.darkPrimarySoft : mint,
+              backgroundColor:
+                  isDark ? AppColors.darkSurfaceMuted : Colors.white,
               side: BorderSide(
                 color: selected
-                    ? const Color(0xFFBFD8AD)
-                    : const Color(0xFFE1DED6),
+                    ? (isDark ? AppColors.darkPrimary : AppColors.primarySoft)
+                    : (isDark ? AppColors.darkBorder : AppColors.border),
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadii.large),
@@ -1880,38 +2210,58 @@ class _ContributionTab extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            decoration: BoxDecoration(
-              color: active ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppRadii.large),
-              boxShadow: active
-                  ? const [BoxShadow(color: Color(0x10000000), blurRadius: 7)]
-                  : null,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon,
-                    size: 17, color: active ? green : const Color(0xFF8A8680)),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    color: active ? green : const Color(0xFF8A8680),
-                    fontSize: 11,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                  ),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          decoration: BoxDecoration(
+            color: active
+                ? (isDark ? AppColors.darkSurfaceMuted : Colors.white)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadii.large),
+            boxShadow: active
+                ? (isDark
+                    ? const [
+                        BoxShadow(color: AppColors.shadow26, blurRadius: 7)
+                      ]
+                    : const [
+                        BoxShadow(color: AppColors.shadow08, blurRadius: 7)
+                      ])
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 17,
+                  color: active
+                      ? (isDark ? AppColors.darkPrimaryLight : green)
+                      : (isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  color: active
+                      ? (isDark ? AppColors.darkPrimaryLight : green)
+                      : (isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary),
+                  fontSize: AppFontSizes.caption,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _RecommendChoice extends StatelessWidget {
@@ -1931,7 +2281,10 @@ class _RecommendChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = positive ? green : const Color(0xFF8A5A48);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = positive
+        ? (isDark ? AppColors.darkPrimaryLight : green)
+        : AppColors.error;
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -1942,12 +2295,16 @@ class _RecommendChoice extends StatelessWidget {
           decoration: BoxDecoration(
             color: active
                 ? positive
-                    ? mint
-                    : const Color(0xFFF5ECE8)
-                : Colors.white,
+                    ? (isDark ? AppColors.darkPrimarySoft : mint)
+                    : (isDark
+                        ? AppColors.darkSurfaceDeep
+                        : AppColors.surfaceMuted)
+                : (isDark ? AppColors.darkSurfaceMuted : Colors.white),
             borderRadius: BorderRadius.circular(AppRadii.large),
             border: Border.all(
-              color: active ? activeColor : const Color(0xFFE1DED6),
+              color: active
+                  ? activeColor
+                  : (isDark ? AppColors.darkBorder : AppColors.border),
               width: active ? 1.4 : 1,
             ),
           ),
@@ -1956,14 +2313,22 @@ class _RecommendChoice extends StatelessWidget {
             children: [
               Icon(icon,
                   size: 19,
-                  color: active ? activeColor : const Color(0xFF8A8680)),
+                  color: active
+                      ? activeColor
+                      : (isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary)),
               const SizedBox(width: 7),
               Text(
                 label,
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  color: active ? activeColor : const Color(0xFF69665F),
-                  fontSize: 11.5,
+                  color: active
+                      ? activeColor
+                      : (isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary),
+                  fontSize: AppFontSizes.caption,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -2049,6 +2414,7 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenSize = MediaQuery.sizeOf(context);
     final dialogHeight =
         screenSize.height * .72 > 620 ? 620.0 : screenSize.height * .72;
@@ -2064,11 +2430,14 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
           height: dialogHeight,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: isDark ? AppColors.darkSurface : AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadii.large),
+            border: Border.all(
+              color: isDark ? AppColors.darkBorder : AppColors.border,
+            ),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x66000000),
+                color: AppColors.shadow33,
                 blurRadius: 34,
                 offset: Offset(0, 16),
               ),
@@ -2111,7 +2480,7 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
                                 : Icons.thumb_up_alt_outlined,
                             tooltip: 'Beğen',
                             selected: reaction == 1,
-                            selectedColor: const Color(0xFF3A7D22),
+                            selectedColor: AppColors.primary,
                             onPressed: () => react(1),
                           ),
                           const SizedBox(width: 8),
@@ -2121,7 +2490,7 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
                                 : Icons.thumb_down_alt_outlined,
                             tooltip: 'Beğenme',
                             selected: reaction == -1,
-                            selectedColor: const Color(0xFFB95343),
+                            selectedColor: AppColors.error,
                             onPressed: () => react(-1),
                           ),
                         ],
@@ -2168,7 +2537,7 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
                           style: const TextStyle(
                             fontFamily: 'Outfit',
                             color: Colors.white,
-                            fontSize: 11,
+                            fontSize: AppFontSizes.caption,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -2192,20 +2561,22 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
                               widget.placeName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'Outfit',
-                                color: ink,
-                                fontSize: 16,
+                                color: isDark ? AppColors.darkTextPrimary : ink,
+                                fontSize: AppFontSizes.title,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
+                            Text(
                               'Kaydırarak diğer fotoğrafları gör',
                               style: TextStyle(
                                 fontFamily: 'Outfit',
-                                color: Color(0xFF817D76),
-                                fontSize: 10.5,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.textSecondary,
+                                fontSize: AppFontSizes.caption,
                               ),
                             ),
                           ],
@@ -2223,7 +2594,9 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
                             decoration: BoxDecoration(
                               color: index == currentIndex
                                   ? green
-                                  : const Color(0xFFD4D0C8),
+                                  : (isDark
+                                      ? AppColors.darkBorder
+                                      : AppColors.border),
                               borderRadius: BorderRadius.circular(5),
                             ),
                           ),
@@ -2254,12 +2627,15 @@ class _LiveWeatherCard extends StatelessWidget {
 
   BoxDecoration get decoration => BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF174A0D), Color(0xFF4AA62B)],
+          colors: [
+            AppColors.weatherGradientStart,
+            AppColors.weatherGradientEnd
+          ],
         ),
         borderRadius: BorderRadius.circular(AppRadii.large),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x382B751A),
+            color: AppColors.weatherCardShadow,
             blurRadius: 22,
             offset: Offset(0, 9),
           ),
@@ -2268,8 +2644,8 @@ class _LiveWeatherCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        height: 244,
-        padding: const EdgeInsets.fromLTRB(20, 18, 14, 14),
+        constraints: const BoxConstraints(minHeight: 244),
+        padding: const EdgeInsets.fromLTRB(20, 18, 14, 16),
         decoration: decoration,
         child: FutureBuilder<WeatherSnapshot>(
           future: future,
@@ -2293,7 +2669,7 @@ class _LiveWeatherCard extends StatelessWidget {
                     style: const TextStyle(
                       fontFamily: 'Outfit',
                       color: Colors.white70,
-                      fontSize: 11,
+                      fontSize: AppFontSizes.caption,
                     ),
                   ),
                 ],
@@ -2313,7 +2689,7 @@ class _LiveWeatherCard extends StatelessWidget {
                     style: const TextStyle(
                       fontFamily: 'Outfit',
                       color: Colors.white,
-                      fontSize: 11,
+                      fontSize: AppFontSizes.caption,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -2325,8 +2701,8 @@ class _LiveWeatherCard extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                     ),
                     icon: const Icon(Icons.refresh_rounded, size: 16),
-                    label: const Text('Yeniden dene',
-                        style: TextStyle(fontSize: 10)),
+                    label: Text(AppStrings.get('general_retry'),
+                        style: const TextStyle(fontSize: AppFontSizes.caption)),
                   ),
                 ],
               );
@@ -2339,15 +2715,16 @@ class _LiveWeatherCard extends StatelessWidget {
             final idealConditions = _weatherIsIdeal(weather);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${place.name.toUpperCase()} · ŞU AN',
+                  '${place.name.toUpperCase()} · ${AppStrings.get('weather_now')}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: 'Outfit',
                     color: Colors.white70,
-                    fontSize: 9.5,
+                    fontSize: AppFontSizes.caption,
                     fontWeight: FontWeight.w700,
                     letterSpacing: .25,
                   ),
@@ -2379,17 +2756,17 @@ class _LiveWeatherCard extends StatelessWidget {
                             style: const TextStyle(
                               fontFamily: 'Outfit',
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: AppFontSizes.caption,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            'Hissedilen ${weather.apparentTemperature.round()}°',
+                            '${AppStrings.get('weather_feels_like')} ${weather.apparentTemperature.round()}°',
                             style: const TextStyle(
                               fontFamily: 'Outfit',
                               color: Colors.white60,
-                              fontSize: 9.5,
+                              fontSize: AppFontSizes.caption,
                             ),
                           ),
                         ],
@@ -2408,20 +2785,25 @@ class _LiveWeatherCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      _DetailWeatherMetric(
-                          '💧', '${weather.humidity.round()}%', 'Nem'),
+                      _DetailWeatherMetric('💧', '${weather.humidity.round()}%',
+                          AppStrings.get('weather_humidity')),
                       const _WeatherMetricDivider(),
                       _DetailWeatherMetric(
-                          '〰', '${weather.windSpeed.round()}km/s', 'Rüzgâr'),
+                          '〰',
+                          '${weather.windSpeed.round()}km/s',
+                          AppStrings.get('weather_wind')),
                       const _WeatherMetricDivider(),
                       _DetailWeatherMetric(
-                          '☀️', _weatherUvValue(weather.uvIndex), 'UV'),
+                          '☀️',
+                          _weatherUvValue(weather.uvIndex),
+                          AppStrings.get('weather_uv')),
                       const _WeatherMetricDivider(),
-                      _DetailWeatherMetric('◉', '${visibility}km', 'Görüş'),
+                      _DetailWeatherMetric('◉', '${visibility}km',
+                          AppStrings.get('weather_visibility')),
                     ],
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     Container(
@@ -2429,8 +2811,8 @@ class _LiveWeatherCard extends StatelessWidget {
                       height: 8,
                       decoration: BoxDecoration(
                         color: idealConditions
-                            ? const Color(0xFF64E3B0)
-                            : const Color(0xFFFFD166),
+                            ? AppColors.darkPrimaryLight
+                            : AppColors.rating,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -2443,18 +2825,136 @@ class _LiveWeatherCard extends StatelessWidget {
                         style: const TextStyle(
                           fontFamily: 'Outfit',
                           color: Colors.white,
-                          fontSize: 10.5,
+                          fontSize: AppFontSizes.caption,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ],
                 ),
+                if (weather.dailyForecast.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    height: 1,
+                    color: Colors.white.withValues(alpha: .18),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    AppStrings.get('weather_5day_forecast'),
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      color: Colors.white70,
+                      fontSize: AppFontSizes.caption,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: .3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Detail5DayForecastStrip(forecasts: weather.dailyForecast),
+                ],
               ],
             );
           },
         ),
       );
+}
+
+class Detail5DayForecastStrip extends StatelessWidget {
+  const Detail5DayForecastStrip({super.key, required this.forecasts});
+
+  final List<DailyForecast> forecasts;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return Row(
+      children: forecasts.map((forecast) {
+        final isToday = forecast.date.year == now.year &&
+            forecast.date.month == now.month &&
+            forecast.date.day == now.day;
+        final weekdayLabel = AppStrings.weekdayShort(forecast.date);
+        final rainChance = forecast.precipitationProbability;
+
+        return Expanded(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2.5),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+            decoration: BoxDecoration(
+              color: isToday
+                  ? Colors.white.withValues(alpha: .22)
+                  : Colors.white.withValues(alpha: .09),
+              borderRadius: BorderRadius.circular(AppRadii.medium),
+              border: isToday
+                  ? Border.all(
+                      color: Colors.white.withValues(alpha: .45),
+                      width: 1,
+                    )
+                  : null,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  weekdayLabel,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    color: isToday ? Colors.white : Colors.white70,
+                    fontSize: AppFontSizes.caption,
+                    fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  forecast.emoji,
+                  style: const TextStyle(fontSize: 19, height: 1.1),
+                ),
+                const SizedBox(height: 5),
+                if (rainChance != null && rainChance > 0)
+                  Text(
+                    '💧${rainChance.round()}%',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      color: AppColors.categoryWater,
+                      fontSize: AppFontSizes.caption,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                else
+                  const Text(
+                    '·',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      color: Colors.white38,
+                      fontSize: AppFontSizes.caption,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                const SizedBox(height: 5),
+                Text(
+                  '${forecast.maximumTemperature.round()}°',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    color: Colors.white,
+                    fontSize: AppFontSizes.caption,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  '${forecast.minimumTemperature.round()}°',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    color: Colors.white60,
+                    fontSize: AppFontSizes.caption,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(growable: false),
+    );
+  }
 }
 
 class _DetailWeatherMetric extends StatelessWidget {
@@ -2477,7 +2977,7 @@ class _DetailWeatherMetric extends StatelessWidget {
               style: const TextStyle(
                 fontFamily: 'Outfit',
                 color: Colors.white,
-                fontSize: 10.5,
+                fontSize: AppFontSizes.caption,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -2487,7 +2987,7 @@ class _DetailWeatherMetric extends StatelessWidget {
               style: const TextStyle(
                 fontFamily: 'Outfit',
                 color: Colors.white60,
-                fontSize: 8.5,
+                fontSize: AppFontSizes.caption,
               ),
             ),
           ],
@@ -2523,44 +3023,44 @@ class _PlaceTrustSummary extends StatelessWidget {
           runSpacing: 7,
           children: [
             switch (place.source) {
-              PlaceSource.osm => const _TrustChip(
+              PlaceSource.osm => _TrustChip(
                   icon: Icons.map_outlined,
-                  label: 'OpenStreetMap verisi',
-                  foreground: Color(0xFF3B6F87),
-                  background: Color(0xFFEAF4F7),
+                  label: AppStrings.get('source_osm'),
+                  foreground: AppColors.categoryWater,
+                  background: AppColors.categoryWater.withValues(alpha: 0.12),
                 ),
-              PlaceSource.user => const _TrustChip(
+              PlaceSource.user => _TrustChip(
                   icon: Icons.groups_2_outlined,
-                  label: 'Topluluk katkısı',
-                  foreground: Color(0xFF567845),
-                  background: Color(0xFFEDF6E6),
+                  label: AppStrings.get('source_community'),
+                  foreground: AppColors.primary,
+                  background: AppColors.primarySoft,
                 ),
-              PlaceSource.curated => const _TrustChip(
+              PlaceSource.curated => _TrustChip(
                   icon: Icons.storage_outlined,
-                  label: 'Supabase kaydı',
-                  foreground: Color(0xFF4F6558),
-                  background: Color(0xFFF0F3F1),
+                  label: AppStrings.get('source_supabase'),
+                  foreground: AppColors.categoryWildlife,
+                  background: AppColors.surfaceMuted,
                 ),
             },
             if (place.source == PlaceSource.user)
               switch (place.verificationStatus) {
-                VerificationStatus.verified => const _TrustChip(
+                VerificationStatus.verified => _TrustChip(
                     icon: Icons.fact_check_outlined,
-                    label: 'İnceleme işareti var',
-                    foreground: Color(0xFF397044),
-                    background: Color(0xFFE8F4E8),
+                    label: AppStrings.get('trust_verified'),
+                    foreground: AppColors.primary,
+                    background: AppColors.primarySoft,
                   ),
-                VerificationStatus.community => const _TrustChip(
+                VerificationStatus.community => _TrustChip(
                     icon: Icons.people_outline_rounded,
-                    label: 'Toplulukça güncelleniyor',
-                    foreground: Color(0xFF6F6639),
-                    background: Color(0xFFF6F1DD),
+                    label: AppStrings.get('trust_community'),
+                    foreground: AppColors.categoryRoute,
+                    background: AppColors.categoryRoute.withValues(alpha: 0.12),
                   ),
-                VerificationStatus.unverified => const _TrustChip(
+                VerificationStatus.unverified => _TrustChip(
                     icon: Icons.info_outline_rounded,
-                    label: 'Henüz incelenmedi',
-                    foreground: Color(0xFF806A3E),
-                    background: Color(0xFFF8F1E3),
+                    label: AppStrings.get('trust_unverified'),
+                    foreground: AppColors.accentOrange,
+                    background: AppColors.surfaceMuted,
                   ),
               },
           ],
@@ -2570,9 +3070,9 @@ class _PlaceTrustSummary extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8F4EA),
+              color: AppColors.surfaceMuted,
               borderRadius: BorderRadius.circular(AppRadii.large),
-              border: Border.all(color: const Color(0xFFE8DEC8)),
+              border: Border.all(color: AppColors.border),
             ),
             child: const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2580,7 +3080,7 @@ class _PlaceTrustSummary extends StatelessWidget {
                 Icon(
                   Icons.route_outlined,
                   size: 17,
-                  color: Color(0xFF806A3E),
+                  color: AppColors.accentOrange,
                 ),
                 SizedBox(width: 8),
                 Expanded(
@@ -2588,8 +3088,8 @@ class _PlaceTrustSummary extends StatelessWidget {
                     'Bu konum topluluk tarafından eklendi. Gitmeden önce yol ve erişim koşullarını kontrol et.',
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      color: Color(0xFF6E624C),
-                      fontSize: 10.5,
+                      color: AppColors.textSecondary,
+                      fontSize: AppFontSizes.caption,
                       height: 1.35,
                     ),
                   ),
@@ -2599,6 +3099,328 @@ class _PlaceTrustSummary extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+enum _FieldInfoStatus { verified, community, absent, unknown }
+
+class _FieldConditionItem {
+  const _FieldConditionItem({
+    required this.icon,
+    required this.title,
+    required this.statusLabel,
+    required this.statusColor,
+    required this.statusBackground,
+    required this.statusIcon,
+    this.detail,
+  });
+
+  final IconData icon;
+  final String title;
+  final String statusLabel;
+  final Color statusColor;
+  final Color statusBackground;
+  final IconData statusIcon;
+  final String? detail;
+}
+
+class _FieldConditionsCard extends StatelessWidget {
+  const _FieldConditionsCard({
+    required this.place,
+    this.enrichment,
+  });
+
+  final Place place;
+  final PlaceEnrichment? enrichment;
+
+  List<_FieldConditionItem> _buildItems(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isVerifiedPlace =
+        place.verificationStatus == VerificationStatus.verified;
+    final fac = place.facilities.values;
+    final distances = place.facilities.nearbyDistances;
+
+    (String label, Color color, Color bg, IconData icon) statusProps(
+        _FieldInfoStatus s) {
+      return switch (s) {
+        _FieldInfoStatus.verified => (
+            AppStrings.get('field_status_verified'),
+            isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+            isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
+            Icons.check_circle_rounded,
+          ),
+        _FieldInfoStatus.community => (
+            AppStrings.get('field_status_community'),
+            AppColors.categoryRoute,
+            isDark
+                ? AppColors.darkSurfaceMuted
+                : AppColors.categoryRoute.withValues(alpha: 0.12),
+            Icons.people_outline_rounded,
+          ),
+        _FieldInfoStatus.absent => (
+            AppStrings.get('field_status_absent'),
+            isDark ? AppColors.darkTextSecondary : AppColors.textTertiary,
+            isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+            Icons.cancel_outlined,
+          ),
+        _FieldInfoStatus.unknown => (
+            AppStrings.get('field_status_unknown'),
+            isDark ? AppColors.darkTextSecondary : AppColors.textTertiary,
+            isDark ? AppColors.darkSurface : AppColors.surfaceMuted,
+            Icons.help_outline_rounded,
+          ),
+      };
+    }
+
+    final items = <_FieldConditionItem>[];
+
+    // 1. İçme Suyu
+    final waterStatus = fac['drinking_water'] == true
+        ? (isVerifiedPlace
+            ? _FieldInfoStatus.verified
+            : _FieldInfoStatus.community)
+        : (fac['drinking_water'] == false
+            ? _FieldInfoStatus.absent
+            : _FieldInfoStatus.unknown);
+    final waterProps = statusProps(waterStatus);
+    items.add(_FieldConditionItem(
+      icon: Icons.water_drop_outlined,
+      title: AppStrings.get('field_drinking_water'),
+      statusLabel: waterProps.$1,
+      statusColor: waterProps.$2,
+      statusBackground: waterProps.$3,
+      statusIcon: waterProps.$4,
+      detail: waterStatus == _FieldInfoStatus.unknown
+          ? null
+          : (fac['drinking_water'] == true ? 'Mevcut' : 'Bulunmuyor'),
+    ));
+
+    // 2. Tuvalet
+    final toiletStatus = fac['toilets'] == true
+        ? (isVerifiedPlace
+            ? _FieldInfoStatus.verified
+            : _FieldInfoStatus.community)
+        : (fac['toilets'] == false
+            ? _FieldInfoStatus.absent
+            : _FieldInfoStatus.unknown);
+    final toiletProps = statusProps(toiletStatus);
+    items.add(_FieldConditionItem(
+      icon: Icons.wc_outlined,
+      title: AppStrings.get('field_toilets'),
+      statusLabel: toiletProps.$1,
+      statusColor: toiletProps.$2,
+      statusBackground: toiletProps.$3,
+      statusIcon: toiletProps.$4,
+      detail: toiletStatus == _FieldInfoStatus.unknown
+          ? null
+          : (fac['toilets'] == true ? 'Mevcut' : 'Bulunmuyor'),
+    ));
+
+    // 3. Otopark
+    final parkingStatus = fac['parking'] == true
+        ? (isVerifiedPlace
+            ? _FieldInfoStatus.verified
+            : _FieldInfoStatus.community)
+        : (fac['parking'] == false
+            ? _FieldInfoStatus.absent
+            : _FieldInfoStatus.unknown);
+    final parkingProps = statusProps(parkingStatus);
+    items.add(_FieldConditionItem(
+      icon: Icons.local_parking_rounded,
+      title: AppStrings.get('field_parking'),
+      statusLabel: parkingProps.$1,
+      statusColor: parkingProps.$2,
+      statusBackground: parkingProps.$3,
+      statusIcon: parkingProps.$4,
+      detail: parkingStatus == _FieldInfoStatus.unknown
+          ? null
+          : (fac['parking'] == true ? 'Mevcut' : 'Bulunmuyor'),
+    ));
+
+    // 4. Piknik & Kamp Uygunluğu
+    final isCamp = fac['tents'] == true || fac['caravans'] == true;
+    final isPicnic = fac['picnic_allowed'] == true ||
+        fac['picnic_facility'] == true ||
+        fac['picnic_table_nearby'] == true;
+    final campStatus = (isCamp || isPicnic)
+        ? (isVerifiedPlace
+            ? _FieldInfoStatus.verified
+            : _FieldInfoStatus.community)
+        : (fac['picnic_allowed'] == false && fac['tents'] == false
+            ? _FieldInfoStatus.absent
+            : _FieldInfoStatus.unknown);
+    final campProps = statusProps(campStatus);
+    final campDetail = isCamp && isPicnic
+        ? 'Kamp & Piknik uygun'
+        : (isCamp
+            ? 'Kamp uygun'
+            : (isPicnic
+                ? 'Piknik uygun'
+                : (campStatus == _FieldInfoStatus.absent
+                    ? 'İzin verilmiyor'
+                    : null)));
+    items.add(_FieldConditionItem(
+      icon: Icons.deck_outlined,
+      title: AppStrings.get('field_picnic_camp'),
+      statusLabel: campProps.$1,
+      statusColor: campProps.$2,
+      statusBackground: campProps.$3,
+      statusIcon: campProps.$4,
+      detail: campDetail,
+    ));
+
+    // 5. Araç Erişimi & Yol Zemini
+    final road = place.roadAccess;
+    final roadStatus = road != null
+        ? (isVerifiedPlace
+            ? _FieldInfoStatus.verified
+            : _FieldInfoStatus.community)
+        : _FieldInfoStatus.unknown;
+    final roadProps = statusProps(roadStatus);
+    items.add(_FieldConditionItem(
+      icon: Icons.directions_car_outlined,
+      title: AppStrings.get('field_road_access'),
+      statusLabel: roadProps.$1,
+      statusColor: roadProps.$2,
+      statusBackground: roadProps.$3,
+      statusIcon: roadProps.$4,
+      detail: road ?? 'Doğrulanmadı',
+    ));
+
+    // 6. Son Yürüme Mesafesi
+    final parkingDist = distances['parking'] ?? distances['nearby_parking'];
+    final walkingStatus = parkingDist != null
+        ? _FieldInfoStatus.verified
+        : (road == 'Yalnızca yürüyerek'
+            ? _FieldInfoStatus.community
+            : _FieldInfoStatus.unknown);
+    final walkingProps = statusProps(walkingStatus);
+    final walkingDetail = parkingDist != null
+        ? 'Otoparktan ~$parkingDist m'
+        : (road == 'Yalnızca yürüyerek' ? 'Yürüyüş rotası' : null);
+    items.add(_FieldConditionItem(
+      icon: Icons.hiking_outlined,
+      title: AppStrings.get('field_walking_distance'),
+      statusLabel: walkingProps.$1,
+      statusColor: walkingProps.$2,
+      statusBackground: walkingProps.$3,
+      statusIcon: walkingProps.$4,
+      detail: walkingDetail,
+    ));
+
+    return items;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final items = _buildItems(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        border:
+            Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadow08,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              Divider(
+                height: 1,
+                thickness: 0.6,
+                indent: 16,
+                endIndent: 16,
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: items[i].statusColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
+                    ),
+                    child: Icon(items[i].icon,
+                        size: 16, color: items[i].statusColor),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          items[i].title,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: AppFontSizes.label,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                        if (items[i].detail != null)
+                          Text(
+                            items[i].detail!,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: AppFontSizes.caption - 1,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: items[i].statusBackground,
+                      borderRadius: BorderRadius.circular(AppRadii.small),
+                      border: Border.all(
+                        color: items[i].statusColor.withValues(alpha: 0.25),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(items[i].statusIcon,
+                            size: 11, color: items[i].statusColor),
+                        const SizedBox(width: 3),
+                        Text(
+                          items[i].statusLabel,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: AppFontSizes.caption - 1,
+                            fontWeight: FontWeight.w600,
+                            color: items[i].statusColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -2617,46 +3439,64 @@ class _TrustChip extends StatelessWidget {
   final Color background;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(AppRadii.large),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: foreground),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                color: foreground,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveBg =
+        isDark ? background.withValues(alpha: 0.18) : background;
+    final effectiveFg =
+        isDark ? Color.lerp(foreground, Colors.white, 0.45)! : foreground;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: effectiveBg,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: effectiveFg),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              color: effectiveFg,
+              fontSize: AppFontSizes.caption,
+              fontWeight: FontWeight.w600,
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _DetailActionIcon extends StatelessWidget {
-  const _DetailActionIcon({required this.icon, required this.onTap});
+  const _DetailActionIcon({
+    required this.icon,
+    required this.onTap,
+    this.iconColor,
+    this.tooltip,
+  });
   final IconData icon;
   final VoidCallback onTap;
+  final Color? iconColor;
+  final String? tooltip;
+
   @override
-  Widget build(BuildContext context) => SizedBox(
-      width: 52,
-      height: 52,
-      child: IconButton(
-          onPressed: onTap,
-          icon: Icon(icon),
-          color: const Color(0xFF777A72),
-          style: IconButton.styleFrom(
-              backgroundColor: Colors.white,
-              side: const BorderSide(color: Color(0xFFE5E2DB)),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadii.large)))));
+  Widget build(BuildContext context) => GlassIconButton(
+        icon: icon,
+        onTap: onTap,
+        tooltip: tooltip,
+        size: 52,
+        iconSize: 22,
+        iconColor: iconColor ?? AppColors.textSecondary,
+        darkIconColor: iconColor ?? AppColors.darkTextPrimary,
+        color: Colors.white.withValues(alpha: 0.85),
+        darkColor: AppColors.darkPrimarySoft.withValues(alpha: 0.20),
+        borderColor: Colors.white.withValues(alpha: 0.75),
+        darkBorderColor: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        blur: 10,
+      );
 }

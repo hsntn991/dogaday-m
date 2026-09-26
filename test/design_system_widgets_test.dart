@@ -192,4 +192,103 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
   });
+
+  testWidgets(
+      'AppPlaceTrustBadge standardizes verified, community, and unverified labels',
+      (tester) async {
+    const verifiedPlace = Place(
+      'Yedigöller',
+      'Bolu',
+      'Milli Park',
+      4.8,
+      Icons.nature_outlined,
+      [Color(0xFF287890), Color(0xFF8DD1C9)],
+      null,
+      verificationStatus: VerificationStatus.verified,
+    );
+    const communityPlace = Place(
+      'Gizli Pınar',
+      'Bolu',
+      'Pınar',
+      4.2,
+      Icons.water_drop_outlined,
+      [Color(0xFF287890), Color(0xFF8DD1C9)],
+      null,
+      verificationStatus: VerificationStatus.community,
+    );
+    const unverifiedPlace = Place(
+      'Bilinmeyen Mağara',
+      'Bolu',
+      'Mağara',
+      0,
+      Icons.landscape_outlined,
+      [Color(0xFF287890), Color(0xFF8DD1C9)],
+      null,
+      verificationStatus: VerificationStatus.unverified,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              AppPlaceTrustBadge(place: verifiedPlace),
+              AppPlaceTrustBadge(place: communityPlace),
+              AppPlaceTrustBadge(place: unverifiedPlace),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Doğrulanmış'), findsOneWidget);
+    expect(find.text('Topluluk katkısı'), findsOneWidget);
+    expect(find.text('Henüz incelenmedi'), findsOneWidget);
+  });
+
+  testWidgets(
+      'AppPlaceTrustSummary shows verification and known facilities without faking unknown data',
+      (tester) async {
+    const placeWithWater = Place(
+      'Çeşmeli Tepe',
+      'Bolu',
+      'Tepe',
+      4.5,
+      Icons.nature_outlined,
+      [Color(0xFF287890), Color(0xFF8DD1C9)],
+      null,
+      verificationStatus: VerificationStatus.verified,
+      facilities: PlaceFacilities(values: {'drinking_water': true}),
+    );
+
+    const placeUnknownFacilities = Place(
+      'Issız Tepe',
+      'Bolu',
+      'Tepe',
+      4.0,
+      Icons.nature_outlined,
+      [Color(0xFF287890), Color(0xFF8DD1C9)],
+      null,
+      verificationStatus: VerificationStatus.unverified,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              AppPlaceTrustSummary(place: placeWithWater),
+              AppPlaceTrustSummary(place: placeUnknownFacilities),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Doğrulanmış'), findsOneWidget);
+    expect(find.text('İçme Suyu'), findsOneWidget);
+    expect(find.text('Henüz incelenmedi'), findsOneWidget);
+    expect(find.text('Tuvalet'), findsNothing);
+    expect(find.text('Otopark'), findsNothing);
+  });
 }

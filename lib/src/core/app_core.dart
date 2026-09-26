@@ -1,6 +1,7 @@
 part of '../../main.dart';
 
 abstract final class AppColors {
+  // ── Light palette ──────────────────────────────────────────────────────────
   static const background = Color(0xFFFFFFFF);
   static const surface = Color(0xFFFFFFFF);
   static const surfaceMuted = Color(0xFFF7F8F6);
@@ -13,7 +14,175 @@ abstract final class AppColors {
   static const textTertiary = Color(0xFF8A928C);
   static const onPrimary = Color(0xFFFFFFFF);
   static const error = Color(0xFFB42318);
+  static const errorSoft = Color(0xFFFFF1EF);
+  static const errorBorder = Color(0xFFE59A91);
   static const disabled = Color(0xFFC5CBC6);
+
+  /// Seçili harita marker / turuncu vurgu rengi (açık mod)
+  static const accentOrange = Color(0xFFB65B23);
+
+  /// Yıldız ve değerlendirme kehribar sarısı
+  static const rating = Color(0xFFFFA000);
+
+  /// Bekleyen onay / uyarı tonları
+  static const warningSoft = Color(0xFFFFF1D6);
+  static const warningBorder = Color(0xFFE7B45D);
+  static const warningText = Color(0xFF8B5D13);
+
+  /// İyilik Harekâtı'nın il haritası her iki temada da aynı, okunabilir
+  /// illüstrasyon görünümünü korur.
+  static const goodnessMapBackground = Color(0xFFF7F2E9);
+  static const goodnessMapBorder = Color(0xFFCEBDA7);
+
+  // ── Dark palette ───────────────────────────────────────────────────────────
+  static const darkBackground = Color(0xFF0D120F);
+  static const darkSurface = Color(0xFF151C18);
+  static const darkSurfaceMuted = Color(0xFF1D2621);
+  static const darkBorder = Color(0xFF303A34);
+  static const darkPrimary = Color(0xFF2E8A57);
+  static const darkPrimarySoft = Color(0xFF1A3324);
+  static const darkTextPrimary = Color(0xFFF1F5F2);
+  static const darkTextSecondary = Color(0xFFAAB4AD);
+  static const darkTextTertiary = Color(0xFF7E8A82);
+
+  /// Açık yeşil vurgu — koyu mod ikonlar ve aktif chip'ler
+  static const darkPrimaryLight = Color(0xFF8FD8A8);
+
+  /// Seçili harita marker / turuncu vurgu rengi (koyu mod)
+  static const darkAccentOrange = Color(0xFFE89A6C);
+
+  /// Koyu mod acil durum / hata yumuşak zemin rengi
+  static const darkErrorSoft = Color(0xFF3A211D);
+
+  // ── Harita Kategori Renkleri (marker dairesi dolgu) ────────────────────────
+  /// Su kategorisi marker rengi
+  static const categoryWater = Color(0xFF1E7EC8);
+
+  /// Dağ & Arazi marker rengi
+  static const categoryMountain = Color(0xFF617A4A);
+
+  /// Doğal Oluşum marker rengi
+  static const categoryFormation = Color(0xFF8B6547);
+
+  /// Doğa Alanı marker rengi
+  static const categoryNature = Color(0xFF2E7D52);
+
+  /// Kamp & Karavan marker rengi
+  static const categoryCamp = Color(0xFFBF5B20);
+
+  /// Rota & Aktivite marker rengi
+  static const categoryRoute = Color(0xFFB07D1A);
+
+  /// Keşif Noktası marker rengi
+  static const categoryDiscovery = Color(0xFF7B5EA7);
+
+  /// Yaban Hayatı marker rengi
+  static const categoryWildlife = Color(0xFF3E8A70);
+
+  /// Tesis/WC/Su yardımcı marker rengi
+  static const categoryUtility = Color(0xFF607D8B);
+
+  /// Harita küme marker rengi
+  static const clusterMarker = Color(0xFF1E7044);
+
+  /// Harita küme marker gölgesi
+  static const clusterMarkerShadow = Color(0x401E7044);
+
+  // ── Kategori Yumuşak Zemin Renkleri (chip ve kart arka planları) ───────────
+  static const categoryWaterSoft = Color(0xFFE8F4FA);
+  static const categoryMountainSoft = Color(0xFFF0F4EB);
+  static const categoryFormationSoft = Color(0xFFF3EEE8);
+  static const categoryNatureSoft = Color(0xFFEAF3EC);
+  static const categoryCampSoft = Color(0xFFFBF0EA);
+  static const categoryRouteSoft = Color(0xFFFBF5EA);
+  static const categoryDiscoverySoft = Color(0xFFF2EEF9);
+  static const categoryWildlifeSoft = Color(0xFFEDF4E8);
+
+  // ── Gölge sabitleri ────────────────────────────────────────────────────────
+  /// Hafif kart gölgesi
+  static const shadow08 = Color(0x14000000);
+
+  /// İnce etiket gölgesi
+  static const shadow20 = Color(0x33000000);
+
+  /// Normal kart gölgesi
+  static const shadow26 = Color(0x44000000);
+
+  /// Belirgin gölge
+  static const shadow33 = Color(0x55000000);
+
+  /// Yarı saydam buton zemin gölgesi (%40)
+  static const shadow40 = Color(0x66000000);
+
+  /// Koyu overlay/modal
+  static const shadow80 = Color(0xCC000000);
+
+  // ── Overlay / cam renkleri ─────────────────────────────────────────────────
+  /// Koyu mod cam panel (GlassContainer darkColor)
+  static const darkGlass = Color(0xF0151C18);
+
+  /// Koyu mod cam panel yeşil tonu (GlassContainer varsayılan darkColor)
+  static const darkGlassTint = Color(0x331E2D23);
+
+  /// Koyu mod derin panel arka plan
+  static const darkSurfaceDeep = Color(0xFF0F1512);
+
+  // ── Hava durumu kartı degrade & gölge ─────────────────────────────────────
+  static const weatherGradientStart = Color(0xFF174A0D);
+  static const weatherGradientEnd = Color(0xFF4AA62B);
+  static const weatherCardShadow = Color(0x382B751A);
+
+  // ── Kart degrade paletleri ────────────────────────────────────────────────
+  static const defaultGradientStart = Color(0xFF315F45);
+  static const defaultGradientEnd = Color(0xFF9BBF82);
+  static const defaultGradient = [defaultGradientStart, defaultGradientEnd];
+  static const waterfallGradient = [Color(0xFF287890), Color(0xFF8DD1C9)];
+  static const lakeGradient = [Color(0xFF2B86A6), Color(0xFFB8E7E8)];
+  static const campGradient = [Color(0xFF715642), Color(0xFFC9A678)];
+  static const caveGradient = [Color(0xFF4D4540), Color(0xFF9B8E82)];
+
+  // ── Marka ve Onboarding token'ları ─────────────────────────────────────────
+  /// Google marka mavisi
+  static const brandGoogle = Color(0xFF4285F4);
+
+  /// Onboarding slayt gradyan overlay tonları
+  static const onboardingGreen = Color(0x55304A2B);
+  static const onboardingWater = Color(0x554E260E);
+  static const onboardingCamp = Color(0x55462A17);
+
+  // ── Theme-aware helpers ────────────────────────────────────────────────────
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color surfaceOf(BuildContext context) =>
+      isDark(context) ? darkSurface : surface;
+
+  static Color surfaceMutedOf(BuildContext context) =>
+      isDark(context) ? darkSurfaceMuted : surfaceMuted;
+
+  static Color borderOf(BuildContext context) =>
+      isDark(context) ? darkBorder : border;
+
+  static Color textPrimaryOf(BuildContext context) =>
+      isDark(context) ? darkTextPrimary : textPrimary;
+
+  static Color textSecondaryOf(BuildContext context) =>
+      isDark(context) ? darkTextSecondary : textSecondary;
+
+  static Color textTertiaryOf(BuildContext context) =>
+      isDark(context) ? darkTextTertiary : textTertiary;
+
+  static Color backgroundOf(BuildContext context) =>
+      isDark(context) ? darkBackground : background;
+
+  static Color accentOrangeOf(BuildContext context) =>
+      isDark(context) ? darkAccentOrange : accentOrange;
+
+  static Color primaryLightOf(BuildContext context) =>
+      isDark(context) ? darkPrimaryLight : primarySoft;
+
+  static Color errorSoftOf(BuildContext context) =>
+      isDark(context) ? darkErrorSoft : errorSoft;
 }
 
 abstract final class AppRadii {
@@ -39,12 +208,21 @@ abstract final class AppBorders {
   static const thin = BorderSide(color: AppColors.border);
   static const focused = BorderSide(color: AppColors.primary, width: 1.4);
   static const error = BorderSide(color: AppColors.error);
+
+  static BorderSide thinOf(BuildContext context) =>
+      BorderSide(color: AppColors.borderOf(context));
 }
 
 abstract final class AppShadows {
   static const soft = <BoxShadow>[
-    BoxShadow(color: Color(0x0D18221A), blurRadius: 14, offset: Offset(0, 4)),
+    BoxShadow(color: AppColors.shadow08, blurRadius: 14, offset: Offset(0, 4)),
   ];
+  static const darkSoft = <BoxShadow>[
+    BoxShadow(color: AppColors.shadow20, blurRadius: 14, offset: Offset(0, 4)),
+  ];
+
+  static List<BoxShadow> softOf(BuildContext context) =>
+      AppColors.isDark(context) ? darkSoft : soft;
 }
 
 abstract final class AppIconSizes {
@@ -58,56 +236,132 @@ abstract final class AppControlSizes {
   static const double minimumTouchTarget = 48;
 }
 
+abstract final class AppFontSizes {
+  /// 24px: Büyük ekran/hero başlıkları
+  static const double display = 24.0;
+
+  /// 20px: Sayfa ve ana bölüm başlıkları
+  static const double heading = 20.0;
+
+  /// 16px: Kart başlıkları, modal başlıkları
+  static const double title = 16.0;
+
+  /// 14px: Ana gövde metinleri, form inputları
+  static const double body = 14.0;
+
+  /// 13px: Butonlar, çipler, sekmeler, vurgulu etiketler
+  static const double label = 13.0;
+
+  /// 11.5px: Metadata, sayaçlar, rozetler, ikincil bilgi (erişilebilir alt sınır)
+  static const double caption = 11.5;
+}
+
 abstract final class AppTypography {
   static const brand = TextStyle(
     fontFamily: 'Fraunces',
+    fontSize: AppFontSizes.display,
     color: AppColors.primary,
     fontWeight: FontWeight.w600,
     letterSpacing: -.7,
   );
+
+  /// 1. Seviye — Display (24px)
+  static const display = TextStyle(
+    fontFamily: 'Outfit',
+    fontSize: AppFontSizes.display,
+    color: AppColors.textPrimary,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -.4,
+  );
+
+  /// 2. Seviye — Heading (20px)
   static const heading = TextStyle(
     fontFamily: 'Outfit',
+    fontSize: AppFontSizes.heading,
     color: AppColors.textPrimary,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w700,
     letterSpacing: -.25,
   );
+
+  /// 3. Seviye — Title (16px)
+  static const title = TextStyle(
+    fontFamily: 'Outfit',
+    fontSize: AppFontSizes.title,
+    color: AppColors.textPrimary,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -.15,
+  );
+
+  /// 4. Seviye — Body (14px)
   static const body = TextStyle(
     fontFamily: 'Outfit',
+    fontSize: AppFontSizes.body,
     color: AppColors.textPrimary,
     fontWeight: FontWeight.w400,
+    height: 1.4,
   );
-  static const metadata = TextStyle(
-    fontFamily: 'Outfit',
-    color: AppColors.textSecondary,
-    fontWeight: FontWeight.w400,
-  );
+
+  /// 5. Seviye — Label (13px)
   static const label = TextStyle(
     fontFamily: 'Outfit',
+    fontSize: AppFontSizes.label,
     color: AppColors.textPrimary,
     fontWeight: FontWeight.w600,
     letterSpacing: .05,
   );
+
+  /// 6. Seviye — Caption (11.5px) (7.5-9px yerine standart erişilebilir alt sınır)
+  static const caption = TextStyle(
+    fontFamily: 'Outfit',
+    fontSize: AppFontSizes.caption,
+    color: AppColors.textSecondary,
+    fontWeight: FontWeight.w400,
+  );
+
+  /// Geriye uyumluluk için metadata (caption ile eşdeğer)
+  static const metadata = caption;
+
+  static TextStyle displayOf(BuildContext context) =>
+      display.copyWith(color: AppColors.textPrimaryOf(context));
+  static TextStyle headingOf(BuildContext context) =>
+      heading.copyWith(color: AppColors.textPrimaryOf(context));
+  static TextStyle titleOf(BuildContext context) =>
+      title.copyWith(color: AppColors.textPrimaryOf(context));
+  static TextStyle bodyOf(BuildContext context) =>
+      body.copyWith(color: AppColors.textPrimaryOf(context));
+  static TextStyle labelOf(BuildContext context) =>
+      label.copyWith(color: AppColors.textPrimaryOf(context));
+  static TextStyle captionOf(BuildContext context) =>
+      caption.copyWith(color: AppColors.textSecondaryOf(context));
+  static TextStyle metadataOf(BuildContext context) => captionOf(context);
 }
 
 class AppThemeController {
   AppThemeController._();
 
-  static const _storageKey = 'app_dark_mode_v1';
+  static const _storageKey = 'app_user_dark_mode_preference';
   static final mode = ValueNotifier<ThemeMode>(ThemeMode.light);
 
   static bool get isDark => mode.value == ThemeMode.dark;
 
   static Future<void> load() async {
     final preferences = await SharedPreferences.getInstance();
-    mode.value = preferences.getBool(_storageKey) == true
-        ? ThemeMode.dark
-        : ThemeMode.light;
+    // İlk defa indiren kullanıcı uygulamayı dark modda değil normal (açık) modda görür.
+    // Kullanıcı profil ayarlarından kendisi açıkça değiştirdiğinde bu tercih korunur.
+    final userChoice = preferences.getBool(_storageKey);
+    mode.value = userChoice == true ? ThemeMode.dark : ThemeMode.light;
   }
 
   static Future<void> setDark(bool enabled) async {
     mode.value = enabled ? ThemeMode.dark : ThemeMode.light;
     final preferences = await SharedPreferences.getInstance();
     await preferences.setBool(_storageKey, enabled);
+  }
+
+  static Future<void> reset() async {
+    mode.value = ThemeMode.light;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove(_storageKey);
   }
 }
 
@@ -119,11 +373,62 @@ abstract final class AppLegalLinks {
     defaultValue: 'https://dogadayim.github.io/dogadayim-privacy/',
   );
 
+  /// Kullanım Koşulları URL'i.
+  /// Derleme anında --dart-define=TERMS_OF_SERVICE_URL=https://... ile ezilebilir.
+  static const String termsOfServiceUrl = String.fromEnvironment(
+    'TERMS_OF_SERVICE_URL',
+    defaultValue: 'https://dogadayim.github.io/dogadayim-privacy/terms.html',
+  );
+
+  /// Kullanıcı destek ve geri bildirim e-posta adresi.
+  static const String supportEmail = 'dogadayim.destek@gmail.com';
+
   static Future<void> openPrivacyPolicy(BuildContext context) async {
     if (!context.mounted) return;
     await Navigator.of(context).push<void>(MaterialPageRoute(
       builder: (_) => const PrivacyPolicyScreen(),
     ));
+  }
+
+  static Future<void> openTermsOfService(BuildContext context) async {
+    final uri = Uri.tryParse(termsOfServiceUrl);
+    if (uri != null && isSafeExternalUrl(uri)) {
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+    if (context.mounted) {
+      await Navigator.of(context).push<void>(MaterialPageRoute(
+        builder: (_) => const PrivacyPolicyScreen(),
+      ));
+    }
+  }
+
+  /// Kullanıcı geri bildirim ve hata bildirimi kanalı.
+  static Future<void> openFeedback(BuildContext context) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: supportEmail,
+      queryParameters: <String, String>{
+        'subject': 'Doğadayım Geri Bildirim ve Destek',
+      },
+    );
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+        return;
+      }
+    } catch (_) {}
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Geri bildirim ve destek için: $supportEmail'),
+        ),
+      );
+    }
   }
 }
 
@@ -209,6 +514,7 @@ class Place {
     this.mainCategory,
     this.subtype,
     this.facilities = const PlaceFacilities(),
+    this.googlePhotoSearchUrl,
   }) : _legacyKind = kind;
   final String name, location, description;
   final String _legacyKind;
@@ -233,6 +539,7 @@ class Place {
   final String? mainCategory;
   final String? subtype;
   final PlaceFacilities facilities;
+  final String? googlePhotoSearchUrl;
 
   ({String? mainCategory, String? subtype}) get resolvedTaxonomy {
     final legacy = taxonomyFromLegacy(_legacyKind);
@@ -262,6 +569,13 @@ class Place {
           label: name,
         )
       : WeatherTarget.city(location);
+
+  String? get roadAccess {
+    for (final f in features) {
+      if (f.startsWith('Ulaşım: ')) return f.substring(8).trim();
+    }
+    return null;
+  }
 }
 
 enum PlaceDuplicateLevel { none, probable, strong }
@@ -582,7 +896,7 @@ class UserPlacesController {
             ),
             0,
             Icons.place_rounded,
-            const [Color(0xFF315F45), Color(0xFF9BBF82)],
+            AppColors.defaultGradient,
             data['image']?.toString(),
             description: data['description']?.toString() ?? '',
             latitude: (data['latitude'] as num?)?.toDouble(),
@@ -955,15 +1269,12 @@ class SupabasePlacesController {
   ) =>
       _decodeCacheRecords(records);
 
-  static Future<void> loadCached() async {
+  static Future<List<Place>> _readCachedPlaces() async {
     final preferences = await SharedPreferences.getInstance();
     final rawRecords =
         preferences.getStringList(_storageKey) ?? const <String>[];
-    // JSON decode -> background isolate (main thread'i bloklamaz).
     final decoded = await compute(_decodeCacheRecords, rawRecords);
-    // Place construction -> main isolate (IconData / Color dart:ui tipleri
-    // isolate boundary'yi gecemez).
-    places.value = decoded
+    return decoded
         .map((data) {
           try {
             return Place(
@@ -974,14 +1285,13 @@ class SupabasePlacesController {
               ),
               0,
               Icons.place_rounded,
-              const [Color(0xFF315F45), Color(0xFF9BBF82)],
+              AppColors.defaultGradient,
               data['image']?.toString(),
               description: data['description']?.toString() ?? '',
               latitude: (data['latitude'] as num?)?.toDouble(),
               longitude: (data['longitude'] as num?)?.toDouble(),
               sourceId: data['sourceId']?.toString(),
-              updatedAt:
-                  DateTime.tryParse(data['updatedAt']?.toString() ?? ''),
+              updatedAt: DateTime.tryParse(data['updatedAt']?.toString() ?? ''),
               source: PlaceSource.curated,
               verificationStatus: data['verificationStatus'] == 'community'
                   ? VerificationStatus.community
@@ -1003,6 +1313,10 @@ class SupabasePlacesController {
         .toList(growable: false);
   }
 
+  static Future<void> loadCached() async {
+    places.value = await _readCachedPlaces();
+  }
+
   static Future<void> refresh() async {
     try {
       await load();
@@ -1011,11 +1325,13 @@ class SupabasePlacesController {
     }
   }
 
+  // Önbellek + araştırma verisi birleşimi tek places.value atamasıyla yapılır,
+  // böylece listener'lar gereksiz yere 3 kez tetiklenmez.
   static Future<void> loadCachedAndRefresh() async {
     try {
-      await loadCached();
+      final cached = await _readCachedPlaces();
       places.value = await RegionalResearchPlaces.merge(
-        await ResearchPhotoPlaces.merge(places.value),
+        await ResearchPhotoPlaces.merge(cached),
       );
     } finally {
       await refresh();
@@ -1075,8 +1391,8 @@ class SupabasePlacesController {
           0,
           Icons.place_rounded,
           const [
-            Color(0xFF315F45),
-            Color(0xFF9BBF82),
+            AppColors.defaultGradientStart,
+            AppColors.defaultGradientEnd,
           ],
           null,
           description:
@@ -1193,6 +1509,274 @@ class ReviewEntry {
   final int helpfulCount;
 }
 
+class UserReviewRecord {
+  const UserReviewRecord({
+    required this.id,
+    required this.placeKey,
+    required this.userId,
+    required this.userName,
+    required this.rating,
+    required this.content,
+    required this.createdAt,
+    this.recommended,
+    this.recommendationReasons = const <String>[],
+  });
+
+  final String id;
+  final String placeKey;
+  final String userId;
+  final String userName;
+  final int rating;
+  final String content;
+  final DateTime createdAt;
+  final bool? recommended;
+  final List<String> recommendationReasons;
+
+  ReviewEntry toEntry() {
+    final cleanName = userName.trim().isNotEmpty ? userName.trim() : 'Sen';
+    final initial = cleanName.characters.first.toUpperCase();
+    return ReviewEntry(
+      id: id,
+      initial: initial,
+      color: green,
+      name: cleanName,
+      timeLabel: _formatTimeLabel(createdAt),
+      createdAt: createdAt,
+      content: content,
+      rating: rating,
+      helpfulCount: 0,
+    );
+  }
+
+  static String _formatTimeLabel(DateTime dateTime) {
+    final diff = DateTime.now().difference(dateTime);
+    if (diff.inMinutes < 2) return 'Şimdi';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} dk önce';
+    if (diff.inHours < 24) return '${diff.inHours} saat önce';
+    if (diff.inDays < 30) return '${diff.inDays} gün önce';
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    return '$day.$month.${dateTime.year}';
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'placeKey': placeKey,
+        'userId': userId,
+        'userName': userName,
+        'rating': rating,
+        'content': content,
+        'createdAt': createdAt.toIso8601String(),
+        'recommended': recommended,
+        'recommendationReasons': recommendationReasons,
+      };
+
+  factory UserReviewRecord.fromJson(Map<String, dynamic> json) {
+    return UserReviewRecord(
+      id: json['id']?.toString() ?? '',
+      placeKey: json['placeKey']?.toString() ?? '',
+      userId: json['userId']?.toString() ?? '',
+      userName: json['userName']?.toString() ?? 'Sen',
+      rating: (json['rating'] as num?)?.toInt() ?? 0,
+      content: json['content']?.toString() ?? '',
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
+      recommended: json['recommended'] as bool?,
+      recommendationReasons: (json['recommendationReasons'] as List?)
+              ?.map((e) => e.toString())
+              .toList(growable: false) ??
+          const <String>[],
+    );
+  }
+}
+
+class UserReviewsController {
+  UserReviewsController._();
+
+  static const _storageKey = 'user_place_reviews_v1';
+  static final reviews =
+      ValueNotifier<List<UserReviewRecord>>(<UserReviewRecord>[]);
+
+  static Future<void> load() async {
+    final preferences = await SharedPreferences.getInstance();
+    final records = preferences.getStringList(_storageKey) ?? const <String>[];
+    reviews.value = records
+        .map((record) {
+          try {
+            final data = jsonDecode(record) as Map<String, dynamic>;
+            return UserReviewRecord.fromJson(data);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<UserReviewRecord>()
+        .toList(growable: false);
+  }
+
+  static String placeKey(Place place) {
+    final sourceId = place.sourceId?.trim();
+    if (sourceId != null && sourceId.isNotEmpty) {
+      return sourceId;
+    }
+    final name = place.name.trim().toLowerCase();
+    final lat =
+        place.latitude != null ? place.latitude!.toStringAsFixed(4) : '';
+    final lon =
+        place.longitude != null ? place.longitude!.toStringAsFixed(4) : '';
+    return '$name:$lat:$lon';
+  }
+
+  static bool _matches(UserReviewRecord r, Place place) {
+    final targetSourceId = place.sourceId?.trim();
+    if (targetSourceId != null &&
+        targetSourceId.isNotEmpty &&
+        r.placeKey == targetSourceId) {
+      return true;
+    }
+    final pKey = placeKey(place);
+    if (r.placeKey == pKey) return true;
+
+    final name = place.name.trim().toLowerCase();
+    final lat =
+        place.latitude != null ? place.latitude!.toStringAsFixed(4) : '';
+    final lon =
+        place.longitude != null ? place.longitude!.toStringAsFixed(4) : '';
+    if (r.placeKey == '$name:$lat:$lon') return true;
+
+    return false;
+  }
+
+  static List<UserReviewRecord> forPlace(Place place) {
+    return reviews.value
+        .where((r) => _matches(r, place))
+        .toList(growable: false);
+  }
+
+  static UserReviewRecord? userReviewForPlace(Place place) {
+    final list = forPlace(place);
+    return list.isNotEmpty ? list.first : null;
+  }
+
+  static Future<void> saveReview({
+    required Place place,
+    required int rating,
+    required String content,
+    bool? recommended,
+    List<String> reasons = const <String>[],
+  }) async {
+    final pKey = placeKey(place);
+    User? user;
+    try {
+      user = Supabase.instance.client.auth.currentUser;
+    } catch (_) {}
+    final metadata = user?.userMetadata;
+    final fullName = (metadata?['full_name']?.toString() ??
+            metadata?['name']?.toString() ??
+            metadata?['display_name']?.toString() ??
+            '')
+        .trim();
+    final email = user?.email?.trim() ?? '';
+    final displayName = fullName.isNotEmpty
+        ? fullName
+        : (email.isNotEmpty ? email.split('@').first : 'Sen');
+
+    final record = UserReviewRecord(
+      id: 'rev-${DateTime.now().microsecondsSinceEpoch}',
+      placeKey: pKey,
+      userId: user?.id ?? 'local_user',
+      userName: displayName,
+      rating: rating,
+      content: content.trim(),
+      createdAt: DateTime.now(),
+      recommended: recommended,
+      recommendationReasons: reasons,
+    );
+
+    final updated =
+        reviews.value.where((r) => !_matches(r, place)).toList(growable: true);
+    updated.insert(0, record);
+    reviews.value = updated;
+    await _persist();
+  }
+
+  static Future<void> clear() async {
+    reviews.value = const <UserReviewRecord>[];
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove(_storageKey);
+  }
+
+  static Future<void> _persist() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      _storageKey,
+      reviews.value
+          .map((item) => jsonEncode(item.toJson()))
+          .toList(growable: false),
+    );
+  }
+}
+
+String weatherConditionLabel(int weatherCode) {
+  if (weatherCode == 0) return AppStrings.get('weather_clear');
+  if (weatherCode == 1) return AppStrings.get('weather_mostly_clear');
+  if (weatherCode == 2) return AppStrings.get('weather_partly_cloudy');
+  if (weatherCode == 3) return AppStrings.get('weather_overcast');
+  if (weatherCode == 45 || weatherCode == 48) {
+    return AppStrings.get('weather_foggy');
+  }
+  if (weatherCode >= 51 && weatherCode <= 57) {
+    return AppStrings.get('weather_drizzle');
+  }
+  if (weatherCode >= 61 && weatherCode <= 67) {
+    return AppStrings.get('weather_rainy');
+  }
+  if (weatherCode >= 71 && weatherCode <= 77) {
+    return AppStrings.get('weather_snowy');
+  }
+  if (weatherCode >= 80 && weatherCode <= 82) {
+    return AppStrings.get('weather_heavy_rain');
+  }
+  if (weatherCode >= 85 && weatherCode <= 86) {
+    return AppStrings.get('weather_heavy_snow');
+  }
+  if (weatherCode >= 95) return AppStrings.get('weather_thunderstorm');
+  return AppStrings.get('weather_variable');
+}
+
+String weatherEmoji(int weatherCode, {bool isDay = true}) {
+  if (weatherCode == 0) return isDay ? '☀️' : '🌙';
+  if (weatherCode <= 2) return isDay ? '🌤️' : '☁️';
+  if (weatherCode == 3) return '☁️';
+  if (weatherCode == 45 || weatherCode == 48) return '🌫️';
+  if (weatherCode >= 51 && weatherCode <= 67) return '🌧️';
+  if (weatherCode >= 71 && weatherCode <= 77) return '❄️';
+  if (weatherCode >= 80 && weatherCode <= 82) return '🌦️';
+  if (weatherCode >= 85 && weatherCode <= 86) return '🌨️';
+  if (weatherCode >= 95) return '⛈️';
+  return '🌤️';
+}
+
+class DailyForecast {
+  const DailyForecast({
+    required this.date,
+    required this.weatherCode,
+    required this.minimumTemperature,
+    required this.maximumTemperature,
+    this.precipitationProbability,
+    this.windSpeedMax,
+  });
+
+  final DateTime date;
+  final int weatherCode;
+  final double minimumTemperature;
+  final double maximumTemperature;
+  final double? precipitationProbability;
+  final double? windSpeedMax;
+
+  String get condition => weatherConditionLabel(weatherCode);
+  String get emoji => weatherEmoji(weatherCode);
+}
+
 class WeatherSnapshot {
   const WeatherSnapshot({
     required this.resolvedLocation,
@@ -1206,6 +1790,7 @@ class WeatherSnapshot {
     required this.maximumTemperature,
     required this.weatherCode,
     required this.isDay,
+    this.dailyForecast = const <DailyForecast>[],
   });
 
   final String resolvedLocation;
@@ -1219,34 +1804,10 @@ class WeatherSnapshot {
   final double maximumTemperature;
   final int weatherCode;
   final bool isDay;
+  final List<DailyForecast> dailyForecast;
 
-  String get condition {
-    if (weatherCode == 0) return 'Açık';
-    if (weatherCode == 1) return 'Çoğunlukla Açık';
-    if (weatherCode == 2) return 'Parçalı Bulutlu';
-    if (weatherCode == 3) return 'Kapalı';
-    if (weatherCode == 45 || weatherCode == 48) return 'Sisli';
-    if (weatherCode >= 51 && weatherCode <= 57) return 'Çisenti';
-    if (weatherCode >= 61 && weatherCode <= 67) return 'Yağmurlu';
-    if (weatherCode >= 71 && weatherCode <= 77) return 'Karlı';
-    if (weatherCode >= 80 && weatherCode <= 82) return 'Sağanak Yağışlı';
-    if (weatherCode >= 85 && weatherCode <= 86) return 'Kar Sağanaklı';
-    if (weatherCode >= 95) return 'Gök Gürültülü';
-    return 'Değişken';
-  }
-
-  String get emoji {
-    if (weatherCode == 0) return isDay ? '☀️' : '🌙';
-    if (weatherCode <= 2) return isDay ? '🌤️' : '☁️';
-    if (weatherCode == 3) return '☁️';
-    if (weatherCode == 45 || weatherCode == 48) return '🌫️';
-    if (weatherCode >= 51 && weatherCode <= 67) return '🌧️';
-    if (weatherCode >= 71 && weatherCode <= 77) return '❄️';
-    if (weatherCode >= 80 && weatherCode <= 82) return '🌦️';
-    if (weatherCode >= 85 && weatherCode <= 86) return '🌨️';
-    if (weatherCode >= 95) return '⛈️';
-    return '🌤️';
-  }
+  String get condition => weatherConditionLabel(weatherCode);
+  String get emoji => weatherEmoji(weatherCode, isDay: isDay);
 }
 
 class WeatherTarget {
@@ -1276,7 +1837,7 @@ class HomeWeatherLocationController {
 
   static const unavailableLabel = 'Konum izni gerekli';
   static final current =
-      ValueNotifier<WeatherTarget>(const WeatherTarget.city(unavailableLabel));
+      ValueNotifier<WeatherTarget>(const WeatherTarget.city('İstanbul'));
   static final isResolvingLocation = ValueNotifier<bool>(false);
   static final isApproximateLocation = ValueNotifier<bool>(false);
 
@@ -1488,9 +2049,10 @@ class WeatherService {
         'longitude': longitude.toString(),
         'current':
             'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,visibility,uv_index',
-        'daily': 'temperature_2m_max,temperature_2m_min',
+        'daily':
+            'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max',
         'timezone': 'auto',
-        'forecast_days': '1',
+        'forecast_days': '5',
       },
     );
     final forecastResponse =
@@ -1516,6 +2078,44 @@ class WeatherService {
           : (values.first as num).toDouble();
     }
 
+    final dailyForecasts = <DailyForecast>[];
+    final times = daily['time'] as List<dynamic>?;
+    final codes = daily['weather_code'] as List<dynamic>?;
+    final maxTemps = daily['temperature_2m_max'] as List<dynamic>?;
+    final minTemps = daily['temperature_2m_min'] as List<dynamic>?;
+    final precip = daily['precipitation_probability_max'] as List<dynamic>?;
+    final windMax = daily['wind_speed_10m_max'] as List<dynamic>?;
+
+    if (times != null) {
+      for (var i = 0; i < times.length; i++) {
+        final dateStr = times[i]?.toString() ?? '';
+        final parsedDate =
+            DateTime.tryParse(dateStr) ?? DateTime.now().add(Duration(days: i));
+        final code =
+            i < (codes?.length ?? 0) ? (codes![i] as num?)?.toInt() ?? 0 : 0;
+        final maxT = i < (maxTemps?.length ?? 0)
+            ? (maxTemps![i] as num?)?.toDouble() ?? 0.0
+            : 0.0;
+        final minT = i < (minTemps?.length ?? 0)
+            ? (minTemps![i] as num?)?.toDouble() ?? 0.0
+            : 0.0;
+        final pProb =
+            i < (precip?.length ?? 0) ? (precip![i] as num?)?.toDouble() : null;
+        final wMax = i < (windMax?.length ?? 0)
+            ? (windMax![i] as num?)?.toDouble()
+            : null;
+
+        dailyForecasts.add(DailyForecast(
+          date: parsedDate,
+          weatherCode: code,
+          minimumTemperature: minT,
+          maximumTemperature: maxT,
+          precipitationProbability: pProb,
+          windSpeedMax: wMax,
+        ));
+      }
+    }
+
     final snapshot = WeatherSnapshot(
       resolvedLocation:
           resolvedParts.isEmpty ? target.label : resolvedParts.join(', '),
@@ -1529,6 +2129,7 @@ class WeatherService {
       maximumTemperature: dailyNumber('temperature_2m_max'),
       weatherCode: (current['weather_code'] as num?)?.toInt() ?? 0,
       isDay: (current['is_day'] as num?)?.toInt() == 1,
+      dailyForecast: dailyForecasts,
     );
     _cache[cacheKey] = (fetchedAt: DateTime.now(), weather: snapshot);
     revision.value++;
@@ -1990,18 +2591,18 @@ out center meta qt $_resultLimit;
 
   static List<Color> _paletteFor(String kind) {
     if (kind == 'Şelale' || kind == 'Su Kaynağı') {
-      return const [Color(0xFF287890), Color(0xFF8DD1C9)];
+      return AppColors.waterfallGradient;
     }
     if (kind == 'Göl') {
-      return const [Color(0xFF2B86A6), Color(0xFFB8E7E8)];
+      return AppColors.lakeGradient;
     }
     if (kind == 'Kamp Alanı') {
-      return const [Color(0xFF715642), Color(0xFFC9A678)];
+      return AppColors.campGradient;
     }
     if (kind == 'Mağara') {
-      return const [Color(0xFF4D4540), Color(0xFF9B8E82)];
+      return AppColors.caveGradient;
     }
-    return const [Color(0xFF315F45), Color(0xFF9BBF82)];
+    return AppColors.defaultGradient;
   }
 
   static double calculateDistanceKm(
