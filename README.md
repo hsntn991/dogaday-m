@@ -1,4 +1,4 @@
-# Doğada — Flutter
+# Doğadayım — Flutter
 
 Android, iOS ve web için tek Flutter kod tabanına sahip doğa keşif uygulaması.
 
