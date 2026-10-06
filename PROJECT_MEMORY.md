@@ -1,7 +1,7 @@
 # Doğadayım — Kalıcı Hafıza
 
 Son güncelleme: 2026-10-07
-Son doğrulanan commit: `99e0765fda6ee343f7a6ff3e3dd1902864b61787`
+Son doğrulanan commit: `18a565c`
 
 ## Ürün amacı
 
