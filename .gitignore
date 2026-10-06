@@ -34,3 +34,4 @@ __pycache__/
 htmlcov/
 .DS_Store
 Thumbs.db
+outputs/

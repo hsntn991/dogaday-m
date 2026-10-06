@@ -251,6 +251,17 @@ class RegionalResearchPlaces {
       }
       final subtype = row['subtype']?.toString();
       final mainCategory = row['main_category']?.toString();
+      final remoteImage = row['image_url']?.toString().trim() ?? '';
+      final image = Uri.tryParse(remoteImage)?.scheme == 'https'
+          ? remoteImage
+          : row['image_asset']?.toString();
+      if (isNonNatureCandidateName(
+        name,
+        subtype: subtype,
+        mainCategory: mainCategory,
+      )) {
+        continue;
+      }
       places.add(Place(
         name,
         province,
@@ -262,7 +273,7 @@ class RegionalResearchPlaces {
         0,
         Icons.place_rounded,
         AppColors.defaultGradient,
-        null,
+        image,
         description: row['description']?.toString() ?? '',
         latitude: latitude.toDouble(),
         longitude: longitude.toDouble(),
@@ -279,10 +290,39 @@ class RegionalResearchPlaces {
 
   static Future<List<Place>> load() => _future ??= _load();
 
+  static List<Map<String, dynamic>> attachBundledPhotoAssets(
+    List<dynamic> rows,
+    Map<String, String> assetsById,
+  ) => rows.whereType<Map>().map((value) {
+    final row = Map<String, dynamic>.from(value);
+    final id = row['id']?.toString();
+    final imageReference = id == null ? null : assetsById[id];
+    if (imageReference != null &&
+        Uri.tryParse(imageReference)?.scheme == 'https') {
+      row['image_url'] = imageReference;
+    } else if (imageReference != null &&
+        imageReference.startsWith('assets/photos/')) {
+      row['image_asset'] = imageReference;
+    }
+    return row;
+  }).toList(growable: false);
+
   static Future<List<Place>> _load() async {
-    final raw =
-        await rootBundle.loadString('assets/data/turkiye_research_places.json');
-    return decodeRecords(jsonDecode(raw) as List);
+    final raw = await rootBundle
+        .loadString('assets/data/turkiye_research_places.json');
+    final photoAssetsRaw = await rootBundle
+        .loadString('assets/data/ekotaban_photo_assets.json');
+    final assetsById = <String, String>{
+      for (final value in jsonDecode(photoAssetsRaw) as List)
+        if (value is Map &&
+            value['id'] is String &&
+            (value['image_url'] is String || value['image_asset'] is String))
+          value['id'] as String:
+              (value['image_url'] ?? value['image_asset']) as String,
+    };
+    return decodeRecords(
+      attachBundledPhotoAssets(jsonDecode(raw) as List, assetsById),
+    );
   }
 
   static Future<List<Place>> merge(List<Place> existing) async =>
@@ -326,7 +366,12 @@ class ResearchPhotoPlaces {
             !lon.isFinite ||
             lat.abs() > 90 ||
             lon.abs() > 180 ||
-            row['photos'] is! List) {
+            row['photos'] is! List ||
+            isNonNatureCandidateName(
+              row['name'].toString(),
+              subtype: row['subtype']?.toString(),
+              mainCategory: row['main_category']?.toString(),
+            )) {
           continue;
         }
         final photos = (row['photos'] as List)

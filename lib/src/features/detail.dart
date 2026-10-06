@@ -58,11 +58,13 @@ class DetailScreen extends StatefulWidget {
     required this.favorite,
     required this.onFavorite,
     this.onOpen,
+    this.onShowOnMap,
   });
   final Place place;
   final bool favorite;
   final VoidCallback onFavorite;
   final ValueChanged<Place>? onOpen;
+  final ValueChanged<Place>? onShowOnMap;
   @override
   State<DetailScreen> createState() => _FigmaDetailScreenState();
 }
@@ -82,6 +84,9 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
   bool? userRecommendation;
   List<String> userRecommendationReasons = const [];
   PlaceEnrichment? enrichment;
+  List<NearbyAmenity>? nearbyAmenities;
+  bool nearbyAmenitiesLoading = false;
+  String? nearbyAmenitiesError;
 
   Place placeWithImage(String image) => Place(
         widget.place.name,
@@ -117,8 +122,17 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
 
   List<Place> get galleryPlaces {
     final urls = <String>[];
+    final communityPhotos =
+        CommunityPlacePhotosController.forPlace(widget.place);
+    for (final cp in communityPhotos) {
+      if (cp.imageUrl.isNotEmpty && !urls.contains(cp.imageUrl)) {
+        urls.add(cp.imageUrl);
+      }
+    }
     final existing = widget.place.image?.trim();
-    if (existing != null && existing.isNotEmpty) urls.add(existing);
+    if (existing != null && existing.isNotEmpty && !urls.contains(existing)) {
+      urls.add(existing);
+    }
     for (final photo in enrichment?.photos ?? const <PlacePhotoInfo>[]) {
       if (photo.url.isNotEmpty && !urls.contains(photo.url)) {
         urls.add(photo.url);
@@ -244,32 +258,109 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         builder: (context, snapshot) {
           final route = snapshot.data;
           final waiting = snapshot.connectionState == ConnectionState.waiting;
+          final hasFallbackDistance =
+              userDistanceLabel != AppStrings.get('card_location_required') &&
+                  userDistanceLabel.trim().isNotEmpty;
           final fallbackDistance =
-              userDistanceLabel == AppStrings.get('card_location_required')
-                  ? userDistanceLabel
-                  : '~$userDistanceLabel';
+              hasFallbackDistance ? '~$userDistanceLabel' : userDistanceLabel;
           final distance = route?.distanceLabel ??
-              (waiting ? AppStrings.get('card_calculating') : fallbackDistance);
+              (hasFallbackDistance
+                  ? fallbackDistance
+                  : (waiting
+                      ? AppStrings.get('card_calculating')
+                      : fallbackDistance));
           final distanceTitle = route != null
               ? AppStrings.get('card_road_distance')
-              : waiting
-                  ? AppStrings.get('card_distance')
-                  : AppStrings.get('card_crow_distance');
+              : (hasFallbackDistance
+                  ? AppStrings.get('card_crow_distance')
+                  : (waiting
+                      ? AppStrings.get('card_distance')
+                      : AppStrings.get('card_crow_distance')));
           final duration = route?.durationLabel ??
               (waiting
                   ? AppStrings.get('card_calculating')
                   : AppStrings.get('card_route_not_found'));
           return Row(children: [
-            stat('📍', distance, distanceTitle),
+            stat(Icons.route_outlined, distance, distanceTitle),
             const SizedBox(width: 9),
-            stat('⏱', duration, AppStrings.get('card_arrival_time')),
+            stat(Icons.schedule_outlined, duration,
+                AppStrings.get('card_arrival_time')),
             const SizedBox(width: 9),
-            stat('🧭', widget.place.kind, AppStrings.get('card_place_type')),
+            stat(Icons.category_outlined, widget.place.kind,
+                AppStrings.get('card_place_type')),
             const SizedBox(width: 9),
-            stat('✓', placeSourceLabel, AppStrings.get('card_data_source')),
+            stat(Icons.verified_outlined, placeSourceLabel,
+                AppStrings.get('card_data_source')),
           ]);
         },
       );
+
+  Widget tripReadinessCard(bool isDark) {
+    final roadAccess = widget.place.roadAccess;
+    final knownFacilities = widget.place.facilities.values.entries
+        .where((entry) => entry.value == true)
+        .map((entry) => facilityDisplayLabel(entry.key))
+        .take(2)
+        .toList(growable: false);
+    final facilitiesLabel = knownFacilities.isEmpty
+        ? 'Tesis bilgisi henüz eklenmedi'
+        : knownFacilities.join(' · ');
+    final roadLabel = roadAccess == null || roadAccess.trim().isEmpty
+        ? 'Ulaşım bilgisi henüz doğrulanmadı'
+        : 'Ulaşım bilgisi mevcut';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.hiking_rounded,
+                size: 18,
+                color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                'Gitmeden önce',
+                style: AppTypography.headingOf(context).copyWith(
+                  fontSize: AppFontSizes.body,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            detailDescription,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.metadataOf(context).copyWith(height: 1.35),
+          ),
+          const SizedBox(height: 10),
+          _PlaceTrustSummary(place: widget.place),
+          const SizedBox(height: 10),
+          _TripReadinessFact(
+            icon: Icons.route_outlined,
+            label: roadLabel,
+          ),
+          const SizedBox(height: 6),
+          _TripReadinessFact(
+            icon: Icons.fact_check_outlined,
+            label: facilitiesLabel,
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget facilitiesSection() {
     final facilities = widget.place.facilities;
@@ -355,6 +446,71 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
             chips(nearby, showDistance: true),
           ],
         ],
+        if (widget.place.hasCoordinates) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: nearbyAmenitiesLoading ? null : loadNearbyAmenities,
+              icon: nearbyAmenitiesLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.near_me_outlined),
+              label: Text(
+                nearbyAmenities == null
+                    ? 'Yakınımda ne var?'
+                    : '2 km çevresindeki olanaklar',
+              ),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: green,
+                side: const BorderSide(color: green),
+              ),
+            ),
+          ),
+          if (nearbyAmenities != null) ...[
+            const SizedBox(height: 10),
+            if (nearbyAmenities!.isEmpty)
+              Text(
+                '2 km çevrede kayıtlı çeşme, içme suyu veya WC bulunamadı.',
+                style: AppTypography.metadataOf(context),
+              )
+            else
+              ...nearbyAmenities!.map(
+                (amenity) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    minTileHeight: 48,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    leading: Icon(amenity.icon, color: green),
+                    title: Text(
+                      amenity.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(amenity.typeLabel),
+                    trailing: Text('${amenity.distanceMeters} m'),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
+                      side: BorderSide(color: AppColors.borderOf(context)),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+          if (nearbyAmenitiesError != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              nearbyAmenitiesError!,
+              style: AppTypography.metadataOf(context).copyWith(
+                color: AppColors.error,
+              ),
+            ),
+          ],
+        ],
       ],
     );
   }
@@ -428,7 +584,9 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     super.initState();
     _loadSavedReview();
     UserReviewsController.reviews.addListener(_onReviewsChanged);
-    weatherFuture = WeatherService.fetchTarget(widget.place.weatherTarget);
+    weatherFuture = widget.place.showsWeather
+        ? WeatherService.fetchTarget(widget.place.weatherTarget)
+        : Completer<WeatherSnapshot>().future;
     drivingRouteFuture = loadDrivingRoute();
     HomeWeatherLocationController.current.addListener(refreshUserDistance);
     NearbyPlacesService.revision.addListener(refreshNearbyPlaces);
@@ -467,30 +625,29 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     if (mounted && result != null) setState(() => enrichment = result);
   }
 
+  Future<void> loadNearbyAmenities() async {
+    if (nearbyAmenitiesLoading || !widget.place.hasCoordinates) return;
+    setState(() => nearbyAmenitiesLoading = true);
+    try {
+      final result = await NearbyAmenitiesService.fetchFor(widget.place);
+      if (!mounted) return;
+      setState(() {
+        nearbyAmenitiesLoading = false;
+        nearbyAmenities = result;
+        nearbyAmenitiesError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        nearbyAmenitiesLoading = false;
+        nearbyAmenitiesError =
+            'Yakındaki olanaklar şu anda alınamadı. Lütfen tekrar dene.';
+      });
+    }
+  }
+
   Widget aboutSourcesSection() {
-    final sources = enrichment?.aboutSources ?? const <PlaceAboutSource>[];
-    if (sources.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 7,
-        children: sources.map((source) {
-          final license = source.license?.trim();
-          final label = license == null || license.isEmpty
-              ? source.name
-              : '${source.name} · $license';
-          final uri = Uri.tryParse(source.url ?? '');
-          return ActionChip(
-            avatar: const Icon(Icons.open_in_new_rounded, size: 15),
-            label: Text(label),
-            onPressed: isSafeExternalUrl(uri)
-                ? () => launchUrl(uri!, mode: LaunchMode.externalApplication)
-                : null,
-          );
-        }).toList(growable: false),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 
   @override
@@ -550,6 +707,12 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
               ),
               const SizedBox(height: 10),
               _NavigationProviderTile(
+                icon: Icons.map_outlined,
+                label: 'Haritada Göster',
+                subtitle: 'Uygulama içi haritada yeri görüntüle ve odakla',
+                onTap: () => Navigator.pop(sheetContext, 'in_app_map'),
+              ),
+              _NavigationProviderTile(
                 icon: Icons.place_rounded,
                 label: AppStrings.get('nav_google_smart'),
                 subtitle: AppStrings.get('nav_google_smart_desc'),
@@ -586,6 +749,11 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       ),
     );
     if (provider == null || !mounted) return;
+
+    if (provider == 'in_app_map') {
+      widget.onShowOnMap?.call(widget.place);
+      return;
+    }
 
     if (provider == 'copy') {
       await Clipboard.setData(
@@ -628,12 +796,15 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     }
   }
 
-  void refreshWeather() => setState(() {
-        weatherFuture = WeatherService.fetchTarget(
-          widget.place.weatherTarget,
-          forceRefresh: true,
-        );
-      });
+  void refreshWeather() {
+    if (!widget.place.showsWeather) return;
+    setState(() {
+      weatherFuture = WeatherService.fetchTarget(
+        widget.place.weatherTarget,
+        forceRefresh: true,
+      );
+    });
+  }
 
   void message(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
@@ -698,6 +869,13 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       );
 
   Future<void> openReviewRecommendSheet({int initialTab = 0}) async {
+    final allowed = await AppAuthGuard.requireAuth(
+      context,
+      title: AppStrings.get('guest_auth_title'),
+      message: AppStrings.get('guest_review_prompt'),
+    );
+    if (!allowed || !mounted) return;
+
     final result = await showModalBottomSheet<_ContributionResult>(
       context: context,
       isScrollControlled: true,
@@ -711,6 +889,20 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       ),
     );
     if (!mounted || result == null) return;
+
+    final hadExistingReview =
+        (userReview != null && userReview!.isNotEmpty) || userRating > 0;
+
+    if (result.isDelete) {
+      setState(() {
+        userReview = null;
+        userRating = 0;
+        userReviewCreatedAt = null;
+      });
+      await UserReviewsController.deleteReview(widget.place);
+      message('Değerlendirmeniz silindi.');
+      return;
+    }
 
     final hasReview = result.reviewText.isNotEmpty;
     final hasRec = result.reasons.isNotEmpty || !hasReview;
@@ -736,7 +928,9 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     );
 
     message(hasReview
-        ? 'Değerlendirmen yayınlandı.'
+        ? (hadExistingReview
+            ? 'Değerlendirmen güncellendi.'
+            : 'Değerlendirmen yayınlandı.')
         : result.recommended
             ? 'Önerin topluluğa eklendi.'
             : 'Geri bildirimin kaydedildi.');
@@ -755,9 +949,16 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                   borderRadius: BorderRadius.circular(AppRadii.large),
                 ),
               ),
-              icon: const Icon(Icons.star_outline_rounded, size: 18),
+              icon: Icon(
+                (userReview != null && userReview!.isNotEmpty) || userRating > 0
+                    ? Icons.edit_note_rounded
+                    : Icons.star_outline_rounded,
+                size: 18,
+              ),
               label: Text(
-                AppStrings.get('detail_write_review'),
+                (userReview != null && userReview!.isNotEmpty) || userRating > 0
+                    ? 'Değerlendirmeyi Düzenle'
+                    : AppStrings.get('detail_write_review'),
                 maxLines: 1,
                 style: const TextStyle(
                     fontSize: AppFontSizes.caption,
@@ -858,7 +1059,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
           )
       ]);
 
-  Widget stat(String icon, String value, String label) {
+  Widget stat(IconData icon, String value, String label) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Container(
@@ -874,7 +1075,11 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
               : const [BoxShadow(color: AppColors.shadow08, blurRadius: 8)],
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(icon, style: const TextStyle(fontSize: 19)),
+          Icon(
+            icon,
+            size: 19,
+            color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+          ),
           const SizedBox(height: 7),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -894,17 +1099,22 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.fade,
-            softWrap: false,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: AppFontSizes.caption,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.textSecondary,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              softWrap: true,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption - 1.5,
+                height: 1.1,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+              ),
             ),
           ),
         ]),
@@ -912,7 +1122,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget info(String icon, String label, String value) {
+  Widget info(IconData icon, String label, String value) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Container(
@@ -929,7 +1139,11 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(icon, style: const TextStyle(fontSize: 17)),
+            Icon(
+              icon,
+              size: 17,
+              color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+            ),
             const SizedBox(height: 6),
             Text(
               label,
@@ -953,7 +1167,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                 fontFamily: 'Outfit',
                 fontSize: AppFontSizes.caption,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
           ],
@@ -989,37 +1204,903 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         ),
       );
 
+  Widget _buildReviewSummary(bool isDark) => Semantics(
+        button: true,
+        label: 'Değerlendirmelere git',
+        child: InkWell(
+          onTap: scrollToReviews,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  allReviews.isEmpty
+                      ? Icons.star_border_rounded
+                      : Icons.star_rounded,
+                  color: AppColors.rating,
+                  size: 19,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    allReviews.isEmpty
+                        ? AppStrings.get('detail_no_reviews_yet')
+                        : '$userRating · 1 ${AppStrings.get('detail_review')}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppFontSizes.caption,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 17,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textTertiary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _buildPhotoGallerySection(bool isDark) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            key: photoSectionKey,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    AppStrings.get('detail_photos'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.heading,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -.15,
+                    ),
+                  ),
+                ),
+                if (galleryPlaces.isNotEmpty)
+                  InkWell(
+                    onTap: () => openGallery(0),
+                    borderRadius: BorderRadius.circular(AppRadii.medium),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 5),
+                      child: Text(
+                        AppStrings.get('detail_view_photos'),
+                        style: const TextStyle(
+                          color: green,
+                          fontSize: AppFontSizes.caption,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 4),
+                InkWell(
+                  onTap: () async {
+                    await _openAddPhotoModal(context, widget.place);
+                    setState(() {});
+                  },
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_a_photo_outlined,
+                            size: 15, color: AppColors.primary),
+                        SizedBox(width: 3),
+                        Text(
+                          'Ekle',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (galleryPlaces.isEmpty)
+            unavailableData(AppStrings.get('card_no_photos'))
+          else
+            SizedBox(
+              height: 86,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: galleryPlaces.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => openGallery(i),
+                  child: SizedBox(
+                    width: 112,
+                    child: NatureArt(
+                      place: galleryPlaces[i],
+                      radius: 14,
+                      showKind: false,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (isSafeExternalUrl(
+              Uri.tryParse(widget.place.googlePhotoSearchUrl ?? '')))
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: OutlinedButton.icon(
+                onPressed: () => launchUrl(
+                  Uri.parse(widget.place.googlePhotoSearchUrl!),
+                  mode: LaunchMode.externalApplication,
+                ),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Google Fotoğraflarına Git'),
+              ),
+            ),
+        ],
+      );
+
+  Widget _buildAboutSection(bool isDark) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          heading(AppStrings.get('detail_about')),
+          const SizedBox(height: 10),
+          Text(
+            detailDescription,
+            style: TextStyle(
+              fontSize: AppFontSizes.body,
+              height: 1.72,
+              fontWeight: FontWeight.w400,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+            ),
+          ),
+          aboutSourcesSection(),
+          const SizedBox(height: 22),
+          Row(children: [
+            info(Icons.explore_outlined, AppStrings.get('card_coordinates'),
+                coordinateLabel),
+            const SizedBox(width: 10),
+            info(Icons.update_rounded, AppStrings.get('card_last_updated'),
+                updatedAtLabel),
+          ]),
+        ],
+      );
+
+  Widget _buildReviewsSection() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            key: reviewsSectionKey,
+            child: heading(
+              AppStrings.get('detail_reviews'),
+              action:
+                  allReviews.isEmpty ? null : AppStrings.get('detail_view_all'),
+              onAction: allReviews.isEmpty ? null : openAllReviews,
+            ),
+          ),
+          const SizedBox(height: 12),
+          contributionActions(),
+          if (userRecommendation != null) ...[
+            const SizedBox(height: 10),
+            recommendationStatus(),
+          ],
+          const SizedBox(height: 14),
+          if (allReviews.isEmpty) ...[
+            const SizedBox(height: 14),
+            unavailableData(AppStrings.get('card_no_reviews')),
+          ],
+          const SizedBox(height: 14),
+          ...allReviews.take(3).map(
+                (entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _ReviewCard(
+                    review: entry,
+                    helpful: helpfulReviewIds.contains(entry.id),
+                    onHelpful: () => toggleHelpful(entry.id),
+                  ),
+                ),
+              ),
+        ],
+      );
+
+  Widget _buildLandscapeLayout(BuildContext context, bool isDark) =>
+      AppResponsiveScaffoldBody(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Sol (%46): Fotoğraf galerisi ve hava durumu
+            Expanded(
+              flex: 46,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadii.large),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 10,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            NatureArt(
+                              place: displayPlace,
+                              radius: 0,
+                              showKind: false,
+                            ),
+                            Positioned(
+                              left: 12,
+                              bottom: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.65),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.photo_camera_rounded,
+                                      size: 13,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${galleryPlaces.length} ${AppStrings.get('detail_photo_count_label')}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: AppFontSizes.caption,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildPhotoGallerySection(isDark),
+                    if (widget.place.showsWeather) ...[
+                      const SizedBox(height: 24),
+                      heading(AppStrings.get('detail_weather_title')),
+                      const SizedBox(height: 11),
+                      _LiveWeatherCard(
+                        place: widget.place,
+                        future: weatherFuture,
+                        onRetry: refreshWeather,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 28),
+            // Sağ (%54): Yer adı, açıklama, mesafe, imkanlar, güven durumu ve navigasyon
+            Expanded(
+              flex: 54,
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.place.name,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        color: isDark ? Colors.white : AppColors.textPrimary,
+                        fontSize: AppFontSizes.display,
+                        height: 1.08,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_rounded,
+                          size: 16,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textTertiary,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            widget.place.location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                              fontSize: AppFontSizes.caption,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildReviewSummary(isDark),
+                    const SizedBox(height: 16),
+                    // Hızlı Aksiyon & Navigasyon
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Semantics(
+                            button: true,
+                            label: AppStrings.get('detail_nav_start'),
+                            child: FilledButton.icon(
+                              onPressed: startNavigation,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                                backgroundColor:
+                                    isDark ? AppColors.darkPrimary : green,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.large),
+                                ),
+                              ),
+                              icon: const Icon(Icons.navigation_outlined),
+                              label: Text(
+                                AppStrings.get('detail_nav_start'),
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: AppFontSizes.body,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        if (widget.place.contactPhone != null &&
+                            widget.place.contactPhone!.isNotEmpty) ...[
+                          _DetailActionIcon(
+                            icon: Icons.phone_in_talk_rounded,
+                            iconColor: const Color(0xFF059669),
+                            tooltip: 'Hemen Ara',
+                            onTap: () => launchUrl(
+                              Uri.parse('tel:${widget.place.contactPhone}'),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        _DetailActionIcon(
+                          icon: favorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          iconColor: favorite ? AppColors.error : null,
+                          tooltip: favorite
+                              ? 'Favorilerden çıkar'
+                              : 'Favorilere ekle',
+                          onTap: toggleFavorite,
+                        ),
+                        const SizedBox(width: 8),
+                        _DetailActionIcon(
+                          icon: Icons.share_outlined,
+                          tooltip: 'Paylaş',
+                          onTap: () =>
+                              message(AppStrings.get('share_prepared')),
+                        ),
+                        if (widget.place.hasCoordinates &&
+                            widget.onShowOnMap != null) ...[
+                          const SizedBox(width: 8),
+                          _DetailActionIcon(
+                            icon: Icons.map_outlined,
+                            tooltip: 'Haritada Göster',
+                            onTap: () => widget.onShowOnMap?.call(widget.place),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    journeyStats(),
+                    const SizedBox(height: 16),
+                    tripReadinessCard(isDark),
+                    const SizedBox(height: 24),
+                    _buildAboutSection(isDark),
+                    const SizedBox(height: 24),
+                    heading(AppStrings.get('detail_field_conditions')),
+                    const SizedBox(height: 12),
+                    facilitiesSection(),
+                    const SizedBox(height: 24),
+                    _buildReviewsSection(),
+                    const SizedBox(height: 28),
+                    nearbyPlacesSection(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildContactServiceCard(bool isDark) {
+    final phone = widget.place.contactPhone;
+    if (phone == null || phone.isEmpty) return const SizedBox.shrink();
+
+    final hours = widget.place.workingHours;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF064E3B).withValues(alpha: 0.25)
+            : const Color(0xFFECFDF5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF10B981).withValues(alpha: 0.40),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF059669).withValues(alpha: 0.35)
+                      : const Color(0xFFD1FAE5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.phone_in_talk_rounded,
+                  color: Color(0xFF059669),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'İletişim & Servis Çağrısı',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? AppColors.darkTextPrimary
+                            : const Color(0xFF065F46),
+                      ),
+                    ),
+                    if (hours != null && hours.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Çalışma Saatleri: $hours',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : const Color(0xFF047857),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => launchUrl(
+                Uri.parse('tel:$phone'),
+                mode: LaunchMode.externalApplication,
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.call_rounded, size: 19),
+              label: Text(
+                'Hemen Ara ($phone)',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStandardLayout(
+    BuildContext context,
+    bool isDark, {
+    required double expandedHeight,
+    required bool isPortraitTablet,
+  }) {
+    final sliverBody = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildContactServiceCard(isDark),
+        _buildReviewSummary(isDark),
+        const SizedBox(height: 18),
+        journeyStats(),
+        const SizedBox(height: 16),
+        tripReadinessCard(isDark),
+        const SizedBox(height: 28),
+        _buildPhotoGallerySection(isDark),
+        const SizedBox(height: 28),
+        _buildAboutSection(isDark),
+        if (widget.place.showsWeather) ...[
+          const SizedBox(height: 26),
+          heading(AppStrings.get('detail_weather_title')),
+          const SizedBox(height: 11),
+          _LiveWeatherCard(
+            place: widget.place,
+            future: weatherFuture,
+            onRetry: refreshWeather,
+          ),
+        ],
+        const SizedBox(height: 27),
+        heading(AppStrings.get('detail_field_conditions')),
+        const SizedBox(height: 12),
+        facilitiesSection(),
+        const SizedBox(height: 28),
+        _buildReviewsSection(),
+        const SizedBox(height: 28),
+        nearbyPlacesSection(),
+      ],
+    );
+
+    return Scaffold(
+      backgroundColor: AppColors.surfaceOf(context),
+      body: CustomScrollView(
+        controller: scrollController,
+        slivers: [
+          SliverAppBar(
+            expandedHeight: expandedHeight,
+            pinned: true,
+            backgroundColor: AppColors.surfaceOf(context),
+            surfaceTintColor: Colors.transparent,
+            titleSpacing: 4,
+            title: collapsed
+                ? Text(
+                    widget.place.name,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.title,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                : null,
+            leading: Center(
+              child: GlassIconButton(
+                icon: Icons.arrow_back_rounded,
+                tooltip: 'Geri',
+                size: 40,
+                iconSize: 20,
+                iconColor: Colors.white,
+                color: AppColors.darkGlass,
+                borderColor: Colors.white.withValues(alpha: 0.30),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                blur: 12,
+                onTap: () => Navigator.pop(context),
+              ),
+            ),
+            actions: [
+              GlassIconButton(
+                icon: Icons.share_outlined,
+                tooltip: 'Paylaş',
+                size: 40,
+                iconSize: 19,
+                iconColor: Colors.white,
+                color: AppColors.darkGlass,
+                borderColor: Colors.white.withValues(alpha: 0.30),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                blur: 12,
+                onTap: () => message(AppStrings.get('share_prepared')),
+              ),
+              const SizedBox(width: 8),
+              GlassIconButton(
+                icon: favorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                tooltip: favorite ? 'Favorilerden çıkar' : 'Favorilere ekle',
+                size: 40,
+                iconSize: 20,
+                iconColor: favorite ? AppColors.error : Colors.white,
+                color: AppColors.darkGlass,
+                borderColor: Colors.white.withValues(alpha: 0.30),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                blur: 12,
+                onTap: toggleFavorite,
+              ),
+              const SizedBox(width: 12),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              collapseMode: CollapseMode.parallax,
+              background: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(AppRadii.large),
+                  bottomRight: Radius.circular(AppRadii.large),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    NatureArt(place: displayPlace, radius: 0, showKind: false),
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            AppColors.shadow08,
+                            Colors.transparent,
+                            AppColors.shadow80,
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 22,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.place.name,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              color: Colors.white,
+                              fontSize: AppFontSizes.display,
+                              height: 1.06,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on_rounded,
+                                size: 15,
+                                color: Colors.white70,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  widget.place.location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: AppFontSizes.caption,
+                                  ),
+                                ),
+                              ),
+                              if (galleryPlaces.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: scrollToPhotos,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.large),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.photo_camera_outlined,
+                                          size: 14,
+                                          color: Colors.white,
+                                        ),
+                                        Text(
+                                          '  ${galleryPlaces.length} ${AppStrings.get('detail_photo_count_label')}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: AppFontSizes.caption,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 118),
+              child: isPortraitTablet
+                  ? Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: sliverBody,
+                      ),
+                    )
+                  : sliverBody,
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          heightFactor: 1.0,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: GlassContainer(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppRadii.hero),
+                topRight: Radius.circular(AppRadii.hero),
+              ),
+              blur: 16.0,
+              color: Colors.white.withValues(alpha: 0.88),
+              darkColor: AppColors.darkGlass,
+              border: Border(
+                top: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.white.withValues(alpha: 0.85),
+                  width: 1.2,
+                ),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark ? AppColors.shadow80 : AppColors.shadow08,
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              child: Row(
+                children: [
+                  if (widget.place.contactPhone != null &&
+                      widget.place.contactPhone!.isNotEmpty) ...[
+                    _DetailActionIcon(
+                      icon: Icons.phone_in_talk_rounded,
+                      iconColor: const Color(0xFF059669),
+                      tooltip: 'Hemen Ara',
+                      onTap: () => launchUrl(
+                        Uri.parse('tel:${widget.place.contactPhone}'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                  ],
+                  _DetailActionIcon(
+                    icon: favorite
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    iconColor: favorite ? Colors.redAccent : null,
+                    tooltip:
+                        favorite ? 'Favorilerden çıkar' : 'Favorilere ekle',
+                    onTap: toggleFavorite,
+                  ),
+                  const SizedBox(width: 9),
+                  _DetailActionIcon(
+                    icon: Icons.share_outlined,
+                    tooltip: 'Paylaş',
+                    onTap: () => message(AppStrings.get('share_prepared')),
+                  ),
+                  if (widget.place.hasCoordinates &&
+                      widget.onShowOnMap != null) ...[
+                    const SizedBox(width: 9),
+                    _DetailActionIcon(
+                      icon: Icons.map_outlined,
+                      tooltip: 'Haritada Göster',
+                      onTap: () => widget.onShowOnMap?.call(widget.place),
+                    ),
+                  ],
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Semantics(
+                      button: true,
+                      label: AppStrings.get('detail_nav_start'),
+                      child: FilledButton.icon(
+                        onPressed: startNavigation,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(53),
+                          backgroundColor:
+                              isDark ? AppColors.darkPrimary : green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadii.large),
+                          ),
+                        ),
+                        icon: const Icon(Icons.navigation_outlined),
+                        label: Text(AppStrings.get('detail_nav_start')),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: AppColors.surfaceOf(context),
-      body: CustomScrollView(controller: scrollController, slivers: [
-        SliverAppBar(
-          expandedHeight: 330,
-          pinned: true,
+    if (context.isTabletLandscape) {
+      return Scaffold(
+        backgroundColor: AppColors.surfaceOf(context),
+        appBar: AppBar(
           backgroundColor: AppColors.surfaceOf(context),
-          surfaceTintColor: Colors.transparent,
-          titleSpacing: 4,
-          title: collapsed
-              ? Text(widget.place.name,
-                  style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: AppFontSizes.title,
-                      fontWeight: FontWeight.w700))
-              : null,
+          elevation: 0,
+          scrolledUnderElevation: 0,
           leading: Center(
             child: GlassIconButton(
               icon: Icons.arrow_back_rounded,
               tooltip: 'Geri',
               size: 40,
               iconSize: 20,
-              iconColor: Colors.white,
-              color: AppColors.darkGlass,
-              borderColor: Colors.white.withValues(alpha: 0.30),
+              iconColor: isDark ? Colors.white : AppColors.textPrimary,
+              color: isDark
+                  ? AppColors.darkGlass
+                  : Colors.white.withValues(alpha: 0.85),
+              borderColor: (isDark ? Colors.white : Colors.black)
+                  .withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(AppRadii.pill),
               blur: 12,
               onTap: () => Navigator.pop(context),
+            ),
+          ),
+          title: Text(
+            widget.place.name,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.title,
+              fontWeight: FontWeight.w700,
             ),
           ),
           actions: [
@@ -1028,12 +2109,15 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
               tooltip: 'Paylaş',
               size: 40,
               iconSize: 19,
-              iconColor: Colors.white,
-              color: AppColors.darkGlass,
-              borderColor: Colors.white.withValues(alpha: 0.30),
+              iconColor: isDark ? Colors.white : AppColors.textPrimary,
+              color: isDark
+                  ? AppColors.darkGlass
+                  : Colors.white.withValues(alpha: 0.85),
+              borderColor: (isDark ? Colors.white : Colors.black)
+                  .withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(AppRadii.pill),
               blur: 12,
-              onTap: () => message('Paylaşım bağlantısı hazırlandı.'),
+              onTap: () => message(AppStrings.get('share_prepared')),
             ),
             const SizedBox(width: 8),
             GlassIconButton(
@@ -1043,333 +2127,39 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
               tooltip: favorite ? 'Favorilerden çıkar' : 'Favorilere ekle',
               size: 40,
               iconSize: 20,
-              iconColor: favorite ? AppColors.error : Colors.white,
-              color: AppColors.darkGlass,
-              borderColor: Colors.white.withValues(alpha: 0.30),
+              iconColor: favorite
+                  ? AppColors.error
+                  : (isDark ? Colors.white : AppColors.textPrimary),
+              color: isDark
+                  ? AppColors.darkGlass
+                  : Colors.white.withValues(alpha: 0.85),
+              borderColor: (isDark ? Colors.white : Colors.black)
+                  .withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(AppRadii.pill),
               blur: 12,
               onTap: toggleFavorite,
             ),
-            const SizedBox(width: 12)
+            const SizedBox(width: 16),
           ],
-          flexibleSpace: FlexibleSpaceBar(
-            collapseMode: CollapseMode.parallax,
-            background: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(AppRadii.large),
-                bottomRight: Radius.circular(AppRadii.large),
-              ),
-              child: Stack(fit: StackFit.expand, children: [
-                NatureArt(place: displayPlace, radius: 0, showKind: false),
-                const DecoratedBox(
-                    decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                      AppColors.shadow08,
-                      Colors.transparent,
-                      AppColors.shadow80,
-                    ]))),
-                Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 22,
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(widget.place.name,
-                              style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  color: Colors.white,
-                                  fontSize: AppFontSizes.display,
-                                  height: 1.06,
-                                  fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 8),
-                          Row(children: [
-                            const Icon(Icons.location_on_rounded,
-                                size: 15, color: Colors.white70),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(widget.place.location,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: AppFontSizes.caption)),
-                            ),
-                            if (galleryPlaces.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              InkWell(
-                                onTap: scrollToPhotos,
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.large),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 8),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.photo_camera_outlined,
-                                          size: 14, color: Colors.white),
-                                      Text(
-                                          '  ${galleryPlaces.length} ${AppStrings.get('detail_photo_count_label')}',
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: AppFontSizes.caption,
-                                              fontWeight: FontWeight.w600))
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ])
-                        ]))
-              ]),
-            ),
-          ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 118),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Semantics(
-                button: true,
-                label: 'Değerlendirmelere git',
-                child: InkWell(
-                  onTap: scrollToReviews,
-                  borderRadius: BorderRadius.circular(AppRadii.large),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          allReviews.isEmpty
-                              ? Icons.star_border_rounded
-                              : Icons.star_rounded,
-                          color: AppColors.rating,
-                          size: 19,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            allReviews.isEmpty
-                                ? AppStrings.get('detail_no_reviews_yet')
-                                : '$userRating · 1 ${AppStrings.get('detail_review')}',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: AppFontSizes.caption,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Icon(Icons.keyboard_arrow_down_rounded,
-                            size: 17,
-                            color: isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.textTertiary),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              journeyStats(),
-              const SizedBox(height: 28),
-              Container(
-                key: photoSectionKey,
-                child: heading(
-                  AppStrings.get('detail_photos'),
-                  action: galleryPlaces.isEmpty
-                      ? null
-                      : AppStrings.get('detail_view_photos'),
-                  onAction: galleryPlaces.isEmpty ? null : () => openGallery(0),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (galleryPlaces.isEmpty)
-                unavailableData(AppStrings.get('card_no_photos'))
-              else
-                SizedBox(
-                    height: 86,
-                    child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: galleryPlaces.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) => GestureDetector(
-                              onTap: () => openGallery(i),
-                              child: SizedBox(
-                                  width: 112,
-                                  child: NatureArt(
-                                      place: galleryPlaces[i],
-                                      radius: 14,
-                                      showKind: false)),
-                            ))),
-              const SizedBox(height: 28),
-              heading(AppStrings.get('detail_about')),
-              const SizedBox(height: 10),
-              Text(detailDescription,
-                  style: TextStyle(
-                      fontSize: AppFontSizes.body,
-                      height: 1.72,
-                      fontWeight: FontWeight.w400,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary)),
-              if (isSafeExternalUrl(
-                  Uri.tryParse(widget.place.googlePhotoSearchUrl ?? '')))
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: OutlinedButton.icon(
-                    onPressed: () => launchUrl(
-                      Uri.parse(widget.place.googlePhotoSearchUrl!),
-                      mode: LaunchMode.externalApplication,
-                    ),
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Google Fotoğraflarına Git'),
-                  ),
-                ),
-              for (final photo
-                  in enrichment?.photos ?? const <PlacePhotoInfo>[])
-                ListTile(
-                  dense: true,
-                  title: Text(photo.attribution ??
-                      'Fotoğraf: ${photo.author ?? photo.source} / ${photo.source}'),
-                  subtitle: Text(photo.license ?? ''),
-                  trailing: const Icon(Icons.open_in_new, size: 16),
-                  onTap: () {
-                    final uri = Uri.tryParse(photo.sourcePageUrl ?? '');
-                    if (isSafeExternalUrl(uri)) launchUrl(uri!);
-                  },
-                ),
-              aboutSourcesSection(),
-              const SizedBox(height: 22),
-              Row(children: [
-                info('🧭', AppStrings.get('card_coordinates'), coordinateLabel),
-                const SizedBox(width: 10),
-                info('↗', AppStrings.get('card_data_source'), sourceLabel)
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                info('◉', AppStrings.get('card_data_source'), placeSourceLabel),
-                const SizedBox(width: 10),
-                info('↻', AppStrings.get('card_last_updated'), updatedAtLabel)
-              ]),
-              const SizedBox(height: 20),
-              _PlaceTrustSummary(place: widget.place),
-              const SizedBox(height: 26),
-              heading(AppStrings.get('detail_weather_title')),
-              const SizedBox(height: 11),
-              _LiveWeatherCard(
-                place: widget.place,
-                future: weatherFuture,
-                onRetry: refreshWeather,
-              ),
-              const SizedBox(height: 27),
-              heading(AppStrings.get('detail_field_conditions')),
-              const SizedBox(height: 12),
-              facilitiesSection(),
-              const SizedBox(height: 28),
-              Container(
-                key: reviewsSectionKey,
-                child: heading(
-                  AppStrings.get('detail_reviews'),
-                  action: allReviews.isEmpty
-                      ? null
-                      : AppStrings.get('detail_view_all'),
-                  onAction: allReviews.isEmpty ? null : openAllReviews,
-                ),
-              ),
-              const SizedBox(height: 12),
-              contributionActions(),
-              if (userRecommendation != null) ...[
-                const SizedBox(height: 10),
-                recommendationStatus(),
-              ],
-              const SizedBox(height: 14),
-              if (allReviews.isEmpty) ...[
-                const SizedBox(height: 14),
-                unavailableData(AppStrings.get('card_no_reviews')),
-              ],
-              const SizedBox(height: 14),
-              ...allReviews.take(3).map(
-                    (entry) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _ReviewCard(
-                        review: entry,
-                        helpful: helpfulReviewIds.contains(entry.id),
-                        onHelpful: () => toggleHelpful(entry.id),
-                      ),
-                    ),
-                  ),
-              const SizedBox(height: 28),
-              nearbyPlacesSection(),
-            ]),
-          ),
-        )
-      ]),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: GlassContainer(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(AppRadii.hero),
-            topRight: Radius.circular(AppRadii.hero),
-          ),
-          blur: 16.0,
-          color: Colors.white.withValues(alpha: 0.88),
-          darkColor: AppColors.darkGlass,
-          border: Border(
-            top: BorderSide(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.12)
-                  : Colors.white.withValues(alpha: 0.85),
-              width: 1.2,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isDark ? AppColors.shadow80 : AppColors.shadow08,
-              blurRadius: 20,
-              offset: const Offset(0, -4),
-            ),
-          ],
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          child: Row(children: [
-            _DetailActionIcon(
-                icon: favorite
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                iconColor: favorite ? Colors.redAccent : null,
-                tooltip: favorite ? 'Favorilerden çıkar' : 'Favorilere ekle',
-                onTap: toggleFavorite),
-            const SizedBox(width: 9),
-            _DetailActionIcon(
-                icon: Icons.share_outlined,
-                tooltip: 'Paylaş',
-                onTap: () => message(AppStrings.get('share_prepared'))),
-            const SizedBox(width: 11),
-            Expanded(
-                child: Semantics(
-              button: true,
-              label: AppStrings.get('detail_nav_start'),
-              child: FilledButton.icon(
-                  onPressed: startNavigation,
-                  style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(53),
-                      backgroundColor: isDark ? AppColors.darkPrimary : green,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.large))),
-                  icon: const Icon(Icons.navigation_outlined),
-                  label: Text(AppStrings.get('detail_nav_start'))),
-            ))
-          ]),
-        ),
-      ),
+        body: _buildLandscapeLayout(context, isDark),
+      );
+    }
+
+    if (context.isTabletPortrait) {
+      return _buildStandardLayout(
+        context,
+        isDark,
+        expandedHeight: 420,
+        isPortraitTablet: true,
+      );
+    }
+
+    return _buildStandardLayout(
+      context,
+      isDark,
+      expandedHeight: 330,
+      isPortraitTablet: false,
     );
   }
 }
@@ -1743,12 +2533,14 @@ class _ContributionResult {
     required this.rating,
     required this.recommended,
     required this.reasons,
+    this.isDelete = false,
   });
 
   final String reviewText;
   final int rating;
   final bool recommended;
   final List<String> reasons;
+  final bool isDelete;
 }
 
 class _ReviewRecommendSheet extends StatefulWidget {
@@ -1792,6 +2584,9 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
     'Eksik bilgi',
     'Bakımsız',
   ];
+
+  bool get isEditing =>
+      widget.initialReview.isNotEmpty || widget.initialRating > 0;
 
   bool get canSubmit => tab == 0
       ? rating > 0 && reviewController.text.trim().isNotEmpty
@@ -1869,7 +2664,11 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          tab == 0 ? 'Deneyimini paylaş' : 'Topluluk ile öner',
+                          tab == 0
+                              ? (isEditing
+                                  ? 'Değerlendirmeyi Düzenle'
+                                  : 'Deneyimini paylaş')
+                              : 'Topluluk ile öner',
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             color: isDark ? AppColors.darkTextPrimary : ink,
@@ -1958,7 +2757,9 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                       children: [
                         Text(
                           tab == 0
-                              ? 'Değerlendirmeyi Gönder'
+                              ? (isEditing
+                                  ? 'Değerlendirmeyi Güncelle'
+                                  : 'Değerlendirmeyi Gönder')
                               : 'Toplulukla Paylaş',
                           style: const TextStyle(
                             fontFamily: 'Outfit',
@@ -1972,6 +2773,37 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                     ),
                   ),
                 ),
+                if (tab == 0 && isEditing) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(
+                          context,
+                          const _ContributionResult(
+                            reviewText: '',
+                            rating: 0,
+                            recommended: false,
+                            reasons: [],
+                            isDelete: true,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: AppColors.error, size: 18),
+                      label: const Text(
+                        'Değerlendirmeyi Sil',
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -2474,6 +3306,64 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
                       top: 12,
                       child: Row(
                         children: [
+                          Builder(builder: (ctx) {
+                            final currentUrl =
+                                widget.photos[currentIndex].image ?? '';
+                            final match = CommunityPlacePhotosController
+                                .photos.value
+                                .where((p) => p.imageUrl == currentUrl)
+                                .firstOrNull;
+                            if (match == null ||
+                                match.id.startsWith('moderated-')) {
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: overlayButton(
+                                icon: Icons.delete_outline_rounded,
+                                tooltip: 'Yanlış yüklenen fotoğrafı sil',
+                                selected: true,
+                                selectedColor: AppColors.error,
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (dialogCtx) => AlertDialog(
+                                      title: const Text('Fotoğrafı Sil?'),
+                                      content: const Text(
+                                          'Bu fotoğraf silinecektir. Devam etmek istiyor musunuz?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(dialogCtx, false),
+                                          child: const Text('Vazgeç'),
+                                        ),
+                                        FilledButton(
+                                          style: FilledButton.styleFrom(
+                                              backgroundColor: AppColors.error),
+                                          onPressed: () =>
+                                              Navigator.pop(dialogCtx, true),
+                                          child: const Text('Sil'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    await CommunityPlacePhotosController
+                                        .removePhoto(match.id);
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content: Text(
+                                                'Fotoğraf başarıyla silindi.')),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            );
+                          }),
                           overlayButton(
                             icon: reaction == 1
                                 ? Icons.thumb_up_alt_rounded
@@ -2569,15 +3459,63 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              'Kaydırarak diğer fotoğrafları gör',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                color: isDark
-                                    ? AppColors.darkTextSecondary
-                                    : AppColors.textSecondary,
-                                fontSize: AppFontSizes.caption,
-                              ),
+                            Builder(
+                              builder: (context) {
+                                final currentUrl =
+                                    widget.photos[currentIndex].image ?? '';
+                                final match = CommunityPlacePhotosController
+                                    .photos.value
+                                    .where((p) => p.imageUrl == currentUrl)
+                                    .firstOrNull;
+                                if (match != null) {
+                                  return GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              PublicUserProfileScreen(
+                                            authorName: match.authorName,
+                                            authorId: match.authorId,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.person_pin_rounded,
+                                          size: 14,
+                                          color: AppColors.primary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Fotoğraf: ${match.authorName}  ›',
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            color: AppColors.primary,
+                                            fontSize: AppFontSizes.caption,
+                                            fontWeight: FontWeight.w600,
+                                            decoration:
+                                                TextDecoration.underline,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                return Text(
+                                  'Kaydırarak diğer fotoğrafları gör',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.textSecondary,
+                                    fontSize: AppFontSizes.caption,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -2614,7 +3552,7 @@ class _PhotoGalleryDialogState extends State<_PhotoGalleryDialog> {
   }
 }
 
-class _LiveWeatherCard extends StatelessWidget {
+class _LiveWeatherCard extends StatefulWidget {
   const _LiveWeatherCard({
     required this.place,
     required this.future,
@@ -2625,86 +3563,99 @@ class _LiveWeatherCard extends StatelessWidget {
   final Future<WeatherSnapshot> future;
   final VoidCallback onRetry;
 
+  @override
+  State<_LiveWeatherCard> createState() => _LiveWeatherCardState();
+}
+
+class _LiveWeatherCardState extends State<_LiveWeatherCard> {
+  bool _isExpanded = false;
+
   BoxDecoration get decoration => BoxDecoration(
         gradient: const LinearGradient(
           colors: [
             AppColors.weatherGradientStart,
-            AppColors.weatherGradientEnd
+            AppColors.weatherGradientEnd,
           ],
         ),
         borderRadius: BorderRadius.circular(AppRadii.large),
         boxShadow: const [
           BoxShadow(
             color: AppColors.weatherCardShadow,
-            blurRadius: 22,
-            offset: Offset(0, 9),
+            blurRadius: 20,
+            offset: Offset(0, 8),
           ),
         ],
       );
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minHeight: 244),
-        padding: const EdgeInsets.fromLTRB(20, 18, 14, 16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: decoration,
         child: FutureBuilder<WeatherSnapshot>(
-          future: future,
+          future: widget.future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                    width: 25,
-                    height: 25,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color: Colors.white,
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 13),
-                  Text(
-                    '${place.location} için hava durumu alınıyor...',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      color: Colors.white70,
-                      fontSize: AppFontSizes.caption,
+                    const SizedBox(height: 10),
+                    Text(
+                      '${widget.place.location} için hava durumu alınıyor...',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        color: Colors.white70,
+                        fontSize: AppFontSizes.caption,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               );
             }
 
             if (snapshot.hasError || !snapshot.hasData) {
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.cloud_off_outlined,
-                      color: Colors.white, size: 30),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${place.location} hava durumu şu anda alınamadı.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      color: Colors.white,
-                      fontSize: AppFontSizes.caption,
-                      fontWeight: FontWeight.w500,
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.cloud_off_outlined,
+                        color: Colors.white, size: 28),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${widget.place.location} hava durumu şu anda alınamadı.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        color: Colors.white,
+                        fontSize: AppFontSizes.caption,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 7),
-                  TextButton.icon(
-                    onPressed: onRetry,
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      visualDensity: VisualDensity.compact,
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: widget.onRetry,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.refresh_rounded, size: 16),
+                      label: Text(AppStrings.get('general_retry'),
+                          style:
+                              const TextStyle(fontSize: AppFontSizes.caption)),
                     ),
-                    icon: const Icon(Icons.refresh_rounded, size: 16),
-                    label: Text(AppStrings.get('general_retry'),
-                        style: const TextStyle(fontSize: AppFontSizes.caption)),
-                  ),
-                ],
+                  ],
+                ),
               );
             }
 
@@ -2713,23 +3664,65 @@ class _LiveWeatherCard extends StatelessWidget {
                 ? weather.visibilityKm.toStringAsFixed(1)
                 : weather.visibilityKm.round().toString();
             final idealConditions = _weatherIsIdeal(weather);
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '${place.name.toUpperCase()} · ${AppStrings.get('weather_now')}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    color: Colors.white70,
-                    fontSize: AppFontSizes.caption,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: .25,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${widget.place.name.toUpperCase()} · ${AppStrings.get('weather_now')}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          color: Colors.white70,
+                          fontSize: AppFontSizes.caption,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: .25,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .15),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: idealConditions
+                                  ? AppColors.darkPrimaryLight
+                                  : AppColors.rating,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            idealConditions ? 'Doğaya Uygun' : 'Tedbirli Ol',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -2738,12 +3731,12 @@ class _LiveWeatherCard extends StatelessWidget {
                       style: const TextStyle(
                         fontFamily: 'Outfit',
                         color: Colors.white,
-                        fontSize: 47,
-                        height: .95,
-                        fontWeight: FontWeight.w400,
+                        fontSize: 38,
+                        height: 1.0,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -2756,101 +3749,169 @@ class _LiveWeatherCard extends StatelessWidget {
                             style: const TextStyle(
                               fontFamily: 'Outfit',
                               color: Colors.white,
-                              fontSize: AppFontSizes.caption,
+                              fontSize: AppFontSizes.body,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
                             '${AppStrings.get('weather_feels_like')} ${weather.apparentTemperature.round()}°',
                             style: const TextStyle(
                               fontFamily: 'Outfit',
-                              color: Colors.white60,
+                              color: Colors.white70,
                               fontSize: AppFontSizes.caption,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Text(weather.emoji,
-                        style: const TextStyle(fontSize: 47, height: 1)),
-                  ],
-                ),
-                const SizedBox(height: 17),
-                Container(
-                  height: 76,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                  ),
-                  child: Row(
-                    children: [
-                      _DetailWeatherMetric('💧', '${weather.humidity.round()}%',
-                          AppStrings.get('weather_humidity')),
-                      const _WeatherMetricDivider(),
-                      _DetailWeatherMetric(
-                          '〰',
-                          '${weather.windSpeed.round()}km/s',
-                          AppStrings.get('weather_wind')),
-                      const _WeatherMetricDivider(),
-                      _DetailWeatherMetric(
-                          '☀️',
-                          _weatherUvValue(weather.uvIndex),
-                          AppStrings.get('weather_uv')),
-                      const _WeatherMetricDivider(),
-                      _DetailWeatherMetric('◉', '${visibility}km',
-                          AppStrings.get('weather_visibility')),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
                     Container(
-                      width: 8,
-                      height: 8,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        color: idealConditions
-                            ? AppColors.darkPrimaryLight
-                            : AppColors.rating,
-                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(AppRadii.medium),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '💧${weather.humidity.round()}%',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '〰${weather.windSpeed.round()}km/s',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _weatherOutdoorMessage(weather),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          color: Colors.white,
-                          fontSize: AppFontSizes.caption,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                    Text(
+                      weather.emoji,
+                      style: const TextStyle(fontSize: 34, height: 1.0),
                     ),
                   ],
                 ),
-                if (weather.dailyForecast.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    height: 1,
-                    color: Colors.white.withValues(alpha: .18),
+                const SizedBox(height: 10),
+                InkWell(
+                  onTap: () => setState(() => _isExpanded = !_isExpanded),
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 7,
+                      horizontal: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white
+                          .withValues(alpha: _isExpanded ? .20 : .10),
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _isExpanded
+                              ? 'Daha Az Göster'
+                              : AppStrings.get('weather_5day_forecast'),
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            color: Colors.white,
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          _isExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    AppStrings.get('weather_5day_forecast'),
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      color: Colors.white70,
-                      fontSize: AppFontSizes.caption,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: .3,
+                ),
+                if (_isExpanded) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    height: 66,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(AppRadii.large),
+                    ),
+                    child: Row(
+                      children: [
+                        _DetailWeatherMetric(
+                          '💧',
+                          '${weather.humidity.round()}%',
+                          AppStrings.get('weather_humidity'),
+                        ),
+                        const _WeatherMetricDivider(),
+                        _DetailWeatherMetric(
+                          '〰',
+                          '${weather.windSpeed.round()}km/s',
+                          AppStrings.get('weather_wind'),
+                        ),
+                        const _WeatherMetricDivider(),
+                        _DetailWeatherMetric(
+                          '☀️',
+                          _weatherUvValue(weather.uvIndex),
+                          AppStrings.get('weather_uv'),
+                        ),
+                        const _WeatherMetricDivider(),
+                        _DetailWeatherMetric(
+                          '◉',
+                          '${visibility}km',
+                          AppStrings.get('weather_visibility'),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Detail5DayForecastStrip(forecasts: weather.dailyForecast),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: idealConditions
+                              ? AppColors.darkPrimaryLight
+                              : AppColors.rating,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _weatherOutdoorMessage(weather),
+                          maxLines: 2,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            color: Colors.white,
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (weather.dailyForecast.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Detail5DayForecastStrip(forecasts: weather.dailyForecast),
+                  ],
                 ],
               ],
             );
@@ -3114,6 +4175,7 @@ class _FieldConditionItem {
     required this.statusBackground,
     required this.statusIcon,
     this.detail,
+    this.facilityKey,
   });
 
   final IconData icon;
@@ -3123,6 +4185,7 @@ class _FieldConditionItem {
   final Color statusBackground;
   final IconData statusIcon;
   final String? detail;
+  final String? facilityKey;
 }
 
 class _FieldConditionsCard extends StatelessWidget {
@@ -3176,80 +4239,118 @@ class _FieldConditionsCard extends StatelessWidget {
     final items = <_FieldConditionItem>[];
 
     // 1. İçme Suyu
-    final waterStatus = fac['drinking_water'] == true
-        ? (isVerifiedPlace
-            ? _FieldInfoStatus.verified
-            : _FieldInfoStatus.community)
-        : (fac['drinking_water'] == false
-            ? _FieldInfoStatus.absent
-            : _FieldInfoStatus.unknown);
+    final waterOverride =
+        CommunityFacilityUpdatesController.getStatus(place, 'drinking_water');
+    final waterStatus = waterOverride != null
+        ? (waterOverride ? _FieldInfoStatus.community : _FieldInfoStatus.absent)
+        : (fac['drinking_water'] == true
+            ? (isVerifiedPlace
+                ? _FieldInfoStatus.verified
+                : _FieldInfoStatus.community)
+            : (fac['drinking_water'] == false
+                ? _FieldInfoStatus.absent
+                : _FieldInfoStatus.unknown));
     final waterProps = statusProps(waterStatus);
     items.add(_FieldConditionItem(
       icon: Icons.water_drop_outlined,
       title: AppStrings.get('field_drinking_water'),
-      statusLabel: waterProps.$1,
+      statusLabel: waterOverride != null
+          ? (waterOverride ? 'Topluluk: Var' : 'Topluluk: Yok')
+          : waterProps.$1,
       statusColor: waterProps.$2,
       statusBackground: waterProps.$3,
       statusIcon: waterProps.$4,
-      detail: waterStatus == _FieldInfoStatus.unknown
+      facilityKey: 'drinking_water',
+      detail: waterStatus == _FieldInfoStatus.unknown ||
+              waterStatus == _FieldInfoStatus.absent
           ? null
-          : (fac['drinking_water'] == true ? 'Mevcut' : 'Bulunmuyor'),
+          : (waterOverride == true || fac['drinking_water'] == true
+              ? 'Mevcut'
+              : null),
     ));
 
     // 2. Tuvalet
-    final toiletStatus = fac['toilets'] == true
-        ? (isVerifiedPlace
-            ? _FieldInfoStatus.verified
-            : _FieldInfoStatus.community)
-        : (fac['toilets'] == false
-            ? _FieldInfoStatus.absent
-            : _FieldInfoStatus.unknown);
+    final toiletOverride =
+        CommunityFacilityUpdatesController.getStatus(place, 'toilets');
+    final toiletStatus = toiletOverride != null
+        ? (toiletOverride
+            ? _FieldInfoStatus.community
+            : _FieldInfoStatus.absent)
+        : (fac['toilets'] == true
+            ? (isVerifiedPlace
+                ? _FieldInfoStatus.verified
+                : _FieldInfoStatus.community)
+            : (fac['toilets'] == false
+                ? _FieldInfoStatus.absent
+                : _FieldInfoStatus.unknown));
     final toiletProps = statusProps(toiletStatus);
     items.add(_FieldConditionItem(
       icon: Icons.wc_outlined,
       title: AppStrings.get('field_toilets'),
-      statusLabel: toiletProps.$1,
+      statusLabel: toiletOverride != null
+          ? (toiletOverride ? 'Topluluk: Var' : 'Topluluk: Yok')
+          : toiletProps.$1,
       statusColor: toiletProps.$2,
       statusBackground: toiletProps.$3,
       statusIcon: toiletProps.$4,
-      detail: toiletStatus == _FieldInfoStatus.unknown
+      facilityKey: 'toilets',
+      detail: toiletStatus == _FieldInfoStatus.unknown ||
+              toiletStatus == _FieldInfoStatus.absent
           ? null
-          : (fac['toilets'] == true ? 'Mevcut' : 'Bulunmuyor'),
+          : (toiletOverride == true || fac['toilets'] == true
+              ? 'Mevcut'
+              : null),
     ));
 
     // 3. Otopark
-    final parkingStatus = fac['parking'] == true
-        ? (isVerifiedPlace
-            ? _FieldInfoStatus.verified
-            : _FieldInfoStatus.community)
-        : (fac['parking'] == false
-            ? _FieldInfoStatus.absent
-            : _FieldInfoStatus.unknown);
+    final parkingOverride =
+        CommunityFacilityUpdatesController.getStatus(place, 'parking');
+    final parkingStatus = parkingOverride != null
+        ? (parkingOverride
+            ? _FieldInfoStatus.community
+            : _FieldInfoStatus.absent)
+        : (fac['parking'] == true
+            ? (isVerifiedPlace
+                ? _FieldInfoStatus.verified
+                : _FieldInfoStatus.community)
+            : (fac['parking'] == false
+                ? _FieldInfoStatus.absent
+                : _FieldInfoStatus.unknown));
     final parkingProps = statusProps(parkingStatus);
     items.add(_FieldConditionItem(
       icon: Icons.local_parking_rounded,
       title: AppStrings.get('field_parking'),
-      statusLabel: parkingProps.$1,
+      statusLabel: parkingOverride != null
+          ? (parkingOverride ? 'Topluluk: Var' : 'Topluluk: Yok')
+          : parkingProps.$1,
       statusColor: parkingProps.$2,
       statusBackground: parkingProps.$3,
       statusIcon: parkingProps.$4,
-      detail: parkingStatus == _FieldInfoStatus.unknown
+      facilityKey: 'parking',
+      detail: parkingStatus == _FieldInfoStatus.unknown ||
+              parkingStatus == _FieldInfoStatus.absent
           ? null
-          : (fac['parking'] == true ? 'Mevcut' : 'Bulunmuyor'),
+          : (parkingOverride == true || fac['parking'] == true
+              ? 'Mevcut'
+              : null),
     ));
 
     // 4. Piknik & Kamp Uygunluğu
+    final campOverride =
+        CommunityFacilityUpdatesController.getStatus(place, 'picnic_allowed');
     final isCamp = fac['tents'] == true || fac['caravans'] == true;
     final isPicnic = fac['picnic_allowed'] == true ||
         fac['picnic_facility'] == true ||
         fac['picnic_table_nearby'] == true;
-    final campStatus = (isCamp || isPicnic)
-        ? (isVerifiedPlace
-            ? _FieldInfoStatus.verified
-            : _FieldInfoStatus.community)
-        : (fac['picnic_allowed'] == false && fac['tents'] == false
-            ? _FieldInfoStatus.absent
-            : _FieldInfoStatus.unknown);
+    final campStatus = campOverride != null
+        ? (campOverride ? _FieldInfoStatus.community : _FieldInfoStatus.absent)
+        : ((isCamp || isPicnic)
+            ? (isVerifiedPlace
+                ? _FieldInfoStatus.verified
+                : _FieldInfoStatus.community)
+            : ((fac['picnic_allowed'] == false && fac['tents'] == false)
+                ? _FieldInfoStatus.absent
+                : _FieldInfoStatus.unknown));
     final campProps = statusProps(campStatus);
     final campDetail = isCamp && isPicnic
         ? 'Kamp & Piknik uygun'
@@ -3263,10 +4364,13 @@ class _FieldConditionsCard extends StatelessWidget {
     items.add(_FieldConditionItem(
       icon: Icons.deck_outlined,
       title: AppStrings.get('field_picnic_camp'),
-      statusLabel: campProps.$1,
+      statusLabel: campOverride != null
+          ? (campOverride ? 'Topluluk: Var' : 'Topluluk: Yok')
+          : campProps.$1,
       statusColor: campProps.$2,
       statusBackground: campProps.$3,
       statusIcon: campProps.$4,
+      facilityKey: 'picnic_allowed',
       detail: campDetail,
     ));
 
@@ -3315,112 +4419,633 @@ class _FieldConditionsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final items = _buildItems(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.large),
-        border:
-            Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-            color: AppColors.shadow08,
-            blurRadius: 8,
-            offset: Offset(0, 2),
+    return ValueListenableBuilder<Map<String, Map<String, bool>>>(
+      valueListenable: CommunityFacilityUpdatesController.updates,
+      builder: (context, _, __) {
+        final items = _buildItems(context);
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.large),
+            border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.border),
+            boxShadow: const [
+              BoxShadow(
+                color: AppColors.shadow08,
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0)
+                  Divider(
+                    height: 1,
+                    thickness: 0.6,
+                    indent: 16,
+                    endIndent: 16,
+                    color: isDark ? AppColors.darkBorder : AppColors.border,
+                  ),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppRadii.large),
+                    onTap: items[i].facilityKey != null
+                        ? () => _openFacilityUpdateModal(
+                              context,
+                              place,
+                              items[i].title,
+                              items[i].facilityKey!,
+                            )
+                        : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color:
+                                  items[i].statusColor.withValues(alpha: 0.10),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.medium),
+                            ),
+                            child: Icon(items[i].icon,
+                                size: 16, color: items[i].statusColor),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        items[i].title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: AppFontSizes.label,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? AppColors.darkTextPrimary
+                                              : AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    if (items[i].facilityKey != null) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.edit_note_rounded,
+                                        size: 15,
+                                        color: items[i].statusColor,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (items[i].detail != null)
+                                  Text(
+                                    items[i].detail!,
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: AppFontSizes.caption - 1,
+                                      color: isDark
+                                          ? AppColors.darkTextSecondary
+                                          : AppColors.textSecondary,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: items[i].statusBackground,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.small),
+                              border: Border.all(
+                                color: items[i]
+                                    .statusColor
+                                    .withValues(alpha: 0.25),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(items[i].statusIcon,
+                                    size: 11, color: items[i].statusColor),
+                                const SizedBox(width: 3),
+                                Text(
+                                  items[i].statusLabel,
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: AppFontSizes.caption - 1,
+                                    fontWeight: FontWeight.w600,
+                                    color: items[i].statusColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+enum _FacilityChoice { yes, no, reset }
+
+Future<void> _openFacilityUpdateModal(
+  BuildContext context,
+  Place place,
+  String facilityTitle,
+  String facilityKey,
+) async {
+  final allowed = await AppAuthGuard.requireAuth(
+    context,
+    title: 'Giriş Yapmalısınız',
+    message: '$facilityTitle durumunu güncellemek için giriş yapmalısınız.',
+  );
+  if (!allowed || !context.mounted) return;
+
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final currentStatus =
+      CommunityFacilityUpdatesController.getStatus(place, facilityKey);
+
+  final choice = await showModalBottomSheet<_FacilityChoice>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: isDark ? AppColors.darkSurfaceDeep : Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.hero)),
+    ),
+    builder: (ctx) => Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '$facilityTitle Durumu',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.title,
+              fontWeight: FontWeight.w700,
+              color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${place.name} için bu olanak mevcut mu?',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.caption,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.medium),
+            ),
+            tileColor: currentStatus == true
+                ? (isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft)
+                : null,
+            leading: const Icon(Icons.check_circle_outline, color: green),
+            title: const Text(
+              'Var',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: currentStatus == true
+                ? const Icon(Icons.check, color: green)
+                : null,
+            onTap: () => Navigator.pop(ctx, _FacilityChoice.yes),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.medium),
+            ),
+            tileColor: currentStatus == false
+                ? (isDark ? AppColors.darkErrorSoft : AppColors.errorSoft)
+                : null,
+            leading: const Icon(Icons.cancel_outlined, color: AppColors.error),
+            title: const Text(
+              'Yok',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: currentStatus == false
+                ? const Icon(Icons.check, color: AppColors.error)
+                : null,
+            onTap: () => Navigator.pop(ctx, _FacilityChoice.no),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.medium),
+            ),
+            tileColor:
+                isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+            leading: const Icon(
+              Icons.edit_off_rounded,
+              color: AppColors.accentOrange,
+            ),
+            title: const Text(
+              'Yanlış / Hatalı Bilgiyi Düzelt',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                color: AppColors.accentOrange,
+              ),
+            ),
+            subtitle: Text(
+              'Mevcut durum yanlışsa bilgiyi sıfırlar ve düzeltir.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+            onTap: () => Navigator.pop(ctx, _FacilityChoice.reset),
           ),
         ],
       ),
-      child: Column(
-        children: [
-          for (var i = 0; i < items.length; i++) ...[
-            if (i > 0)
-              Divider(
-                height: 1,
-                thickness: 0.6,
-                indent: 16,
-                endIndent: 16,
-                color: isDark ? AppColors.darkBorder : AppColors.border,
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: items[i].statusColor.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(AppRadii.medium),
-                    ),
-                    child: Icon(items[i].icon,
-                        size: 16, color: items[i].statusColor),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          items[i].title,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: AppFontSizes.label,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? AppColors.darkTextPrimary
-                                : AppColors.textPrimary,
-                          ),
-                        ),
-                        if (items[i].detail != null)
-                          Text(
-                            items[i].detail!,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: AppFontSizes.caption - 1,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2.5),
-                    decoration: BoxDecoration(
-                      color: items[i].statusBackground,
-                      borderRadius: BorderRadius.circular(AppRadii.small),
-                      border: Border.all(
-                        color: items[i].statusColor.withValues(alpha: 0.25),
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(items[i].statusIcon,
-                            size: 11, color: items[i].statusColor),
-                        const SizedBox(width: 3),
-                        Text(
-                          items[i].statusLabel,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: AppFontSizes.caption - 1,
-                            fontWeight: FontWeight.w600,
-                            color: items[i].statusColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+    ),
+  );
+
+  if (choice == null || !context.mounted) return;
+  final bool? val = switch (choice) {
+    _FacilityChoice.yes => true,
+    _FacilityChoice.no => false,
+    _FacilityChoice.reset => null,
+  };
+  await CommunityFacilityUpdatesController.setStatus(
+    place: place,
+    facilityKey: facilityKey,
+    value: val,
+  );
+  if (context.mounted) {
+    final statusMsg = switch (choice) {
+      _FacilityChoice.yes => '$facilityTitle durumu "Var" olarak güncellendi.',
+      _FacilityChoice.no => '$facilityTitle durumu "Yok" olarak güncellendi.',
+      _FacilityChoice.reset =>
+        '$facilityTitle bilgisi hatalı olarak düzeltildi ve sıfırlandı.',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(statusMsg),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+}
+
+Future<void> _openAddPhotoModal(BuildContext context, Place place) async {
+  final allowed = await AppAuthGuard.requireAuth(
+    context,
+    title: 'Giriş Yapmalısınız',
+    message: 'Mekâna fotoğraf eklemek için giriş yapmalısınız.',
+  );
+  if (!allowed || !context.mounted) return;
+
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  XFile? selectedPhoto;
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: isDark ? AppColors.darkSurfaceDeep : Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.hero)),
+    ),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setModalState) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
               ),
             ),
+            const SizedBox(height: 16),
+            Text(
+              'Fotoğraf Ekle',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.title,
+                fontWeight: FontWeight.w700,
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${place.name} için katkıda bulunun',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final source = await showPhotoSourceSheet(
+                  ctx,
+                  title: 'Fotoğraf seç',
+                );
+                if (source == null || !ctx.mounted) return;
+                try {
+                  final photo = await ImagePicker().pickImage(
+                    source: source,
+                    imageQuality: 82,
+                    maxWidth: 1920,
+                    maxHeight: 1920,
+                    requestFullMetadata: false,
+                  );
+                  if (photo != null && ctx.mounted) {
+                    setModalState(() => selectedPhoto = photo);
+                  }
+                } catch (error) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text('Fotoğraf seçilemedi: $error')),
+                    );
+                  }
+                }
+              },
+              icon: Icon(
+                selectedPhoto == null
+                    ? Icons.add_a_photo_outlined
+                    : Icons.check_circle_outline_rounded,
+              ),
+              label: Text(
+                selectedPhoto == null
+                    ? 'Kamerayla çek veya galeriden seç'
+                    : 'Fotoğraf seçildi · Değiştir',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Fotoğraf bağlantısı yazmanız gerekmez.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.large),
+                  ),
+                ),
+                onPressed: () async {
+                  if (selectedPhoto == null) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Kameradan çekin veya galeriden bir fotoğraf seçin.'),
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    await CommunityPlacePhotosController
+                        .submitPhotoForModeration(
+                      place: place,
+                      photo: selectedPhoto!,
+                    );
+                  } catch (error) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(
+                          content: Text('Fotoğraf gönderilemedi: $error'),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                  }
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content:
+                            Text('Fotoğraf yönetici incelemesine gönderildi.'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text(
+                  'Fotoğrafı Kaydet',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            Builder(
+              builder: (ctx) {
+                final currentPhotos =
+                    CommunityPlacePhotosController.forPlace(place)
+                        .where((p) => !p.id.startsWith('moderated-'))
+                        .toList(growable: false);
+                if (currentPhotos.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.delete_sweep_outlined,
+                          size: 16,
+                          color: AppColors.error,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Yüklenen Fotoğraflar (Yanlış yüklemeyi sil)',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 56,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: currentPhotos.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (_, idx) {
+                          final p = currentPhotos[idx];
+                          return Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.small),
+                                child: _CommunityPhotoThumbnail(
+                                  imageValue: p.imageUrl,
+                                ),
+                              ),
+                              Positioned(
+                                top: 2,
+                                right: 2,
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    await CommunityPlacePhotosController
+                                        .removePhoto(p.id);
+                                    setModalState(() {});
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Fotoğraf silindi.'),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black87,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      color: Colors.white,
+                                      size: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ],
-        ],
+        ),
       ),
+    ),
+  );
+}
+
+class _CommunityPhotoThumbnail extends StatelessWidget {
+  const _CommunityPhotoThumbnail({required this.imageValue});
+
+  final String imageValue;
+
+  Widget get _fallback => Container(
+        width: 56,
+        height: 56,
+        color: Colors.grey.shade300,
+        child: const Icon(Icons.broken_image, size: 20),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageValue.startsWith('https://')) {
+      return Image.network(
+        imageValue,
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _fallback,
+      );
+    }
+    return FutureBuilder<Uint8List?>(
+      future: PlacePhotoStorage.readPersistedPhoto(imageValue),
+      builder: (context, snapshot) {
+        final bytes = snapshot.data;
+        if (bytes == null || bytes.isEmpty) return _fallback;
+        return Image.memory(
+          bytes,
+          width: 56,
+          height: 56,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallback,
+        );
+      },
     );
   }
 }
@@ -3467,6 +5092,36 @@ class _TrustChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TripReadinessFact extends StatelessWidget {
+  const _TripReadinessFact({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 15,
+          color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.metadataOf(context),
+          ),
+        ),
+      ],
     );
   }
 }

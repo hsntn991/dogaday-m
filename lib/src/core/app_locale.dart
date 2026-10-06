@@ -132,49 +132,104 @@ class AppStrings {
   }
 
   static const Map<String, Map<String, String>> _categories = {
-    'water': {
-      'tr': 'Su',
-      'en': 'Water',
-      'ar': 'مياه',
+    'camp': {
+      'tr': 'Kamp',
+      'en': 'Camp',
+      'ar': 'تخييم',
     },
-    'mountain_terrain': {
-      'tr': 'Dağ & Arazi',
-      'en': 'Mountain & Terrain',
-      'ar': 'جبال وتضاريس',
+    'caravan': {
+      'tr': 'Karavan',
+      'en': 'Caravan',
+      'ar': 'كرفان',
     },
-    'natural_formation': {
-      'tr': 'Doğal Oluşum',
-      'en': 'Natural Formation',
-      'ar': 'تكوين طبيعي',
+    'lake': {
+      'tr': 'Göl',
+      'en': 'Lake',
+      'ar': 'بحيرة',
     },
-    'nature_area': {
-      'tr': 'Doğa Alanı',
-      'en': 'Nature Area',
-      'ar': 'منطقة طبيعية',
+    'waterfall': {
+      'tr': 'Şelale',
+      'en': 'Waterfall',
+      'ar': 'شلال',
     },
-    'camp_caravan': {
-      'tr': 'Kamp & Karavan',
-      'en': 'Camp & Caravan',
-      'ar': 'مخيم وكرفان',
+    'canyon_valley': {
+      'tr': 'Kanyon & Vadi',
+      'en': 'Canyon & Valley',
+      'ar': 'وادي وأخدود',
     },
-    'route_activity': {
-      'tr': 'Rota & Aktivite',
-      'en': 'Route & Activity',
-      'ar': 'مسار ونشاط',
+    'cave': {
+      'tr': 'Mağara',
+      'en': 'Cave',
+      'ar': 'كهف',
     },
-    'discovery_point': {
-      'tr': 'Keşif Noktası',
-      'en': 'Discovery Point',
-      'ar': 'نقطة استكشاف',
+    'national_park': {
+      'tr': 'Millî / Doğa Parkı',
+      'en': 'National / Nature Park',
+      'ar': 'حديقة وطنية وطبيعية',
     },
-    'wildlife': {
-      'tr': 'Yaban Hayatı',
-      'en': 'Wildlife',
-      'ar': 'الحياة البرية',
+    'local_service': {
+      'tr': 'Mobil Servis',
+      'en': 'Mobile Service',
+      'ar': 'الخدمات المتنقلة',
     },
   };
 
   static const Map<String, Map<String, String>> _subtypes = {
+    'local_service': {
+      'tr': 'Mobil Servis',
+      'en': 'Mobile Service',
+      'ar': 'الخدمة المتنقلة',
+    },
+    'service_roadside': {
+      'tr': 'Çekici / Yol Yardım',
+      'en': 'Towing / Roadside Assistance',
+      'ar': 'سحب وإنقاذ المركبات',
+    },
+    'service_maintenance': {
+      'tr': 'Yıllık Bakım',
+      'en': 'Annual Maintenance',
+      'ar': 'الصيانة الدورية',
+    },
+    'service_gas': {
+      'tr': 'Gaz Tesisatı',
+      'en': 'Gas System & LPG',
+      'ar': 'تمديدات الغاز',
+    },
+    'service_hvac': {
+      'tr': 'Isıtma & Soğutma',
+      'en': 'Heating & Cooling (HVAC)',
+      'ar': 'التدفئة والتكييف',
+    },
+    'service_electric': {
+      'tr': 'Elektrik & Enerji',
+      'en': 'Electric & Solar Energy',
+      'ar': 'الكهرباء والطاقة الشمسية',
+    },
+    'service_plumbing': {
+      'tr': 'Su & Tesisat',
+      'en': 'Water & Plumbing',
+      'ar': 'تمديدات المياه والسباكة',
+    },
+    'service_bodywork': {
+      'tr': 'Nem & Gövde',
+      'en': 'Moisture & Bodywork',
+      'ar': 'العزل وهيكل الكرفان',
+    },
+    'service_chassis_brakes': {
+      'tr': 'Şasi & Fren',
+      'en': 'Chassis & Brakes',
+      'ar': 'الشاسيه والفرامل والإطارات',
+    },
+    'service_parts': {
+      'tr': 'Montaj & Parça',
+      'en': 'Assembly & Spare Parts',
+      'ar': 'التركيب وقطع الغيار',
+    },
+    'service_inspection': {
+      'tr': 'Muayene',
+      'en': 'Vehicle Inspection',
+      'ar': 'الفحص والمعاينة',
+    },
     'lake': {'tr': 'Göl', 'en': 'Lake', 'ar': 'بحيرة'},
     'waterfall': {'tr': 'Şelale', 'en': 'Waterfall', 'ar': 'شلال'},
     'stream': {'tr': 'Dere', 'en': 'Stream', 'ar': 'جدول'},
@@ -544,6 +599,11 @@ class AppStrings {
       'en': 'Recommended',
       'ar': 'مُوصى به',
     },
+    'home_explore_by_category': {
+      'tr': 'Kategoriyle keşfet',
+      'en': 'Explore by category',
+      'ar': 'استكشف حسب الفئة',
+    },
     'home_for_you_today': {
       'tr': 'Bugün sana uygun',
       'en': 'Handpicked for Today',
@@ -575,9 +635,9 @@ class AppStrings {
       'ar': 'جاري تحديد الموقع...',
     },
     'my_location': {
-      'tr': 'Konumum',
-      'en': 'My Location',
-      'ar': 'موقعي',
+      'tr': 'Bulunduğu alan',
+      'en': 'Current Area',
+      'ar': 'المنطقة الحالية',
     },
     'home_explore_map': {
       'tr': 'Haritada keşfet',
@@ -776,6 +836,11 @@ class AppStrings {
       'en': 'DATA SOURCE',
       'ar': 'مصدر البيانات',
     },
+    'card_record_type': {
+      'tr': 'KAYIT MODELİ',
+      'en': 'RECORD TYPE',
+      'ar': 'نوع السجل',
+    },
     'card_last_updated': {
       'tr': 'SON GÜNCELLEME',
       'en': 'LAST UPDATED',
@@ -931,15 +996,30 @@ class AppStrings {
       'en': 'Verified',
       'ar': 'موثق',
     },
+    'trust_verified_compact': {
+      'tr': 'Doğrulandı',
+      'en': 'Verified',
+      'ar': 'موثق',
+    },
     'trust_community': {
       'tr': 'Topluluk katkısı',
       'en': 'Community contribution',
       'ar': 'مساهمة مجتمعية',
     },
+    'trust_community_compact': {
+      'tr': 'Topluluk',
+      'en': 'Community',
+      'ar': 'مجتمع',
+    },
     'trust_unverified': {
       'tr': 'Henüz incelenmedi',
       'en': 'Not yet reviewed',
       'ar': 'لم يتم التحقق',
+    },
+    'trust_unverified_compact': {
+      'tr': 'İncelenmedi',
+      'en': 'Unverified',
+      'ar': 'غير مدقق',
     },
     'share_prepared': {
       'tr': 'Paylaşım bağlantısı hazırlandı.',
@@ -1210,6 +1290,16 @@ class AppStrings {
       'en': 'Close card',
       'ar': 'إغلاق البطاقة',
     },
+    'map_show_on_map': {
+      'tr': 'Haritada göster',
+      'en': 'Show on map',
+      'ar': 'عرض على الخريطة',
+    },
+    'map_view_details': {
+      'tr': 'Detayları gör',
+      'en': 'View details',
+      'ar': 'عرض التفاصيل',
+    },
     'map_layer_title': {
       'tr': 'Harita Katmanı',
       'en': 'Map Layer',
@@ -1376,6 +1466,73 @@ class AppStrings {
       'tr': 'Doğadayım Kullanıcısı',
       'en': 'Doğadayım User',
       'ar': 'مستخدم دوغاداييم',
+    },
+    'profile_guest_user': {
+      'tr': 'Misafir Kaşif',
+      'en': 'Guest Explorer',
+      'ar': 'مستكشف زائر',
+    },
+    'profile_guest_subtitle': {
+      'tr': 'Doğayı keşfetmek için misafir modundasın',
+      'en': 'You are exploring nature in guest mode',
+      'ar': 'أنت في وضع الضيف لاستكشاف الطبيعة',
+    },
+    'guest_auth_title': {
+      'tr': 'Giriş Yapmalısın',
+      'en': 'Sign In Required',
+      'ar': 'تسجيل الدخول مطلوب',
+    },
+    'guest_auth_message': {
+      'tr':
+          'Bu özelliği kullanabilmek ve topluluğa katkı sağlamak için lütfen giriş yap veya hesap oluştur.',
+      'en':
+          'Please sign in or create an account to use this feature and contribute to the community.',
+      'ar':
+          'يرجى تسجيل الدخول أو إنشاء حساب لاستخدام هذه الميزة والمساهمة في المجتمع.',
+    },
+    'guest_auth_btn_login': {
+      'tr': 'Giriş Yap / Kayıt Ol',
+      'en': 'Sign In / Register',
+      'ar': 'تسجيل الدخول / إنشاء حساب',
+    },
+    'guest_auth_btn_continue': {
+      'tr': 'Keşfetmeye Devam Et',
+      'en': 'Continue Exploring',
+      'ar': 'متابعة الاستكشاف',
+    },
+    'guest_add_place_prompt': {
+      'tr':
+          'Doğa noktası eklemek ve topluluğa katkı sağlamak için lütfen giriş yapın.',
+      'en':
+          'Please sign in to add nature spots and contribute to the community.',
+      'ar': 'يرجى تسجيل الدخول لإضافة مواقع طبيعية والمساهمة في المجتمع.',
+    },
+    'guest_review_prompt': {
+      'tr': 'Değerlendirme ve yorum yazabilmek için lütfen giriş yapın.',
+      'en': 'Please sign in to rate and write reviews.',
+      'ar': 'يرجى تسجيل الدخول للتقييم وكتابة الآراء.',
+    },
+    'guest_goodness_prompt': {
+      'tr': 'İyilik Harekâtı\'na katkı ekleyebilmek için lütfen giriş yapın.',
+      'en': 'Please sign in to add contributions to the Goodness Movement.',
+      'ar': 'يرجى تسجيل الدخول لإضافة مساهمات إلى حركة الخير.',
+    },
+    'guest_chat_prompt': {
+      'tr': 'Sohbete katılıp mesaj yazabilmek için lütfen giriş yapın.',
+      'en': 'Please sign in to join the chat and send messages.',
+      'ar': 'يرجى تسجيل الدخول للمشاركة في الدردشة وإرسال الرسائل.',
+    },
+    'guest_emergency_request_prompt': {
+      'tr': 'Acil yardım çağrısı açabilmek için lütfen giriş yapın.',
+      'en': 'Please sign in to create an emergency help request.',
+      'ar': 'يرجى تسجيل الدخول لإنشاء طلب مساعدة طارئة.',
+    },
+    'guest_emergency_accept_prompt': {
+      'tr':
+          'Yardım çağrısını kabul edip iletişim bilgilerine erişmek için lütfen giriş yapın.',
+      'en':
+          'Please sign in to accept the help request and access contact info.',
+      'ar': 'يرجى تسجيل الدخول لقبول طلب المساعدة والوصول إلى معلومات الاتصال.',
     },
 
     // ── Topluluk Sohbeti ──────────────────────────────────────────────────

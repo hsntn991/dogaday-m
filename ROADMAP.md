@@ -131,7 +131,7 @@ test ve gerçek cihaz kabulü tamamlanır.
 - [x] Konya çeşme kayıtlarının gerçek Supabase tablo/görünümünü doğrula
 - [x] Konya KOSKİ çeşmelerini `water_fountain` utility türüyle yayınla ve public API erişimini doğrula
 - [x] 81 il için kompakt veri üretimi (`assets/data/turkiye_research_places.json` ve 81 il kapsam testi)
-- [ ] Gerçek Pixabay sonuçlarını kontrollü içe aktar
+- [x] Gerçek fotoğraf sonuçlarını kontrollü içe aktar (Pixabay A/B-Q1/Q2 filtreleme ve veri modeli devrede; doğrulanmış EKOTABAN arşivi ve Wikimedia Commons entegre edildi)
 
 ## Faz 4 — Güvenlik ve üretim
 
@@ -140,7 +140,7 @@ test ve gerçek cihaz kabulü tamamlanır.
 - [x] Kapsamlı güvenlik denetimi ve P0 bulguların doğrulanması
 - [x] P0 Başvuru güvenlik sıkılaştırması (main_category, facilities JSONB, payload limitleri)
 - [x] Production migration geçmişi senkronizasyonu (supabase_migrations)
-- [ ] Yönetici MFA
+- [x] Yönetici MFA (Supabase TOTP challenge & enrollment, AAL2 kontrolü, admin panel 2FA ayarları)
 - [x] P1 Güvenlik sertleştirmesi (launchUrl şema kontrolü, app_user_roles ve audit_logs açık revoke) (`330415c`)
 - [x] Secret/release yapılandırması denetimi (`String.fromEnvironment`, `android/app/build.gradle.kts` release signing doğrulaması)
 - [x] Hata izleme, yedekleme ve kötüye kullanım planı (`docs/RELEASE_CHECKLIST.md`)

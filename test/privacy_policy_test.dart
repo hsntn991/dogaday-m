@@ -3,6 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('terms acceptance metadata records the policy version and UTC time', () {
+    final acceptedAt = DateTime.utc(2026, 10, 2, 12, 30);
+
+    expect(
+      AppLegalLinks.termsAcceptanceMetadata(acceptedAt),
+      equals(<String, dynamic>{
+        'terms_accepted_at': '2026-10-02T12:30:00.000Z',
+        'terms_version': AppLegalLinks.termsVersion,
+      }),
+    );
+  });
+
   testWidgets('privacy opens inside app and returns to caller', (tester) async {
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
@@ -19,6 +31,30 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Politikayı aç'), findsOneWidget);
+  });
+
+  testWidgets('terms opens in the same in-app document flow as privacy',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AppLegalLinks.openTermsOfService(context),
+            child: const Text('Koşulları aç'),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Koşulları aç'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kullanım Koşulları'), findsOneWidget);
+    expect(find.text('Doğadayım'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Koşulları aç'), findsOneWidget);
   });
   testWidgets('privacy remains readable at phone widths and large text',
       (tester) async {

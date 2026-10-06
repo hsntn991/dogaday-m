@@ -380,6 +380,8 @@ class AppPlaceHeroCard extends StatelessWidget {
     this.onSave,
     this.isSaved = false,
     this.showDistance = true,
+    this.decisionLabel,
+    this.decisionReason,
   });
 
   final Place place;
@@ -387,9 +389,12 @@ class AppPlaceHeroCard extends StatelessWidget {
   final VoidCallback? onSave;
   final bool isSaved;
   final bool showDistance;
+  final String? decisionLabel;
+  final String? decisionReason;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
     final description = place.description.trim().isEmpty
         ? place.kind
         : place.description.trim();
@@ -424,14 +429,16 @@ class AppPlaceHeroCard extends StatelessWidget {
                           radius: 0,
                           cacheWidth: 380,
                         ),
-                        Positioned(
-                          left: 6,
-                          top: 6,
-                          child: AppPlaceTrustBadge(
-                            place: place,
-                            compact: true,
+                        if (place.verificationStatus !=
+                            VerificationStatus.unverified)
+                          Positioned(
+                            left: 6,
+                            top: 6,
+                            child: AppPlaceTrustBadge(
+                              place: place,
+                              compact: true,
+                            ),
                           ),
-                        ),
                         Positioned(
                           right: 6,
                           top: 6,
@@ -446,7 +453,9 @@ class AppPlaceHeroCard extends StatelessWidget {
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.compact),
+                      padding: EdgeInsets.all(
+                        decisionReason == null ? AppSpacing.compact : 9,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -457,17 +466,61 @@ class AppPlaceHeroCard extends StatelessWidget {
                             style: AppTypography.headingOf(context)
                                 .copyWith(fontSize: AppFontSizes.body),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.metadataOf(context).copyWith(
-                              fontSize: AppFontSizes.caption,
-                              height: 1.25,
+                          const SizedBox(height: 3),
+                          if (decisionReason != null) ...[
+                            if (decisionLabel != null)
+                              Text(
+                                decisionLabel!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.labelOf(context).copyWith(
+                                  color: isDark
+                                      ? AppColors.darkPrimaryLight
+                                      : AppColors.primary,
+                                  fontSize: AppFontSizes.caption,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            const SizedBox(height: 2),
+                            Expanded(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.auto_awesome_outlined,
+                                    size: 13,
+                                    color: isDark
+                                        ? AppColors.darkPrimaryLight
+                                        : AppColors.primary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      decisionReason!,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTypography.metadataOf(context)
+                                          .copyWith(
+                                        fontSize: AppFontSizes.caption,
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const Spacer(),
+                          ] else
+                            Expanded(
+                              child: Text(
+                                description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.metadataOf(context).copyWith(
+                                  fontSize: AppFontSizes.caption,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ),
                           AppPlaceMetadataRow(
                             place: place,
                             showDistance: showDistance,
@@ -507,6 +560,7 @@ class AppMapPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
     final description = place.description.trim().isEmpty
         ? place.kind
         : place.description.trim();
@@ -535,14 +589,28 @@ class AppMapPreviewCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     AppPlaceThumbnail(place: place, cacheWidth: 200),
-                    Positioned(
-                      left: 4,
-                      top: 4,
-                      child: AppPlaceTrustBadge(
-                        place: place,
-                        compact: true,
+                    if (place.verificationStatus ==
+                        VerificationStatus.verified)
+                      Positioned(
+                        left: 4,
+                        top: 4,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.darkPrimarySoft
+                                : AppColors.primarySoft,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.verified_rounded,
+                            size: 11,
+                            color: isDark
+                                ? AppColors.darkPrimaryLight
+                                : AppColors.primary,
+                          ),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -683,21 +751,24 @@ class AppPlaceTrustBadge extends StatelessWidget {
     final (String label, IconData icon, Color color, Color bg) =
         switch (status) {
       VerificationStatus.verified => (
-          AppStrings.get('trust_verified'),
+          AppStrings.get(
+              compact ? 'trust_verified_compact' : 'trust_verified'),
           Icons.verified_rounded,
           isDark ? AppColors.darkPrimaryLight : AppColors.primary,
           isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
         ),
       VerificationStatus.community => (
-          AppStrings.get('trust_community'),
+          AppStrings.get(
+              compact ? 'trust_community_compact' : 'trust_community'),
           Icons.people_outline_rounded,
-          AppColors.categoryRoute,
+          AppColors.communityWarm,
           isDark
               ? AppColors.darkSurfaceMuted
-              : AppColors.categoryRoute.withValues(alpha: 0.12),
+              : AppColors.communityWarmSoft,
         ),
       VerificationStatus.unverified => (
-          AppStrings.get('trust_unverified'),
+          AppStrings.get(
+              compact ? 'trust_unverified_compact' : 'trust_unverified'),
           Icons.help_outline_rounded,
           isDark ? AppColors.darkTextSecondary : AppColors.textTertiary,
           isDark ? AppColors.darkSurface : AppColors.surfaceMuted,
@@ -722,12 +793,16 @@ class AppPlaceTrustBadge extends StatelessWidget {
         children: [
           Icon(icon, size: compact ? 11 : 13, color: color),
           const SizedBox(width: 3),
-          Text(
-            label,
-            style: AppTypography.labelOf(context).copyWith(
-              fontSize: AppFontSizes.caption,
-              color: color,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.labelOf(context).copyWith(
+                fontSize: AppFontSizes.caption,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1052,3 +1127,204 @@ class GlassIconButton extends StatelessWidget {
     return result;
   }
 }
+
+// ---------------------------------------------------------------------------
+// AppAuthGuard & _GuestAuthWallSheet — Misafir Kullanıcı Yetkilendirme Kalkanı
+// ---------------------------------------------------------------------------
+
+abstract final class AppAuthGuard {
+  @visibleForTesting
+  static bool? debugOverrideAuthenticated;
+
+  static bool get isAuthenticated {
+    if (debugOverrideAuthenticated != null) {
+      return debugOverrideAuthenticated!;
+    }
+    try {
+      return Supabase.instance.client.auth.currentUser != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool get isGuest => !isAuthenticated;
+
+  /// Kullanıcının oturum açmış olmasını denetler.
+  /// Eğer kullanıcı misafir ise, şık bir auth bottom sheet açarak işlemi durdurur ve false döner.
+  /// Kullanıcı oturum açmışsa doğrudan true döner.
+  static Future<bool> requireAuth(
+    BuildContext context, {
+    String? title,
+    String? message,
+    String? actionLabel,
+  }) async {
+    if (isAuthenticated) return true;
+
+    final didLogin = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) => _GuestAuthWallSheet(
+        title: title ?? AppStrings.get('guest_auth_title'),
+        message: message ?? AppStrings.get('guest_auth_message'),
+        actionLabel: actionLabel ?? AppStrings.get('guest_auth_btn_login'),
+      ),
+    );
+
+    return didLogin == true && isAuthenticated;
+  }
+}
+
+class _GuestAuthWallSheet extends StatelessWidget {
+  const _GuestAuthWallSheet({
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+  });
+
+  final String title;
+  final String message;
+  final String actionLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadii.hero),
+        ),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadow33,
+            blurRadius: 32,
+            offset: Offset(0, -6),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        14,
+        24,
+        MediaQuery.paddingOf(context).bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppColors.darkPrimarySoft
+                  : AppColors.primarySoft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.lock_person_rounded,
+              color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.heading,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.body,
+              color: textSecondary,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: FilledButton.icon(
+              onPressed: () async {
+                Navigator.pop(context, false);
+                await Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AuthScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.login_rounded, size: 20),
+              label: Text(
+                actionLabel,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.title,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor:
+                    isDark ? AppColors.darkPrimary : AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              style: TextButton.styleFrom(
+                foregroundColor: textSecondary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                ),
+              ),
+              child: Text(
+                AppStrings.get('guest_auth_btn_continue'),
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.body,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

@@ -39,6 +39,7 @@ part 'src/features/home.dart';
 part 'src/features/community_chat.dart';
 part 'src/features/goodness_movement.dart';
 part 'src/features/search_map.dart';
+part 'src/features/mobile_service.dart';
 part 'src/widgets/shared_widgets.dart';
 part 'src/widgets/design_system_widgets.dart';
 
@@ -81,8 +82,14 @@ Future<void> main() async {
 
   await UserPlacesController.load();
   await UserReviewsController.load();
+  await UserFavoritesController.load();
+  await UserProfileAvatarController.load();
+  await CommunityFacilityUpdatesController.load();
+  await CommunityPlacePhotosController.load();
+  await UserSocialAccountsController.load();
   await AppThemeController.load();
   await AppLocaleController.load();
+  await HomeWeatherLocationController.load();
   await OfflineMapTiles.initialize();
   AppStartupTimer.mark('controllers_ok');
 

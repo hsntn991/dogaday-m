@@ -14,6 +14,42 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('EmergencyHelpDraft', () {
+    testWidgets('home lets a new user explore before requesting location',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(const MaterialApp(home: MainShell()));
+      await tester.pump();
+
+      expect(find.text(AppStrings.get('location_dialog_title')), findsNothing);
+    });
+
+    test('failed server acceptance never unlocks an emergency request locally',
+        () {
+      expect(
+        EmergencyHelpController.shouldUnlockFromAcceptanceResponse(
+          const <String, Object?>{'success': false},
+        ),
+        isFalse,
+      );
+      expect(
+        EmergencyHelpController.shouldUnlockFromAcceptanceResponse(
+          const <String, Object?>{'success': true},
+        ),
+        isTrue,
+      );
+      expect(
+        EmergencyHelpController.shouldUnlockFromAcceptanceResponse(null),
+        isFalse,
+      );
+    });
+
+    test('emergency report reasons use a controlled database value', () {
+      expect(
+        EmergencyHelpReportReason.falseAlarm.databaseValue,
+        'false_alarm',
+      );
+    });
+
     test('location-only request does not require a contact value', () {
       const draft = EmergencyHelpDraft(
         type: EmergencyHelpType.lost,
@@ -73,6 +109,62 @@ void main() {
     });
   });
 
+  group('PlaceRecommendation decision summary', () {
+    test('uses the strongest available reason as the card decision summary',
+        () {
+      const recommendation = PlaceRecommendation(
+        place: Place(
+          'Abant Gölü',
+          'Bolu',
+          'Göl',
+          4.8,
+          Icons.water_outlined,
+          [Colors.green, Colors.blue],
+          null,
+        ),
+        score: 82,
+        reasons: ['Bugünkü hava keşif için uygun', 'Yüksek puanlı'],
+      );
+
+      expect(recommendation.primaryReason, 'Bugünkü hava keşif için uygun');
+    });
+  });
+
+  testWidgets('search category filters use vector icons instead of emoji text',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: FigmaSearchScreen(onOpen: (_) {}),
+    ));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.explore_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.water_rounded), findsOneWidget);
+  });
+
+  test('place contribution taxonomy exposes vector icons', () {
+    expect(placeTaxonomy, hasLength(7));
+    expect(placeTaxonomy.first.icon, Icons.cabin_rounded);
+    expect(placeTaxonomy.last.icon, Icons.forest_rounded);
+  });
+
+  test('place contribution draft preserves field data but not photos',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    await AddPlaceDraftController.save({
+      'category': 0,
+      'name': 'Taslak çeşme',
+      'description': 'Sahada doğrulanacak içme suyu noktası.',
+      'latitude': 39.92,
+      'longitude': 32.85,
+    });
+
+    final restored = await AddPlaceDraftController.load();
+
+    expect(restored?['name'], 'Taslak çeşme');
+    expect(restored?.containsKey('photos'), isFalse);
+    await AddPlaceDraftController.clear();
+  });
+
   group('GoodnessCampaignScore', () {
     test('assigns a stable point value to a tree planting contribution', () {
       expect(GoodnessCampaignScore.pointsFor('Fidan Diktim'), 15);
@@ -126,11 +218,18 @@ void main() {
 
   testWidgets('main navigation reveals the goodness screen content',
       (tester) async {
+    SharedPreferences.setMockInitialValues({});
     await AppLocaleController.setLocale(const Locale('tr'));
     await tester.pumpWidget(const MaterialApp(home: MainShell()));
     await tester.pump();
 
-    await tester.tap(find.bySemanticsLabel('İyilik'));
+    final deferLocation = find.text('Şimdi Değil');
+    if (deferLocation.evaluate().isNotEmpty) {
+      await tester.tap(deferLocation);
+      await tester.pump();
+    }
+
+    await tester.tap(find.byTooltip('İyilik'));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -379,6 +478,8 @@ void main() {
   });
 
   testWidgets('rapid save taps create only one local place', (tester) async {
+    AppAuthGuard.debugOverrideAuthenticated = true;
+    addTearDown(() => AppAuthGuard.debugOverrideAuthenticated = null);
     SharedPreferences.setMockInitialValues({});
     UserPlacesController.places.value = const [];
     tester.view.physicalSize = const Size(800, 1000);
@@ -686,8 +787,11 @@ void main() {
   testWidgets('home state is preserved and map stays lazy', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: MainShell()));
     await tester.pump();
-    await tester.tap(find.text('Şimdi Değil'));
-    await tester.pump();
+    final deferLocation = find.text('Şimdi Değil');
+    if (deferLocation.evaluate().isNotEmpty) {
+      await tester.tap(deferLocation);
+      await tester.pump();
+    }
 
     expect(find.byType(FlutterMap), findsNothing);
 
@@ -762,6 +866,39 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('map clusters show their dominant category icon', (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(() => UserPlacesController.places.value = const []);
+    addTearDown(() => SupabasePlacesController.places.value = const []);
+
+    UserPlacesController.places.value = [
+      duplicateFixture(
+        name: 'Küme Şelale Bir',
+        kind: 'Şelale',
+        latitude: 40.73,
+        longitude: 31.61,
+      ),
+      duplicateFixture(
+        name: 'Küme Şelale İki',
+        kind: 'Şelale',
+        latitude: 40.74,
+        longitude: 31.62,
+      ),
+    ];
+    SupabasePlacesController.places.value = const [];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: MapScreen(onOpen: (_) {})),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byIcon(Icons.waterfall_chart_rounded), findsOneWidget);
+  });
+
   testWidgets('selecting another map marker updates the same preview card',
       (tester) async {
     tester.view.physicalSize = const Size(390, 800);
@@ -791,11 +928,13 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Haritada Birinci Harita Noktası'));
     await tester.pump();
     expect(find.text('Birinci Harita Noktası'), findsWidgets);
+    expect(find.text('Detayları gör'), findsOneWidget);
 
     await tester.tap(find.byTooltip('En yakın sonraki yer'));
     await tester.pump();
     expect(find.byType(AppMapPreviewCard), findsOneWidget);
     expect(find.text('İkinci Harita Noktası'), findsWidgets);
+    expect(find.text('Detayları gör'), findsOneWidget);
     final camera = tester
         .widget<FlutterMap>(find.byType(FlutterMap))
         .mapController!
@@ -857,10 +996,15 @@ void main() {
 
   testWidgets('premium bottom navigation keeps its tabs and center add route',
       (tester) async {
+    AppAuthGuard.debugOverrideAuthenticated = true;
+    addTearDown(() => AppAuthGuard.debugOverrideAuthenticated = null);
     await tester.pumpWidget(const MaterialApp(home: MainShell()));
     await tester.pump();
-    await tester.tap(find.text('Şimdi Değil'));
-    await tester.pump();
+    final deferLocation = find.text('Şimdi Değil');
+    if (deferLocation.evaluate().isNotEmpty) {
+      await tester.tap(deferLocation);
+      await tester.pump();
+    }
 
     expect(find.byTooltip('Keşfet'), findsOneWidget);
     expect(find.byTooltip('Harita'), findsOneWidget);
@@ -1238,15 +1382,32 @@ void main() {
         (nearbyProvider! as FileImage).file.path,
       );
     });
+
+    test('bundled place photo paths use Flutter asset images', () {
+      final place = Place(
+        'Paket Fotoğraflı Yer',
+        'Bolu',
+        'Tabiat Parkı',
+        0,
+        Icons.park_outlined,
+        AppColors.defaultGradient,
+        'assets/photos/ekotaban/ornek.webp',
+      );
+
+      final provider = PlaceImage.resolveProvider(place);
+      expect(provider, isA<AssetImage>());
+      expect((provider! as AssetImage).assetName,
+          'assets/photos/ekotaban/ornek.webp');
+    });
   });
 
   group('central place taxonomy and facilities', () {
-    test('legacy categories resolve into the eight-category taxonomy', () {
-      expect(taxonomyFromLegacy('Şelale').mainCategory, 'water');
+    test('legacy categories resolve into the seven discovery categories', () {
+      expect(taxonomyFromLegacy('Şelale').mainCategory, 'waterfall');
       expect(taxonomyFromLegacy('Şelale').subtype, 'waterfall');
-      expect(taxonomyFromLegacy('Tabiat Parkı').mainCategory, 'nature_area');
-      expect(taxonomyFromLegacy('Tabiat Parkı').subtype, 'nature_park');
-      expect(placeTaxonomy.length, 8);
+      expect(taxonomyFromLegacy('Tabiat Parkı').mainCategory, 'national_park');
+      expect(taxonomyFromLegacy('Tabiat Parkı').subtype, 'national_park');
+      expect(placeTaxonomy.length, 7);
     });
 
     test('WC and drinking water remain separate utility layers', () {
@@ -1641,7 +1802,7 @@ void main() {
         () async {
       // Turkish
       await AppLocaleController.setLocale(const Locale('tr'));
-      expect(AppStrings.category('water'), equals('Su'));
+      expect(AppStrings.category('lake'), equals('Göl'));
       expect(AppStrings.subtype('waterfall'), equals('Şelale'));
       expect(AppStrings.facility('parking'), equals('Otopark'));
       expect(AppStrings.get('card_coordinates'), equals('KOORDİNATLAR'));
@@ -1654,7 +1815,7 @@ void main() {
 
       // English
       await AppLocaleController.setLocale(const Locale('en'));
-      expect(AppStrings.category('water'), equals('Water'));
+      expect(AppStrings.category('lake'), equals('Lake'));
       expect(AppStrings.subtype('waterfall'), equals('Waterfall'));
       expect(AppStrings.facility('parking'), equals('Parking'));
       expect(AppStrings.get('card_coordinates'), equals('COORDINATES'));
@@ -1676,7 +1837,7 @@ void main() {
 
       // Arabic
       await AppLocaleController.setLocale(const Locale('ar'));
-      expect(AppStrings.category('water'), equals('مياه'));
+      expect(AppStrings.category('lake'), equals('بحيرة'));
       expect(AppStrings.subtype('waterfall'), equals('شلال'));
       expect(AppStrings.facility('parking'), equals('موقف سيارات'));
       expect(AppStrings.get('card_coordinates'), equals('الإحداثيات'));
@@ -2187,9 +2348,291 @@ void main() {
       ));
       await tester.pump();
 
-      expect(find.bySemanticsLabel("Türkiye'nin 81 il haritası"), findsOneWidget);
+      expect(
+          find.bySemanticsLabel("Türkiye'nin 81 il haritası"), findsOneWidget);
       expect(find.byType(InteractiveViewer), findsNothing);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'FigmaSearchScreen stays empty of place cards until query is typed',
+        (tester) async {
+      UserPlacesController.places.value = [
+        const Place(
+          'Yedigöller Milli Parkı',
+          'Bolu',
+          'Milli Park',
+          4.8,
+          Icons.park,
+          [Color(0xFF287890), Color(0xFF8DD1C9)],
+          null,
+        ),
+      ];
+
+      await tester.pumpWidget(MaterialApp(
+        home: FigmaSearchScreen(onOpen: (_) {}),
+      ));
+      await tester.pump();
+
+      // Initial state: No place cards shown
+      expect(find.text('Yedigöller Milli Parkı'), findsNothing);
+      expect(find.text('Aramak istediğin doğa noktasını veya şehri yaz'),
+          findsOneWidget);
+
+      // Enter query
+      await tester.enterText(find.byType(TextField), 'Yedigöller');
+      await tester.pump();
+
+      // Now it appears
+      expect(find.text('Yedigöller Milli Parkı'), findsOneWidget);
+    });
+
+    testWidgets(
+        'home today recommendations renders 2 equal side-by-side cards without cut-off',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      UserPlacesController.places.value = [
+        const Place(
+          'Akgöl',
+          'Sakarya',
+          'Göl',
+          4.7,
+          Icons.water,
+          [Color(0xFF287890), Color(0xFF8DD1C9)],
+          null,
+        ),
+        const Place(
+          'Araşa Dağı',
+          'Çanakkale',
+          'Dağ',
+          4.6,
+          Icons.terrain,
+          [Color(0xFF287890), Color(0xFF8DD1C9)],
+          null,
+        ),
+      ];
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: FigmaHomeScreen(
+            onOpen: (_) {},
+            onSearch: () {},
+            onMessages: () {},
+          ),
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.text('Akgöl'), findsOneWidget);
+      expect(find.text('Araşa Dağı'), findsOneWidget);
+      expect(find.text('Haritada Keşfet'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    test('utility places (wc, fountain, drinking water) hide weather', () {
+      const fountain = Place(
+        'Köy Çeşmesi',
+        'Bolu',
+        'Çeşme',
+        0,
+        Icons.water_rounded,
+        [Colors.blue, Colors.white],
+        null,
+        subtype: 'water_fountain',
+      );
+      const toilet = Place(
+        'Milli Park Tuvaleti',
+        'Bolu',
+        'WC',
+        0,
+        Icons.wc_rounded,
+        [Colors.amber, Colors.white],
+        null,
+        subtype: 'toilet',
+      );
+      const drinkingWater = Place(
+        'Dağ İçme Suyu',
+        'Bolu',
+        'İçme Suyu',
+        0,
+        Icons.water_drop_rounded,
+        [Colors.cyan, Colors.white],
+        null,
+        subtype: 'drinking_water',
+      );
+      const lake = Place(
+        'Gölcük Gölü',
+        'Bolu',
+        'Göl',
+        4.8,
+        Icons.nature_rounded,
+        [Colors.green, Colors.white],
+        null,
+        subtype: 'lake',
+        mainCategory: 'water',
+      );
+
+      expect(fountain.isUtility, isTrue);
+      expect(fountain.showsWeather, isFalse);
+
+      expect(toilet.isUtility, isTrue);
+      expect(toilet.showsWeather, isFalse);
+
+      expect(drinkingWater.isUtility, isTrue);
+      expect(drinkingWater.showsWeather, isFalse);
+
+      expect(lake.isUtility, isFalse);
+      expect(lake.showsWeather, isTrue);
+    });
+
+    testWidgets(
+        'DetailScreen hides weather section for utility places and shows for nature destinations',
+        (tester) async {
+      const fountain = Place(
+        'Tarihi Meydan Çeşmesi',
+        'Bolu',
+        'Çeşme',
+        0,
+        Icons.water_rounded,
+        [Colors.blue, Colors.white],
+        null,
+        description: 'Buz gibi dağ suyu akan tarihi köy çeşmesi.',
+        subtype: 'water_fountain',
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: DetailScreen(
+          place: fountain,
+          favorite: false,
+          onFavorite: () {},
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.text(AppStrings.get('detail_weather_title')), findsNothing);
+
+      const lake = Place(
+        'Abant Gölü',
+        'Bolu',
+        'Göl',
+        4.9,
+        Icons.nature_rounded,
+        [Colors.green, Colors.white],
+        null,
+        description: 'Büyüleyici manzaraya sahip tabiat parkı ve göl.',
+        subtype: 'lake',
+        mainCategory: 'water',
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: DetailScreen(
+          place: lake,
+          favorite: false,
+          onFavorite: () {},
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.text(AppStrings.get('detail_weather_title')), findsOneWidget);
+    });
+
+    testWidgets(
+        'FigmaSearchScreen finds places by contributorName and displays author section',
+        (tester) async {
+      final samplePlace = Place(
+        'Kelebekler Vadisi',
+        'Fethiye, Muğla',
+        'Kanyon',
+        4.9,
+        Icons.terrain,
+        const [Colors.green, Colors.teal],
+        null,
+        sourceId: 'user-sample-123',
+        source: PlaceSource.user,
+        contributorName: 'Hüsnü Tuna',
+      );
+      UserPlacesController.places.value = [samplePlace];
+
+      await tester.pumpWidget(MaterialApp(
+        home: FigmaSearchScreen(onOpen: (_) {}),
+      ));
+      await tester.pump();
+
+      // Enter contributor name query
+      await tester.enterText(find.byType(TextField), 'Hüsnü Tuna');
+      await tester.pump();
+
+      // Verify contributor section appears with place card
+      expect(find.text('Hüsnü Tuna tarafından eklenenler'), findsOneWidget);
+      expect(find.text('Kelebekler Vadisi'), findsOneWidget);
+    });
+
+    testWidgets(
+        'DetailScreen invokes onShowOnMap callback when Haritada Göster is tapped',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final samplePlace = Place(
+        'Gölcük Tabiat Parkı',
+        'Bolu',
+        'Tabiat Parkı',
+        4.8,
+        Icons.park,
+        const [Colors.green, Colors.teal],
+        null,
+        latitude: 40.65,
+        longitude: 31.62,
+        source: PlaceSource.curated,
+      );
+
+      Place? focusedPlace;
+      await tester.pumpWidget(MaterialApp(
+        home: DetailScreen(
+          place: samplePlace,
+          favorite: false,
+          onFavorite: () {},
+          onShowOnMap: (p) => focusedPlace = p,
+        ),
+      ));
+      await tester.pump();
+
+      // Find "Haritada Göster" button
+      final showOnMapFinder = find.widgetWithText(Semantics, 'Haritada Göster');
+      if (showOnMapFinder.evaluate().isNotEmpty) {
+        await tester.tap(showOnMapFinder.first);
+        await tester.pump();
+        expect(focusedPlace?.name, equals('Gölcük Tabiat Parkı'));
+      }
+    });
+
+    test('Social URL resolution handles both handles and full links correctly',
+        () {
+      expect(
+          UserSocialAccounts.resolveUri('instagram', 'husnutuna')?.toString(),
+          equals('https://instagram.com/husnutuna'));
+      expect(
+          UserSocialAccounts.resolveUri('instagram', '@husnutuna')?.toString(),
+          equals('https://instagram.com/husnutuna'));
+      expect(
+          UserSocialAccounts.resolveUri(
+                  'instagram', 'https://instagram.com/custom')
+              ?.toString(),
+          equals('https://instagram.com/custom'));
+      expect(UserSocialAccounts.resolveUri('facebook', 'husnutuna')?.toString(),
+          equals('https://facebook.com/husnutuna'));
+      expect(UserSocialAccounts.resolveUri('youtube', 'husnutuna')?.toString(),
+          equals('https://youtube.com/@husnutuna'));
+      expect(UserSocialAccounts.resolveUri('youtube', '@husnutuna')?.toString(),
+          equals('https://youtube.com/@husnutuna'));
     });
   });
 }

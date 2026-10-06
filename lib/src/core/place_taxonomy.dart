@@ -17,6 +17,7 @@ class PlaceCategoryDefinition {
     required this.key,
     required this.label,
     required this.emoji,
+    this.icon = Icons.nature_rounded,
     required this.foreground,
     required this.background,
     required this.subtypes,
@@ -25,6 +26,7 @@ class PlaceCategoryDefinition {
   final String key;
   final String label;
   final String emoji;
+  final IconData icon;
   final Color foreground;
   final Color background;
   final List<PlaceSubtypeDefinition> subtypes;
@@ -37,117 +39,90 @@ class PlaceCategoryDefinition {
 
 const placeTaxonomy = <PlaceCategoryDefinition>[
   PlaceCategoryDefinition(
-    key: 'water',
-    label: 'Su',
-    emoji: '💧',
-    foreground: AppColors.categoryWater,
-    background: AppColors.categoryWaterSoft,
-    subtypes: [
-      PlaceSubtypeDefinition('lake', 'Göl'),
-      PlaceSubtypeDefinition('waterfall', 'Şelale'),
-      PlaceSubtypeDefinition('stream', 'Dere'),
-      PlaceSubtypeDefinition('river', 'Nehir'),
-      PlaceSubtypeDefinition('spring', 'Pınar/Kaynak'),
-      PlaceSubtypeDefinition('natural_pool', 'Doğal Havuz'),
-    ],
-  ),
-  PlaceCategoryDefinition(
-    key: 'mountain_terrain',
-    label: 'Dağ & Arazi',
-    emoji: '⛰️',
-    foreground: AppColors.categoryMountain,
-    background: AppColors.categoryMountainSoft,
-    subtypes: [
-      PlaceSubtypeDefinition('mountain', 'Dağ'),
-      PlaceSubtypeDefinition('peak', 'Zirve'),
-      PlaceSubtypeDefinition('hill', 'Tepe'),
-      PlaceSubtypeDefinition('plateau', 'Yayla'),
-      PlaceSubtypeDefinition('plateau_landform', 'Plato'),
-      PlaceSubtypeDefinition('valley', 'Vadi'),
-    ],
-  ),
-  PlaceCategoryDefinition(
-    key: 'natural_formation',
-    label: 'Doğal Oluşum',
-    emoji: '🪨',
-    foreground: AppColors.categoryFormation,
-    background: AppColors.categoryFormationSoft,
-    subtypes: [
-      PlaceSubtypeDefinition('canyon', 'Kanyon'),
-      PlaceSubtypeDefinition('cave', 'Mağara'),
-      PlaceSubtypeDefinition('sinkhole', 'Obruk'),
-      PlaceSubtypeDefinition('travertine', 'Traverten'),
-      PlaceSubtypeDefinition('fairy_chimney', 'Peribacası'),
-      PlaceSubtypeDefinition('natural_arch', 'Doğal Kemer'),
-    ],
-  ),
-  PlaceCategoryDefinition(
-    key: 'nature_area',
-    label: 'Doğa Alanı',
-    emoji: '🌲',
-    foreground: AppColors.categoryNature,
-    background: AppColors.categoryNatureSoft,
-    subtypes: [
-      PlaceSubtypeDefinition('forest', 'Orman'),
-      PlaceSubtypeDefinition('national_park', 'Milli Park'),
-      PlaceSubtypeDefinition('nature_park', 'Tabiat Parkı'),
-      PlaceSubtypeDefinition('wetland', 'Sulak Alan'),
-      PlaceSubtypeDefinition('protected_area', 'Korunan Alan'),
-      PlaceSubtypeDefinition('picnic_area', 'Mesire/Piknik Alanı'),
-    ],
-  ),
-  PlaceCategoryDefinition(
-    key: 'camp_caravan',
-    label: 'Kamp & Karavan',
-    emoji: '🏕️',
+    key: 'camp',
+    label: 'Kamp',
+    emoji: 'K',
+    icon: Icons.cabin_rounded,
     foreground: AppColors.categoryCamp,
     background: AppColors.categoryCampSoft,
-    subtypes: [
-      PlaceSubtypeDefinition('camp_site', 'Kamp Alanı'),
-      PlaceSubtypeDefinition('caravan_site', 'Karavan Alanı'),
-    ],
+    subtypes: [PlaceSubtypeDefinition('camp', 'Kamp')],
   ),
   PlaceCategoryDefinition(
-    key: 'route_activity',
-    label: 'Rota & Aktivite',
-    emoji: '🥾',
-    foreground: AppColors.categoryRoute,
-    background: AppColors.categoryRouteSoft,
-    subtypes: [
-      PlaceSubtypeDefinition('hiking', 'Yürüyüş'),
-      PlaceSubtypeDefinition('trekking', 'Trekking'),
-      PlaceSubtypeDefinition('cycling', 'Bisiklet'),
-      PlaceSubtypeDefinition('climbing', 'Tırmanış'),
-      PlaceSubtypeDefinition('canoe', 'Kano'),
-    ],
+    key: 'caravan',
+    label: 'Karavan',
+    emoji: 'K',
+    icon: Icons.rv_hookup_rounded,
+    foreground: AppColors.categoryCamp,
+    background: AppColors.categoryCampSoft,
+    subtypes: [PlaceSubtypeDefinition('caravan', 'Karavan')],
   ),
   PlaceCategoryDefinition(
-    key: 'discovery_point',
-    label: 'Keşif Noktası',
-    emoji: '🔭',
-    foreground: AppColors.categoryDiscovery,
-    background: AppColors.categoryDiscoverySoft,
-    subtypes: [
-      PlaceSubtypeDefinition('viewpoint', 'Seyir Noktası'),
-      PlaceSubtypeDefinition('sunset_viewpoint', 'Gün Batımı'),
-      PlaceSubtypeDefinition('photo_spot', 'Fotoğraf Noktası'),
-      PlaceSubtypeDefinition('stargazing', 'Yıldız Gözlem'),
-    ],
+    key: 'lake',
+    label: 'Göl',
+    emoji: 'G',
+    icon: Icons.water_rounded,
+    foreground: AppColors.categoryWater,
+    background: AppColors.categoryWaterSoft,
+    subtypes: [PlaceSubtypeDefinition('lake', 'Göl')],
   ),
   PlaceCategoryDefinition(
-    key: 'wildlife',
-    label: 'Yaban Hayatı',
-    emoji: '🦅',
-    foreground: AppColors.categoryWildlife,
-    background: AppColors.categoryWildlifeSoft,
-    subtypes: [
-      PlaceSubtypeDefinition('birdwatching', 'Kuş Gözlem'),
-      PlaceSubtypeDefinition('wildlife_observation', 'Yaban Hayatı Gözlem'),
-      PlaceSubtypeDefinition('endemic_flora', 'Endemik Bitki'),
-      PlaceSubtypeDefinition('monument_tree', 'Anıt Ağaç'),
-    ],
+    key: 'waterfall',
+    label: 'Şelale',
+    emoji: 'Ş',
+    icon: Icons.waterfall_chart_rounded,
+    foreground: AppColors.categoryWater,
+    background: AppColors.categoryWaterSoft,
+    subtypes: [PlaceSubtypeDefinition('waterfall', 'Şelale')],
+  ),
+  PlaceCategoryDefinition(
+    key: 'canyon_valley',
+    label: 'Kanyon & Vadi',
+    emoji: 'K',
+    icon: Icons.terrain_rounded,
+    foreground: AppColors.categoryFormation,
+    background: AppColors.categoryFormationSoft,
+    subtypes: [PlaceSubtypeDefinition('canyon_valley', 'Kanyon & Vadi')],
+  ),
+  PlaceCategoryDefinition(
+    key: 'cave',
+    label: 'Mağara',
+    emoji: 'M',
+    icon: Icons.landscape_rounded,
+    foreground: AppColors.categoryFormation,
+    background: AppColors.categoryFormationSoft,
+    subtypes: [PlaceSubtypeDefinition('cave', 'Mağara')],
+  ),
+  PlaceCategoryDefinition(
+    key: 'national_park',
+    label: 'Millî / Doğa Parkı',
+    emoji: 'P',
+    icon: Icons.forest_rounded,
+    foreground: AppColors.categoryNature,
+    background: AppColors.categoryNatureSoft,
+    subtypes: [PlaceSubtypeDefinition('national_park', 'Millî / Doğa Parkı')],
   ),
 ];
+
+const localServiceCategory = PlaceCategoryDefinition(
+  key: 'local_service',
+  label: 'Mobil Servis',
+  emoji: '🛠️',
+  icon: Icons.handyman_rounded,
+  foreground: Color(0xFFD97706),
+  background: Color(0xFFFEF3C7),
+  subtypes: [
+    PlaceSubtypeDefinition('service_roadside', 'Çekici / Yol Yardım'),
+    PlaceSubtypeDefinition('service_maintenance', 'Yıllık Bakım'),
+    PlaceSubtypeDefinition('service_gas', 'Gaz Tesisatı'),
+    PlaceSubtypeDefinition('service_hvac', 'Isıtma & Soğutma'),
+    PlaceSubtypeDefinition('service_electric', 'Elektrik & Enerji'),
+    PlaceSubtypeDefinition('service_plumbing', 'Su & Tesisat'),
+    PlaceSubtypeDefinition('service_bodywork', 'Nem & Gövde'),
+    PlaceSubtypeDefinition('service_chassis_brakes', 'Şasi & Fren'),
+    PlaceSubtypeDefinition('service_parts', 'Montaj & Parça'),
+    PlaceSubtypeDefinition('service_inspection', 'Muayene'),
+  ],
+);
 
 const utilitySubtypes = <PlaceSubtypeDefinition>[
   PlaceSubtypeDefinition('toilet', 'WC'),
@@ -164,7 +139,7 @@ const utilitySubtypes = <PlaceSubtypeDefinition>[
     return (mainCategory: null, subtype: 'toilet');
   }
   if (normalized.contains('selale')) {
-    return (mainCategory: 'water', subtype: 'waterfall');
+    return (mainCategory: 'waterfall', subtype: 'waterfall');
   }
   if (normalized.contains('cesme') || normalized.contains('hayrat')) {
     return (mainCategory: null, subtype: 'water_fountain');
@@ -175,53 +150,132 @@ const utilitySubtypes = <PlaceSubtypeDefinition>[
     return (mainCategory: 'water', subtype: 'spring');
   }
   if (normalized.contains('gol') || normalized.contains('golet')) {
-    return (mainCategory: 'water', subtype: 'lake');
+    return (mainCategory: 'lake', subtype: 'lake');
   }
-  if (normalized.contains('kanyon')) {
-    return (mainCategory: 'natural_formation', subtype: 'canyon');
+  if (normalized.contains('kanyon') || normalized.contains('vadi')) {
+    return (mainCategory: 'canyon_valley', subtype: 'canyon_valley');
   }
   if (normalized.contains('magara')) {
-    return (mainCategory: 'natural_formation', subtype: 'cave');
+    return (mainCategory: 'cave', subtype: 'cave');
   }
-  if (normalized.contains('milli park')) {
-    return (mainCategory: 'nature_area', subtype: 'national_park');
-  }
-  if (normalized.contains('tabiat park')) {
-    return (mainCategory: 'nature_area', subtype: 'nature_park');
-  }
-  if (normalized.contains('piknik') || normalized.contains('mesire')) {
-    return (mainCategory: 'nature_area', subtype: 'picnic_area');
+  if (normalized.contains('milli park') ||
+      normalized.contains('tabiat park') ||
+      normalized.contains('doga park')) {
+    return (mainCategory: 'national_park', subtype: 'national_park');
   }
   if (normalized.contains('karavan')) {
-    return (mainCategory: 'camp_caravan', subtype: 'caravan_site');
+    return (mainCategory: 'caravan', subtype: 'caravan');
   }
   if (normalized.contains('kamp')) {
-    return (mainCategory: 'camp_caravan', subtype: 'camp_site');
+    return (mainCategory: 'camp', subtype: 'camp');
   }
-  if (normalized.contains('yuruyus') || normalized.contains('rota')) {
-    return (mainCategory: 'route_activity', subtype: 'hiking');
+  if (normalized.contains('cekici') ||
+      normalized.contains('yol yardim') ||
+      normalized.contains('kurtarici') ||
+      normalized.contains('oto kurtarma')) {
+    return (mainCategory: 'local_service', subtype: 'service_roadside');
   }
-  if (normalized.contains('yayla')) {
-    return (mainCategory: 'mountain_terrain', subtype: 'plateau');
+  if (normalized.contains('yillik bakim') ||
+      normalized.contains('periyodik bakim') ||
+      normalized.contains('karavan bakim')) {
+    return (mainCategory: 'local_service', subtype: 'service_maintenance');
   }
-  if (normalized.contains('seyir') || normalized.contains('manzara')) {
-    return (mainCategory: 'discovery_point', subtype: 'viewpoint');
+  if (normalized.contains('gaz tesisat') ||
+      normalized.contains('tup') ||
+      normalized.contains('lpg')) {
+    return (mainCategory: 'local_service', subtype: 'service_gas');
+  }
+  if (normalized.contains('isitma') ||
+      normalized.contains('sogutma') ||
+      normalized.contains('klima') ||
+      normalized.contains('webasto')) {
+    return (mainCategory: 'local_service', subtype: 'service_hvac');
+  }
+  if (normalized.contains('elektrik') ||
+      normalized.contains('enerji') ||
+      normalized.contains('aku') ||
+      normalized.contains('solar') ||
+      normalized.contains('gunes panel')) {
+    return (mainCategory: 'local_service', subtype: 'service_electric');
+  }
+  if (normalized.contains('su tesisat') ||
+      normalized.contains('hidrofor') ||
+      normalized.contains('su pompasi') ||
+      normalized.contains('tesisat')) {
+    return (mainCategory: 'local_service', subtype: 'service_plumbing');
+  }
+  if (normalized.contains('nem') ||
+      normalized.contains('govde') ||
+      normalized.contains('yalitim') ||
+      normalized.contains('kaporta')) {
+    return (mainCategory: 'local_service', subtype: 'service_bodywork');
+  }
+  if (normalized.contains('sasi') ||
+      normalized.contains('fren') ||
+      normalized.contains('lastik') ||
+      normalized.contains('balata')) {
+    return (mainCategory: 'local_service', subtype: 'service_chassis_brakes');
+  }
+  if (normalized.contains('montaj') ||
+      normalized.contains('yedek parca') ||
+      normalized.contains('parca')) {
+    return (mainCategory: 'local_service', subtype: 'service_parts');
+  }
+  if (normalized.contains('muayene') ||
+      normalized.contains('ekspertiz') ||
+      normalized.contains('vize')) {
+    return (mainCategory: 'local_service', subtype: 'service_inspection');
+  }
+  if (normalized.contains('isletme') ||
+      normalized.contains('hizmet') ||
+      normalized.contains('tamir') ||
+      normalized.contains('kaynak') ||
+      normalized.contains('ekmek') ||
+      normalized.contains('firin') ||
+      normalized.contains('camasir') ||
+      normalized.contains('hamam') ||
+      normalized.contains('servis')) {
+    return (mainCategory: 'local_service', subtype: 'local_service');
   }
   return (mainCategory: null, subtype: null);
 }
 
 PlaceCategoryDefinition? placeCategoryByKey(String? key) {
   if (key == null) return null;
+  if (key == 'local_service') return localServiceCategory;
   for (final category in placeTaxonomy) {
     if (category.key == key) return category;
   }
   return null;
 }
 
+IconData iconForCategoryKey(String? key) {
+  if (key == null) return Icons.place_rounded;
+  if (key == 'toilet') return Icons.wc_rounded;
+  if (key == 'drinking_water') return Icons.water_drop_rounded;
+  if (key == 'water_fountain') return Icons.water_rounded;
+  if (key == 'all') return Icons.explore_rounded;
+  if (key == 'local_service') return Icons.handyman_rounded;
+  if (key == 'service_roadside') return Icons.local_shipping_rounded;
+  if (key == 'service_maintenance') return Icons.airport_shuttle_rounded;
+  if (key == 'service_gas') return Icons.local_fire_department_rounded;
+  if (key == 'service_hvac') return Icons.device_thermostat_rounded;
+  if (key == 'service_electric') return Icons.bolt_rounded;
+  if (key == 'service_plumbing') return Icons.shower_rounded;
+  if (key == 'service_bodywork') return Icons.water_drop_rounded;
+  if (key == 'service_chassis_brakes') return Icons.tire_repair_rounded;
+  if (key == 'service_parts') return Icons.settings_rounded;
+  if (key == 'service_inspection') return Icons.fact_check_rounded;
+  return placeCategoryByKey(key)?.icon ?? Icons.place_rounded;
+}
+
 PlaceSubtypeDefinition? placeSubtypeByKey(String? key) {
   if (key == null) return null;
   for (final utility in utilitySubtypes) {
     if (utility.key == key) return utility;
+  }
+  for (final subtype in localServiceCategory.subtypes) {
+    if (subtype.key == key) return subtype;
   }
   for (final category in placeTaxonomy) {
     for (final subtype in category.subtypes) {
@@ -260,6 +314,100 @@ bool isUtilitySubtype(String? subtype) =>
     subtype == 'toilet' ||
     subtype == 'drinking_water' ||
     subtype == 'water_fountain';
+
+/// Doğa keşif haritasına uygun olmayan kentsel, idari, sokak/cadde, cami ve sınır eklerini tespit eder.
+bool isNonNatureCandidateName(
+  String name, {
+  String? subtype,
+  String? mainCategory,
+}) {
+  final normalizedName = AddPlaceQualityService.normalizeName(name);
+  final normalizedSubtype = AddPlaceQualityService.normalizeName(subtype ?? '');
+
+  // Su deposu/teras tankı gibi altyapı tesisleri bir doğa keşif noktası
+  // değildir. Bu filtre, veritabanına farklı OSM adlarıyla gelmiş kayıtları
+  // da kullanıcıya gösterilmeden önce tek yerde eler.
+  const waterInfrastructureSubtypes = <String>{
+    'water tank',
+    'water tower',
+    'storage tank',
+    'man made water tank',
+    'man made water tower',
+    'covered reservoir',
+    'water works',
+  };
+  if (waterInfrastructureSubtypes.contains(normalizedSubtype) ||
+      normalizedName.contains('su deposu') ||
+      normalizedName.contains('icme suyu deposu') ||
+      normalizedName.contains('water tank') ||
+      normalizedName.contains('water tower') ||
+      normalizedName.contains('su kulesi') ||
+      normalizedName.contains('terfi merkezi') ||
+      normalizedName.contains('su aritma tesisi')) {
+    return true;
+  }
+
+  if (mainCategory == 'local_service' ||
+      subtype == 'local_service' ||
+      (subtype != null && subtype.startsWith('service_'))) {
+    return false;
+  }
+  final lower = name.toLowerCase().trim();
+  if (lower.isEmpty) return false;
+
+  // 1. Sokak, cadde, bulvar, kümeevleri vb. kentsel yol adlandırmaları
+  if (lower.contains('sokağı') ||
+      lower.contains('sokak') ||
+      lower.contains('sok.') ||
+      lower.contains('caddesi') ||
+      lower.contains('cadde') ||
+      lower.contains('cad.') ||
+      lower.contains('bulvarı') ||
+      lower.contains('bulvar') ||
+      lower.contains('kümeevleri') ||
+      lower.contains('küme evleri') ||
+      lower.contains('kume evleri')) {
+    return true;
+  }
+
+  // 2. İdari, kadastro veya mahalle sınırları
+  if (lower.contains('mahalle sınırı') ||
+      lower.contains('mahallesiniri') ||
+      lower.contains('köy sınırı') ||
+      lower.contains('ilçe sınırı') ||
+      lower.contains('sınırı') ||
+      lower.contains('mevkii sınırı')) {
+    return true;
+  }
+
+  // 3. İbadethane ve mezarlıklar (Doğa oluşumu değildir)
+  if (lower.contains('camii') ||
+      lower.contains('cami') ||
+      lower.contains('mescidi') ||
+      lower.contains('mescit') ||
+      lower.contains('mezarlığı') ||
+      lower.contains('mezarlık')) {
+    return true;
+  }
+
+  // 4. "Obruk" ile karışan yerleşim adları:
+  // Karstik jeolojik obruk olmayan mahalle, köy ve kümeevleri yerleşimleri elenir.
+  final isSinkhole = subtype == 'sinkhole' || mainCategory == 'canyon_valley';
+  if (isSinkhole || lower.contains('obruk')) {
+    if (lower.startsWith('yukarı obruk') ||
+        lower.startsWith('aşağı obruk') ||
+        lower.startsWith('orta obruk') ||
+        lower.contains('obruk mahallesi') ||
+        lower.contains('obruk köyü') ||
+        lower == 'yukarı obruk' ||
+        lower == 'aşağı obruk' ||
+        lower == 'obruk') {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 const facilityLabels = <String, String>{
   'toilets': 'Tuvalet',

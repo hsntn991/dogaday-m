@@ -163,18 +163,21 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // A. Storage temizliği: place-submissions bucket'ındaki tüm kullanıcı dosyalarını
+    // A. Storage temizliği: kullanıcıya ait özel bucket'lardaki tüm dosyaları
     // iç içe klasör derinliğinden bağımsız ve sayfalama sınırlarına takılmadan tespit et ve sil.
     // KRİTİK GÜVENLİK KURALI: Storage temizliği eksiksiz tamamlanmadan auth.admin.deleteUser ÇALIŞMAMALIDIR.
     try {
-      const filesToDelete = await collectAllFilePaths(
-        adminClient,
-        "place-submissions",
-        userId,
-      );
+      const privateUserBuckets = ["place-submissions", "community-photos"];
+      for (const bucket of privateUserBuckets) {
+        const filesToDelete = await collectAllFilePaths(
+          adminClient,
+          bucket,
+          userId,
+        );
 
-      if (filesToDelete.length > 0) {
-        await deleteAllFiles(adminClient, "place-submissions", filesToDelete);
+        if (filesToDelete.length > 0) {
+          await deleteAllFiles(adminClient, bucket, filesToDelete);
+        }
       }
     } catch (storageError) {
       console.error(

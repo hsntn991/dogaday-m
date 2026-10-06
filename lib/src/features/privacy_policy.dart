@@ -13,7 +13,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           '• Kullanıcının izin vermesi halinde konum bilgisi\n'
           '• Kullanıcı tarafından uygulamaya eklenen yerler ve içerikler\n'
           '• Kullanıcı tarafından yüklenen fotoğraflar\n'
-          '• Favoriler, değerlendirmeler ve uygulama içindeki kullanıcı tercihleri\n'
+          '• Favoriler, değerlendirmeler, yardım talebi tercihleri ve uygulama içindeki kullanıcı tercihleri\n'
           '• Uygulamanın çalışması için gerekli teknik veriler'
     ),
     (
@@ -31,7 +31,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
     ),
     (
       '5. Üçüncü Taraf Hizmetler',
-      "Doğadayım'ın çalışması için harita, kimlik doğrulama, veri saklama ve diğer teknik hizmetler sağlayan üçüncü taraf servislerden yararlanılabilir. Bu hizmetler kendi gizlilik politikalarına tabi olabilir."
+      "Doğadayım; hesap, veri ve dosya saklama için Supabase; harita ve coğrafi arama için OpenStreetMap, Nominatim ve Overpass; hava bilgisi için Open-Meteo; bazı örnek görseller için Unsplash hizmetlerinden yararlanabilir. Bu servisler, ilgili özelliği sunmak için gerekli teknik istekleri ve IP adresi gibi bağlantı verilerini kendi gizlilik politikalarına göre işleyebilir."
     ),
     (
       '6. Verilerin Güvenliği',
@@ -40,7 +40,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
     (
       '7. Veri Saklama ve Silme',
       'Kişisel bilgiler yalnızca uygulamanın çalışması ve ilgili hizmetlerin sunulması için gerekli olduğu sürece veya yasal yükümlülüklerin gerektirdiği süre boyunca saklanır.\n\n'
-          'Kullanıcılar hesaplarının ve hesaplarıyla ilişkili kişisel verilerin silinmesini talep edebilir. Hesap silme özelliği ve ilgili başvuru yöntemleri Doğadayım üzerinden kullanıcılara sunulur.'
+          'Kullanıcılar hesaplarının ve hesaplarıyla ilişkili kişisel verilerin silinmesini uygulama içindeki Profil bölümünden başlatabilir. Uygulamaya erişemeyen kullanıcılar, hesap silme sayfasından silme talebi gönderebilir: dogadayim.github.io/dogadayim-privacy/delete-account.html'
     ),
     (
       '8. Çocukların Gizliliği',
@@ -58,9 +58,83 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _LegalDocumentScreen(
+      title: 'Gizlilik Politikası',
+      updatedAt: '7 Eylül 2026',
+      introduction:
+          "Doğadayım, kullanıcıların Türkiye'deki doğal alanları, su kaynaklarını, kamp alanlarını, yürüyüş rotalarını ve diğer doğa noktalarını keşfetmelerine yardımcı olmak amacıyla geliştirilen bir mobil uygulamadır.",
+      sections: sections,
+    );
+  }
+}
+
+class TermsOfServiceScreen extends StatelessWidget {
+  const TermsOfServiceScreen({super.key});
+
+  static const sections = <(String, String)>[
+    (
+      '1. Hizmetin kullanımı',
+      'Doğadayım; doğal alanları, yürüyüş rotalarını, kamp alanlarını ve ilgili saha bilgilerini keşfetmeyi kolaylaştırır. Uygulamadaki bilgiler değişebilir; hava durumu, yol, su kaynağı, erişim ve güvenlik koşullarını ziyaret öncesinde resmî kaynaklardan ve yerel yetkililerden ayrıca doğrulamanız gerekir.',
+    ),
+    (
+      '2. Güvenli doğa etkinliği',
+      'Kendi güvenliğinizden siz sorumlusunuz. Hava koşulları, yangın yasakları, özel mülkiyet, korunan alan kuralları ve yerel talimatlara uyun. Tehlike veya acil durumlarda Doğadayım yerine bulunduğunuz bölgedeki yetkili acil yardım numarasını arayın.',
+    ),
+    (
+      '3. Kullanıcı katkıları',
+      'Yer, fotoğraf, açıklama, değerlendirme veya başka içerik gönderdiğinizde; içeriğin doğru, hukuka uygun, başkalarının haklarına saygılı ve paylaşmaya yetkili olduğunu kabul edersiniz. Başkalarının kişisel verisini, hassas konumunu, telif hakkıyla korunan içeriğini veya zararlı/yanıltıcı içerikleri izinsiz paylaşmayın.\n\nDoğadayım; topluluk güvenliği, hukuki yükümlülükler ve hizmet kalitesi için kullanıcı katkılarını inceleyebilir, görünürlüğünü kısıtlayabilir veya kaldırabilir.',
+    ),
+    (
+      '4. Yasak davranışlar',
+      '• Yanlış acil yardım çağrısı oluşturmak veya başkalarını yanıltmak\n'
+          '• Tehdit, taciz, nefret söylemi ya da uygunsuz içerik paylaşmak\n'
+          '• Sistemin güvenliğini aşmaya, hesaplara yetkisiz erişmeye veya hizmeti aksatmaya çalışmak\n'
+          '• Başkalarının gizliliğini ihlal eden konum, iletişim bilgisi veya görsel paylaşmak',
+    ),
+    (
+      '5. Hesap ve veri silme',
+      'Hesabınızı uygulama içindeki Profil bölümünden silebilirsiniz. Uygulamaya erişemiyorsanız hesap silme sayfasından talep oluşturabilirsiniz. Ayrıntılar için Gizlilik Politikası’nı inceleyin.',
+    ),
+    (
+      '6. Koşulların güncellenmesi',
+      'Bu koşullar, uygulamanın özellikleri veya hukuki gereklilikler değiştiğinde güncellenebilir. Güncel metin bu sayfada yayımlanır.',
+    ),
+    (
+      '7. İletişim',
+      'Sorularınız ve bildirimleriniz için dogadayim.destek@gmail.com adresine ulaşabilirsiniz.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return _LegalDocumentScreen(
+      title: 'Kullanım Koşulları',
+      updatedAt: '2 Ekim 2026',
+      introduction:
+          'Doğadayım, doğa noktalarını keşfetmeye yardımcı olur; resmî acil yardım, arama-kurtarma, sağlık veya navigasyon hizmeti değildir.',
+      sections: sections,
+    );
+  }
+}
+
+class _LegalDocumentScreen extends StatelessWidget {
+  const _LegalDocumentScreen({
+    required this.title,
+    required this.updatedAt,
+    required this.introduction,
+    required this.sections,
+  });
+
+  final String title;
+  final String updatedAt;
+  final String introduction;
+  final List<(String, String)> sections;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Gizlilik Politikası')),
+      appBar: AppBar(title: Text(title)),
       body: SafeArea(
         child: SelectionArea(
           child: SingleChildScrollView(
@@ -71,28 +145,36 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Doğadayım',
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w600)),
+                    Text(
+                      'Doğadayım',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    const Text('Son güncelleme: 7 Eylül 2026'),
+                    Text('Son güncelleme: $updatedAt'),
                     const SizedBox(height: 24),
                     Text(
-                        "Doğadayım, kullanıcıların Türkiye'deki doğal alanları, su kaynaklarını, kamp alanlarını, yürüyüş rotalarını ve diğer doğa noktalarını keşfetmelerine yardımcı olmak amacıyla geliştirilen bir mobil uygulamadır.",
-                        style:
-                            theme.textTheme.bodyLarge?.copyWith(height: 1.6)),
+                      introduction,
+                      style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+                    ),
                     for (final section in sections) ...[
                       const SizedBox(height: 28),
                       Semantics(
-                          header: true,
-                          child: Text(section.$1,
-                              style: theme.textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w600))),
+                        header: true,
+                        child: Text(
+                          section.$1,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
-                      Text(section.$2,
-                          style:
-                              theme.textTheme.bodyLarge?.copyWith(height: 1.6)),
+                      Text(
+                        section.$2,
+                        style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+                      ),
                     ],
                   ],
                 ),

@@ -14,6 +14,34 @@ class AddPlaceScreen extends StatefulWidget {
   State<AddPlaceScreen> createState() => _AddPlaceScreenState();
 }
 
+class AddPlaceDraftController {
+  AddPlaceDraftController._();
+
+  static const _storageKey = 'add_place_draft_v1';
+
+  static Future<Map<String, dynamic>?> load() async {
+    final raw = (await SharedPreferences.getInstance()).getString(_storageKey);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final value = jsonDecode(raw);
+      return value is Map<String, dynamic> ? value : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> save(Map<String, dynamic> value) async {
+    await (await SharedPreferences.getInstance()).setString(
+      _storageKey,
+      jsonEncode(value),
+    );
+  }
+
+  static Future<void> clear() async {
+    await (await SharedPreferences.getInstance()).remove(_storageKey);
+  }
+}
+
 class _AddPlaceScreenState extends State<AddPlaceScreen> {
   int step = 0;
   int? selected;
@@ -38,112 +66,57 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
   final selectedPhotos = <XFile>[];
   bool locationExpanded = false;
   String? roadAccess;
+  bool draftRestored = false;
 
   static const categories = [
     (
-      '💧',
-      'Su Kaynağı',
-      'İçme suyu kaynakları',
-      AppColors.primarySoft,
-      AppColors.categoryWater,
-    ),
-    (
-      '🌊',
-      'Şelale',
-      'Doğal şelaleler',
-      AppColors.primarySoft,
-      AppColors.categoryWater
-    ),
-    (
-      '🏞️',
-      'Göl',
-      'Doğal göl ve göletler',
-      AppColors.primarySoft,
-      AppColors.categoryWater,
-    ),
-    (
-      '🏞️',
-      'Kanyon',
-      'Doğal kanyonlar',
-      AppColors.primarySoft,
-      AppColors.categoryFormation
-    ),
-    (
-      '🏕️',
-      'Kamp Alanı',
-      'Kamp ve bungalov',
-      AppColors.primarySoft,
+      Icons.cabin_rounded,
+      'Kamp',
+      'Çadır kurmaya uygun alanlar',
+      AppColors.categoryCampSoft,
       AppColors.categoryCamp,
     ),
     (
-      '🌲',
-      'Milli Park',
-      'Millî parklar',
-      AppColors.primarySoft,
-      AppColors.categoryNature
-    ),
-    (
-      '🌳',
-      'Tabiat Parkı',
-      'Tabiat parkları',
-      AppColors.primarySoft,
-      AppColors.categoryNature,
-    ),
-    (
-      '⛰️',
-      'Yayla',
-      'Doğal yaylalar',
-      AppColors.primarySoft,
-      AppColors.categoryMountain
-    ),
-    (
-      '🌿',
-      'Piknik',
-      'Piknik alanları',
-      AppColors.primarySoft,
-      AppColors.categoryNature
-    ),
-    (
-      '🥾',
-      'Yürüyüş',
-      'Doğa yürüyüş rotaları',
-      AppColors.primarySoft,
-      AppColors.categoryRoute,
-    ),
-    (
-      '🏖️',
-      'Koy ve Plaj',
-      'Koylar ve plajlar',
-      AppColors.primarySoft,
-      AppColors.categoryWater,
-    ),
-    (
-      '🔭',
-      'Seyir Noktası',
-      'Panoramik manzaralar',
-      AppColors.primarySoft,
-      AppColors.categoryDiscovery,
-    ),
-    (
-      '🪨',
-      'Mağara',
-      'Doğal mağaralar',
-      AppColors.primarySoft,
-      AppColors.categoryFormation
-    ),
-    (
-      '🚐',
+      Icons.rv_hookup_rounded,
       'Karavan',
       'Karavan dostu alanlar',
-      AppColors.primarySoft,
+      AppColors.categoryCampSoft,
       AppColors.categoryCamp,
     ),
     (
-      '🚻',
-      'WC',
-      'Bağımsız tuvalet noktası',
-      AppColors.primarySoft,
-      AppColors.categoryUtility,
+      Icons.water_rounded,
+      'Göl',
+      'Göl ve göletler',
+      AppColors.categoryWaterSoft,
+      AppColors.categoryWater,
+    ),
+    (
+      Icons.waterfall_chart_rounded,
+      'Şelale',
+      'Doğal şelaleler',
+      AppColors.categoryWaterSoft,
+      AppColors.categoryWater,
+    ),
+    (
+      Icons.terrain_rounded,
+      'Kanyon & Vadi',
+      'Kanyon ve vadiler',
+      AppColors.categoryFormationSoft,
+      AppColors.categoryFormation,
+    ),
+    (
+      Icons.landscape_rounded,
+      'Mağara',
+      'Doğal mağaralar',
+      AppColors.categoryFormationSoft,
+      AppColors.categoryFormation,
+    ),
+    (
+      Icons.forest_rounded,
+      'Millî / Doğa Parkı',
+      'Korunan doğal alanlar',
+      AppColors.categoryNatureSoft,
+      AppColors.categoryNature,
     ),
   ];
 
@@ -151,6 +124,9 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
   void initState() {
     super.initState();
     AppLocaleController.current.addListener(_onLocaleChanged);
+    name.addListener(_saveDraft);
+    description.addListener(_saveDraft);
+    unawaited(_restoreDraft());
   }
 
   void _onLocaleChanged() {
@@ -160,11 +136,72 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
   @override
   void dispose() {
     AppLocaleController.current.removeListener(_onLocaleChanged);
+    name.removeListener(_saveDraft);
+    description.removeListener(_saveDraft);
     name.dispose();
     description.dispose();
     locationSearch.dispose();
     mapController.dispose();
     super.dispose();
+  }
+
+  Future<void> _restoreDraft() async {
+    final draft = await AddPlaceDraftController.load();
+    if (!mounted || draft == null) return;
+    final latitude = (draft['latitude'] as num?)?.toDouble();
+    final longitude = (draft['longitude'] as num?)?.toDouble();
+    final savedCategoryKey = draft['categoryKey']?.toString();
+    final restoredCategoryIndex = savedCategoryKey == null
+        ? -1
+        : categories.indexWhere(
+            (category) =>
+                taxonomyFromLegacy(category.$2).mainCategory ==
+                savedCategoryKey,
+          );
+    setState(() {
+      // Eski taslaktaki sıra numarası artık başka bir kategoriye karşılık
+      // gelebilir. Yanlış türde kayıt göndermek yerine kullanıcıdan yeniden
+      // seçim isteriz; yeni taslaklar sabit kategori anahtarını saklar.
+      selected = restoredCategoryIndex >= 0 ? restoredCategoryIndex : null;
+      name.text = draft['name']?.toString() ?? '';
+      description.text = draft['description']?.toString() ?? '';
+      selectedLocation = latitude == null || longitude == null
+          ? null
+          : LatLng(latitude, longitude);
+      selectedLocationLabel = draft['locationLabel']?.toString() ?? '';
+      selectedFeatures
+        ..clear()
+        ..addAll((draft['features'] as List? ?? const [])
+            .map((item) => item.toString()));
+      selectedEnvironment
+        ..clear()
+        ..addAll((draft['environment'] as List? ?? const [])
+            .map((item) => item.toString()));
+      roadAccess = draft['roadAccess']?.toString();
+      draftRestored = true;
+    });
+  }
+
+  void _saveDraft() {
+    final hasDraft = selected != null ||
+        name.text.trim().isNotEmpty ||
+        description.text.trim().isNotEmpty ||
+        selectedLocation != null;
+    if (!hasDraft) return;
+    unawaited(AddPlaceDraftController.save({
+      'category': selected,
+      'categoryKey': selected == null
+          ? null
+          : taxonomyFromLegacy(categories[selected!].$2).mainCategory,
+      'name': name.text,
+      'description': description.text,
+      'latitude': selectedLocation?.latitude,
+      'longitude': selectedLocation?.longitude,
+      'locationLabel': selectedLocationLabel,
+      'features': selectedFeatures.toList(growable: false),
+      'environment': selectedEnvironment.toList(growable: false),
+      'roadAccess': roadAccess,
+    }));
   }
 
   Future<void> useCurrentLocation() async {
@@ -179,6 +216,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
         locationError = null;
       });
       mapController.move(point, 15);
+      _saveDraft();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -226,6 +264,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
         locationError = null;
       });
       mapController.move(point, 14);
+      _saveDraft();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -387,6 +426,12 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
       applyValidationErrors(validation);
       return;
     }
+    final allowed = await AppAuthGuard.requireAuth(
+      context,
+      title: AppStrings.get('guest_auth_title'),
+      message: AppStrings.get('guest_add_place_prompt'),
+    );
+    if (!allowed || !mounted) return;
 
     setState(() => saving = true);
     try {
@@ -455,10 +500,31 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
           ...selectedFeatures,
           if (roadAccess != null) 'Ulaşım: $roadAccess',
         ],
+        contributorName: () {
+          try {
+            final u = Supabase.instance.client.auth.currentUser;
+            final meta = u?.userMetadata;
+            final fullName = (meta?['full_name']?.toString() ??
+                    meta?['name']?.toString() ??
+                    meta?['display_name']?.toString() ??
+                    '')
+                .trim();
+            return fullName.isNotEmpty
+                ? fullName
+                : (u?.email?.split('@').first ?? '');
+          } catch (_) {
+            return null;
+          }
+        }(),
       );
       await UserPlacesController.add(newPlace);
       final syncResult =
           await PlaceSubmissionController.enqueueAndSync(newPlace);
+      if (syncResult == SubmissionSyncResult.sent) {
+        await SubmissionFeedbackController.load();
+      }
+      if (!mounted) return;
+      await AddPlaceDraftController.clear();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -481,13 +547,32 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
   }
 
   Future<void> pickPhotos() async {
+    final source = await showPhotoSourceSheet(
+      context,
+      title: 'Yer fotoğrafı ekle',
+    );
+    if (source == null || !mounted) return;
     try {
-      final photos = await ImagePicker().pickMultiImage(
-        imageQuality: 82,
-        maxWidth: 1920,
-        maxHeight: 1920,
-        limit: AddPlaceQualityService.maxPhotoCount,
-      );
+      final picker = ImagePicker();
+      late final List<XFile> photos;
+      if (source == ImageSource.camera) {
+        final photo = await picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 82,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          requestFullMetadata: false,
+        );
+        photos = photo == null ? const <XFile>[] : <XFile>[photo];
+      } else {
+        photos = await picker.pickMultiImage(
+          imageQuality: 82,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          limit: AddPlaceQualityService.maxPhotoCount,
+          requestFullMetadata: false,
+        );
+      }
       if (!mounted || photos.isEmpty) return;
       setState(() {
         selectedPhotos
@@ -525,120 +610,498 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.darkBackground : AppColors.surfaceMuted,
-      body: SafeArea(
-        child: Column(
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      children: [
+        Semantics(
+          button: true,
+          label: 'Geri dön',
+          child: IconButton.outlined(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back_rounded),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(AppStrings.get('add_place_title'),
+            style: AppTypography.headingOf(context)
+                .copyWith(fontSize: AppFontSizes.display)),
+      ],
+    );
+  }
+
+  Widget _buildBanner(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.accentOrangeOf(context)
+            .withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: isDark
+            ? Border.all(
+                color: AppColors.accentOrangeOf(context).withValues(alpha: 0.3))
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.add_location_alt_rounded,
+              color: AppColors.accentOrangeOf(context)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              draftRestored
+                  ? 'Taslağın geri yüklendi. Fotoğrafları yeniden seçebilirsin.'
+                  : AppStrings.get('add_place_banner'),
+              style: TextStyle(
+                fontSize: AppFontSizes.label,
+                height: 1.4,
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextFields(BuildContext context) {
+    return _AddPlaceSection(
+      child: Column(
+        children: [
+          TextField(
+            controller: name,
+            maxLength: AddPlaceQualityService.maxNameLength,
+            onChanged: (_) => setState(() => nameError = null),
+            decoration: InputDecoration(
+              labelText: AppStrings.get('add_place_name_label'),
+              hintText: AppStrings.get('add_place_name_hint'),
+              errorText: nameError,
+              prefixIcon: const Icon(Icons.text_fields_rounded),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: description,
+            maxLines: 4,
+            maxLength: AddPlaceQualityService.maxDescriptionLength,
+            onChanged: (_) => setState(() => descriptionError = null),
+            decoration: InputDecoration(
+              labelText: AppStrings.get('add_place_desc_label'),
+              hintText: AppStrings.get('add_place_desc_hint'),
+              errorText: descriptionError,
+              alignLabelWithHint: true,
+              prefixIcon: const Icon(Icons.description_outlined),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategorySection() {
+    return _AddPlaceSection(
+      title: AppStrings.get('add_place_category_title'),
+      error: categoryError,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: List.generate(categories.length, (index) {
+          final category = categories[index];
+          return ChoiceChip(
+            avatar: Icon(
+              category.$1,
+              size: 18,
+              color: selected == index ? Colors.white : category.$5,
+            ),
+            label: Text(AppStrings.addPlaceOption(category.$2)),
+            selected: selected == index,
+            onSelected: (_) {
+              setState(() {
+                selected = index;
+                categoryError = null;
+              });
+              _saveDraft();
+            },
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildEnvironmentSection() {
+    return _AddPlaceSection(
+      title: AppStrings.get('add_place_environment_title'),
+      child: _multiChoiceWrap(
+        const [
+          'Ormanlık',
+          'Göl kıyısı',
+          'Sahil',
+          'Yayla',
+          'Dağlık',
+          'Açık alan',
+        ],
+        selectedEnvironment,
+        labelBuilder: AppStrings.addPlaceOption,
+      ),
+    );
+  }
+
+  Widget _buildTransportSection() {
+    return _AddPlaceSection(
+      title: AppStrings.get('add_place_transport_title'),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: const [
+          'Binek araç',
+          'Arazi aracı',
+          'Yalnızca yürüyerek',
+          'Toplu taşıma',
+        ]
+            .map((item) => ChoiceChip(
+                  label: Text(AppStrings.addPlaceOption(item)),
+                  selected: roadAccess == item,
+                  onSelected: (_) {
+                    setState(() => roadAccess = item);
+                    _saveDraft();
+                  },
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildFacilitiesSection() {
+    return _AddPlaceSection(
+      title: AppStrings.get('add_place_facilities_title'),
+      child: _multiChoiceWrap(
+        const [
+          'Otopark',
+          'Tuvalet',
+          'İçme suyu',
+          'Çeşme',
+          'Duş',
+          'Büfe / Market',
+          'Ücretli',
+          'Çadır uygun',
+          'Karavan uygun',
+          'Piknik masası',
+          'Mobil sinyal',
+          'Engelli erişimi',
+          'Evcil hayvan',
+          'Ateş yasak',
+          'Yaban hayvanı riski',
+        ],
+        selectedFeatures,
+        labelBuilder: AppStrings.addPlaceOption,
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(BuildContext context, bool isDark) {
+    final cat = selected != null && selected! < categories.length
+        ? categories[selected!]
+        : null;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.fact_check_outlined,
+                  size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Gönderim Özeti',
+                style: AppTypography.headingOf(context)
+                    .copyWith(fontSize: AppFontSizes.title),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _summaryRow(
+            'Yer Adı',
+            name.text.trim().isEmpty ? 'Henüz girilmedi' : name.text.trim(),
+            context,
+          ),
+          const SizedBox(height: 6),
+          _summaryRow(
+            'Kategori',
+            cat != null ? cat.$2 : 'Seçilmedi',
+            context,
+          ),
+          const SizedBox(height: 6),
+          _summaryRow(
+            'Konum',
+            selectedLocationLabel.isNotEmpty
+                ? selectedLocationLabel
+                : 'Haritadan seçilmedi',
+            context,
+          ),
+          const SizedBox(height: 6),
+          _summaryRow(
+            'Fotoğraflar',
+            selectedPhotos.isNotEmpty
+                ? '${selectedPhotos.length} fotoğraf yüklendi'
+                : 'Fotoğraf seçilmedi',
+            context,
+          ),
+          const SizedBox(height: 6),
+          _summaryRow(
+            'İmkanlar',
+            selectedFeatures.isNotEmpty
+                ? '${selectedFeatures.length} olanak seçildi'
+                : 'Belirtilmedi',
+            context,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(String label, String value, BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            label,
+            style: AppTypography.metadataOf(context),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: AppTypography.bodyOf(context).copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: AppFontSizes.caption,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppColors.darkBorder : AppColors.border,
+          ),
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: Semantics(
+          button: true,
+          label: saving
+              ? AppStrings.get('add_place_saving')
+              : AppStrings.get('add_place_submit'),
+          child: FilledButton.icon(
+            onPressed: saving ? null : () => unawaited(savePlace()),
+            icon: saving
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.send_rounded),
+            label: Text(saving
+                ? AppStrings.get('add_place_saving')
+                : AppStrings.get('add_place_submit')),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhoneLayout(BuildContext context, bool isDark) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 36),
+            children: [
+              _buildHeader(context),
+              const SizedBox(height: 14),
+              _buildBanner(context, isDark),
+              const SizedBox(height: 14),
+              _buildTextFields(context),
+              const SizedBox(height: 12),
+              _AddPlaceActionCard(
+                icon: Icons.location_on_rounded,
+                iconColor: AppColors.categoryNature,
+                title: AppStrings.get('add_place_location_title'),
+                subtitle: selectedLocation == null
+                    ? AppStrings.get('add_place_location_hint')
+                    : selectedLocationLabel,
+                error: locationError,
+                onTap: () =>
+                    setState(() => locationExpanded = !locationExpanded),
+              ),
+              if (locationExpanded) ...[
+                const SizedBox(height: 10),
+                _inlineLocationPicker(),
+              ],
+              const SizedBox(height: 12),
+              _AddPlaceActionCard(
+                icon: Icons.add_photo_alternate_outlined,
+                iconColor: AppColors.categoryWater,
+                title: AppStrings.get('add_place_photo_title'),
+                subtitle: selectedPhotos.isEmpty
+                    ? AppStrings.get('add_place_photo_hint_max')
+                    : '${selectedPhotos.length} ${AppStrings.get('add_place_photos_selected')}',
+                onTap: pickPhotos,
+              ),
+              if (selectedPhotos.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _photoPreviewStrip(),
+              ],
+              const SizedBox(height: 12),
+              _buildCategorySection(),
+              const SizedBox(height: 12),
+              _buildEnvironmentSection(),
+              const SizedBox(height: 12),
+              _buildTransportSection(),
+              const SizedBox(height: 12),
+              _buildFacilitiesSection(),
+            ],
+          ),
+        ),
+        _buildSubmitButton(context, isDark),
+      ],
+    );
+  }
+
+  Widget _buildPortraitTabletLayout(BuildContext context, bool isDark) {
+    return Column(
+      children: [
+        Expanded(
+          child: context.centerContent(
+            maxWidth: 720,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+              children: [
+                _buildHeader(context),
+                const SizedBox(height: 14),
+                _buildBanner(context, isDark),
+                const SizedBox(height: 14),
+                _buildTextFields(context),
+                const SizedBox(height: 12),
+                _AddPlaceActionCard(
+                  icon: Icons.location_on_rounded,
+                  iconColor: AppColors.categoryNature,
+                  title: AppStrings.get('add_place_location_title'),
+                  subtitle: selectedLocation == null
+                      ? AppStrings.get('add_place_location_hint')
+                      : selectedLocationLabel,
+                  error: locationError,
+                  onTap: () =>
+                      setState(() => locationExpanded = !locationExpanded),
+                ),
+                if (locationExpanded) ...[
+                  const SizedBox(height: 10),
+                  _inlineLocationPicker(height: 380),
+                ],
+                const SizedBox(height: 12),
+                _AddPlaceActionCard(
+                  icon: Icons.add_photo_alternate_outlined,
+                  iconColor: AppColors.categoryWater,
+                  title: AppStrings.get('add_place_photo_title'),
+                  subtitle: selectedPhotos.isEmpty
+                      ? AppStrings.get('add_place_photo_hint_max')
+                      : '${selectedPhotos.length} ${AppStrings.get('add_place_photos_selected')}',
+                  onTap: pickPhotos,
+                ),
+                if (selectedPhotos.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _photoPreviewStrip(),
+                ],
+                const SizedBox(height: 12),
+                _buildCategorySection(),
+                const SizedBox(height: 12),
+                _buildEnvironmentSection(),
+                const SizedBox(height: 12),
+                _buildTransportSection(),
+                const SizedBox(height: 12),
+                _buildFacilitiesSection(),
+              ],
+            ),
+          ),
+        ),
+        context.centerContent(
+          maxWidth: 720,
+          child: _buildSubmitButton(context, isDark),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(BuildContext context, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      child: context.centerContent(
+        maxWidth: 1400,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
+              flex: 54,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+                padding: const EdgeInsets.only(right: 16, bottom: 32),
                 children: [
-                  Row(
-                    children: [
-                      Semantics(
-                        button: true,
-                        label: 'Geri dön',
-                        child: IconButton.outlined(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(AppStrings.get('add_place_title'),
-                          style: AppTypography.headingOf(context)
-                              .copyWith(fontSize: AppFontSizes.display)),
-                    ],
-                  ),
+                  _buildHeader(context),
                   const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentOrangeOf(context)
-                          .withValues(alpha: isDark ? 0.15 : 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: isDark
-                          ? Border.all(
-                              color: AppColors.accentOrangeOf(context)
-                                  .withValues(alpha: 0.3))
-                          : null,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.add_location_alt_rounded,
-                            color: AppColors.accentOrangeOf(context)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            AppStrings.get('add_place_banner'),
-                            style: TextStyle(
-                              fontSize: AppFontSizes.label,
-                              height: 1.4,
-                              color: isDark
-                                  ? AppColors.darkTextPrimary
-                                  : AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildBanner(context, isDark),
                   const SizedBox(height: 14),
-                  _AddPlaceSection(
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: name,
-                          maxLength: AddPlaceQualityService.maxNameLength,
-                          onChanged: (_) => setState(() => nameError = null),
-                          decoration: InputDecoration(
-                            labelText: AppStrings.get('add_place_name_label'),
-                            hintText: AppStrings.get('add_place_name_hint'),
-                            errorText: nameError,
-                            prefixIcon: const Icon(Icons.text_fields_rounded),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: description,
-                          maxLines: 4,
-                          maxLength:
-                              AddPlaceQualityService.maxDescriptionLength,
-                          onChanged: (_) =>
-                              setState(() => descriptionError = null),
-                          decoration: InputDecoration(
-                            labelText: AppStrings.get('add_place_desc_label'),
-                            hintText: AppStrings.get('add_place_desc_hint'),
-                            errorText: descriptionError,
-                            alignLabelWithHint: true,
-                            prefixIcon: const Icon(Icons.description_outlined),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildTextFields(context),
                   const SizedBox(height: 12),
-                  _AddPlaceActionCard(
-                    icon: Icons.location_on_rounded,
-                    iconColor: AppColors.categoryNature,
-                    title: AppStrings.get('add_place_location_title'),
-                    subtitle: selectedLocation == null
+                  _buildCategorySection(),
+                  const SizedBox(height: 12),
+                  _buildEnvironmentSection(),
+                  const SizedBox(height: 12),
+                  _buildTransportSection(),
+                  const SizedBox(height: 12),
+                  _buildFacilitiesSection(),
+                ],
+              ),
+            ),
+            const VerticalDivider(width: 24, thickness: 1),
+            Expanded(
+              flex: 46,
+              child: ListView(
+                padding: const EdgeInsets.only(left: 8, bottom: 32),
+                children: [
+                  Text(
+                    AppStrings.get('add_place_location_title'),
+                    style: AppTypography.headingOf(context)
+                        .copyWith(fontSize: AppFontSizes.heading),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    selectedLocation == null
                         ? AppStrings.get('add_place_location_hint')
                         : selectedLocationLabel,
-                    error: locationError,
-                    onTap: () =>
-                        setState(() => locationExpanded = !locationExpanded),
+                    style: AppTypography.metadataOf(context),
                   ),
-                  if (locationExpanded) ...[
-                    const SizedBox(height: 10),
-                    _inlineLocationPicker(),
-                  ],
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  _inlineLocationPicker(height: 280),
+                  const SizedBox(height: 16),
                   _AddPlaceActionCard(
                     icon: Icons.add_photo_alternate_outlined,
                     iconColor: AppColors.categoryWater,
@@ -652,125 +1115,28 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
                     const SizedBox(height: 10),
                     _photoPreviewStrip(),
                   ],
-                  const SizedBox(height: 12),
-                  _AddPlaceSection(
-                    title: AppStrings.get('add_place_category_title'),
-                    error: categoryError,
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: List.generate(categories.length, (index) {
-                        final category = categories[index];
-                        return ChoiceChip(
-                          avatar: Text(category.$1),
-                          label: Text(AppStrings.addPlaceOption(category.$2)),
-                          selected: selected == index,
-                          onSelected: (_) => setState(() {
-                            selected = index;
-                            categoryError = null;
-                          }),
-                        );
-                      }),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _AddPlaceSection(
-                    title: AppStrings.get('add_place_environment_title'),
-                    child: _multiChoiceWrap(
-                      const [
-                        'Ormanlık',
-                        'Göl kıyısı',
-                        'Sahil',
-                        'Yayla',
-                        'Dağlık',
-                        'Açık alan',
-                      ],
-                      selectedEnvironment,
-                      labelBuilder: AppStrings.addPlaceOption,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _AddPlaceSection(
-                    title: AppStrings.get('add_place_transport_title'),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: const [
-                        'Binek araç',
-                        'Arazi aracı',
-                        'Yalnızca yürüyerek',
-                        'Toplu taşıma',
-                      ]
-                          .map((item) => ChoiceChip(
-                                label: Text(AppStrings.addPlaceOption(item)),
-                                selected: roadAccess == item,
-                                onSelected: (_) =>
-                                    setState(() => roadAccess = item),
-                              ))
-                          .toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _AddPlaceSection(
-                    title: AppStrings.get('add_place_facilities_title'),
-                    child: _multiChoiceWrap(
-                      const [
-                        'Otopark',
-                        'Tuvalet',
-                        'İçme suyu',
-                        'Çeşme',
-                        'Duş',
-                        'Büfe / Market',
-                        'Ücretli',
-                        'Çadır uygun',
-                        'Karavan uygun',
-                        'Piknik masası',
-                        'Mobil sinyal',
-                        'Engelli erişimi',
-                        'Evcil hayvan',
-                        'Ateş yasak',
-                        'Yaban hayvanı riski',
-                      ],
-                      selectedFeatures,
-                      labelBuilder: AppStrings.addPlaceOption,
+                  const SizedBox(height: 16),
+                  _buildSummaryCard(context, isDark),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: saving ? null : () => unawaited(savePlace()),
+                      icon: saving
+                          ? const SizedBox(
+                              width: 19,
+                              height: 19,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.send_rounded),
+                      label: Text(saving
+                          ? AppStrings.get('add_place_saving')
+                          : AppStrings.get('add_place_submit')),
                     ),
                   ),
                 ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : Colors.white,
-                border: Border(
-                  top: BorderSide(
-                    color: isDark ? AppColors.darkBorder : AppColors.border,
-                  ),
-                ),
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: Semantics(
-                  button: true,
-                  label: saving
-                      ? AppStrings.get('add_place_saving')
-                      : AppStrings.get('add_place_submit'),
-                  child: FilledButton.icon(
-                    onPressed: saving ? null : () => unawaited(savePlace()),
-                    icon: saving
-                        ? const SizedBox(
-                            width: 19,
-                            height: 19,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.send_rounded),
-                    label: Text(saving
-                        ? AppStrings.get('add_place_saving')
-                        : AppStrings.get('add_place_submit')),
-                  ),
-                ),
               ),
             ),
           ],
@@ -779,10 +1145,29 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
     );
   }
 
-  Widget _inlineLocationPicker() {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Widget content;
+    if (context.isTabletLandscape) {
+      content = _buildLandscapeLayout(context, isDark);
+    } else if (context.isTabletPortrait) {
+      content = _buildPortraitTabletLayout(context, isDark);
+    } else {
+      content = _buildPhoneLayout(context, isDark);
+    }
+
+    return Scaffold(
+      backgroundColor:
+          isDark ? AppColors.darkBackground : AppColors.surfaceMuted,
+      body: SafeArea(child: content),
+    );
+  }
+
+  Widget _inlineLocationPicker({double height = 360}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      height: 360,
+      height: height,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
@@ -801,12 +1186,15 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
               minZoom: 4,
               maxZoom: 19,
               cameraConstraint: CameraConstraint.containLatitude(),
-              onTap: (_, point) => setState(() {
-                selectedLocation = point;
-                selectedLocationLabel =
-                    '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
-                locationError = null;
-              }),
+              onTap: (_, point) {
+                setState(() {
+                  selectedLocation = point;
+                  selectedLocationLabel =
+                      '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+                  locationError = null;
+                });
+                _saveDraft();
+              },
             ),
             children: [
               TileLayer(
@@ -976,8 +1364,11 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
               child: FilterChip(
                 label: Text(text),
                 selected: isSelected,
-                onSelected: (value) => setState(
-                    () => value ? selection.add(item) : selection.remove(item)),
+                onSelected: (value) {
+                  setState(() =>
+                      value ? selection.add(item) : selection.remove(item));
+                  _saveDraft();
+                },
               ),
             );
           },

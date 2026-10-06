@@ -46,9 +46,11 @@ iOS için proje macOS üzerinde Xcode ile açılmalıdır.
 - Harita ve yakın yer verileri OpenStreetMap kaynaklıdır.
 - Hava durumu Open-Meteo üzerinden alınır.
 
-## Kalan gerçek servis bağlantıları
+## Servis bağlantıları ve üretim durumu
 
-- Google/Apple girişini kimlik doğrulama sağlayıcısına bağlama.
-- Favorileri, yorumları ve kullanıcı önerilerini sunucuda saklama.
-- Fotoğraf seçme/yükleme ve gerçek reklam sağlayıcısı bağlantıları.
-- Navigasyon düğmesini cihazın harita uygulamasına bağlama.
+- **Kimlik Doğrulama:** Supabase Auth (E-posta/Şifre, TOTP MFA, Google/Apple OAuth yapılandırması ve derin linkleme `io.supabase.dogadagezi://login-callback` hazır).
+- **Veri Depolama & Senkronizasyon:** Supabase veritabanı (RLS politikaları, RPC moderasyon fonksiyonları) + local-first SharedPreferences önbelleği.
+- **Kullanıcı Verileri:** Favoriler (`UserFavoritesController`), yerel incelemeler (`UserReviewsController`) ve fotoğraf katkıları kalıcı olarak saklanır; hesap silme (`delete-account` Edge Function) ile tam tasfiye edilir.
+- **Harita & Navigasyon:** OpenStreetMap/vektör harita, harici navigasyon (Google Maps, Apple Maps, Yandex Haritalar) doğrudan bağlıdır.
+- **Fotoğraf ve Katkılar:** Yer başvuruları (`place-submissions`) ve topluluk fotoğrafları (`community-photos`) Supabase Storage ve moderasyon hattına bağlıdır.
+

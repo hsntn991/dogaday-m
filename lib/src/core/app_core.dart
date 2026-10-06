@@ -82,6 +82,11 @@ abstract final class AppColors {
   /// Tesis/WC/Su yardımcı marker rengi
   static const categoryUtility = Color(0xFF607D8B);
 
+  /// Topluluk katkilari, kullanici kazanimlari ve altin rozetler
+  static const communityWarm = Color(0xFFC78918);
+  static const communityWarmSoft = Color(0xFFFBF4E6);
+  static const communityWarmBorder = Color(0x40C78918);
+
   /// Harita küme marker rengi
   static const clusterMarker = Color(0xFF1E7044);
 
@@ -185,6 +190,90 @@ abstract final class AppColors {
       isDark(context) ? darkErrorSoft : errorSoft;
 }
 
+/// Kullanıcıdan bağlantı yazmasını istemeden, tek ve tutarlı bir fotoğraf
+/// kaynağı seçimi sunar. Her seçenek geniş dokunma alanına sahiptir.
+Future<ImageSource?> showPhotoSourceSheet(
+  BuildContext context, {
+  String title = 'Fotoğraf ekle',
+}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return showModalBottomSheet<ImageSource>(
+    context: context,
+    backgroundColor: isDark ? AppColors.darkSurface : AppColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.hero)),
+    ),
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              style: AppTypography.titleOf(context).copyWith(
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Fotoğraf bağlantısı gerekmez. Kaynağı seçin.',
+              style: AppTypography.metadataOf(context).copyWith(
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              minTileHeight: 56,
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Kamerayla çek'),
+              subtitle: const Text('Şimdi yeni bir fotoğraf çek'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                side: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                ),
+              ),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              minTileHeight: 56,
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Galeriden seç'),
+              subtitle: const Text('Cihazındaki fotoğraflardan ekle'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                side: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                ),
+              ),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 abstract final class AppRadii {
   static const double small = 8;
   static const double medium = 12;
@@ -202,6 +291,83 @@ abstract final class AppSpacing {
   static const double large = 20;
   static const double xLarge = 24;
   static const double section = 32;
+}
+
+enum AppDeviceTier {
+  phone,
+  tabletPortrait,
+  tabletLandscape;
+
+  bool get isPhone => this == AppDeviceTier.phone;
+  bool get isTablet => this != AppDeviceTier.phone;
+  bool get isTabletPortrait => this == AppDeviceTier.tabletPortrait;
+  bool get isTabletLandscape => this == AppDeviceTier.tabletLandscape;
+}
+
+abstract final class AppBreakpoints {
+  static const double phoneMax = 599.0;
+  static const double tabletPortraitMin = 600.0;
+  static const double tabletLandscapeMin = 840.0;
+  static const double maxContentWidth = 1440.0;
+}
+
+extension AppResponsiveContext on BuildContext {
+  double get screenWidth => MediaQuery.sizeOf(this).width;
+  double get screenHeight => MediaQuery.sizeOf(this).height;
+  bool get isPhone => screenWidth < AppBreakpoints.tabletPortraitMin;
+  bool get isTablet => screenWidth >= AppBreakpoints.tabletPortraitMin;
+  bool get isTabletPortrait =>
+      screenWidth >= AppBreakpoints.tabletPortraitMin &&
+      screenWidth < AppBreakpoints.tabletLandscapeMin;
+  bool get isTabletLandscape =>
+      screenWidth >= AppBreakpoints.tabletLandscapeMin;
+
+  AppDeviceTier get deviceTier {
+    final w = screenWidth;
+    if (w < AppBreakpoints.tabletPortraitMin) return AppDeviceTier.phone;
+    if (w < AppBreakpoints.tabletLandscapeMin) {
+      return AppDeviceTier.tabletPortrait;
+    }
+    return AppDeviceTier.tabletLandscape;
+  }
+
+  Widget centerContent({
+    required Widget child,
+    double maxWidth = AppBreakpoints.maxContentWidth,
+  }) =>
+      Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: child,
+        ),
+      );
+}
+
+class AppResponsiveScaffoldBody extends StatelessWidget {
+  const AppResponsiveScaffoldBody({
+    super.key,
+    required this.child,
+    this.maxWidth = AppBreakpoints.maxContentWidth,
+    this.padding,
+  });
+
+  final Widget child;
+  final double maxWidth;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content = Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: child,
+      ),
+    );
+    if (padding != null) {
+      content = Padding(padding: padding!, child: content);
+    }
+    return content;
+  }
 }
 
 abstract final class AppBorders {
@@ -366,6 +532,9 @@ class AppThemeController {
 }
 
 abstract final class AppLegalLinks {
+  /// Kullanıcının kayıt sırasında kabul ettiği koşulların sürümü.
+  static const String termsVersion = '2026-10-02';
+
   /// Google Play ve uygulama içi kullanım için Gizlilik Politikası URL'i.
   /// Derleme anında --dart-define=PRIVACY_POLICY_URL=https://... ile ezilebilir.
   static const String privacyPolicyUrl = String.fromEnvironment(
@@ -383,6 +552,13 @@ abstract final class AppLegalLinks {
   /// Kullanıcı destek ve geri bildirim e-posta adresi.
   static const String supportEmail = 'dogadayim.destek@gmail.com';
 
+  /// Supabase Auth kullanıcı metaverisinde saklanan kabul kaydı.
+  static Map<String, dynamic> termsAcceptanceMetadata(DateTime acceptedAt) =>
+      <String, dynamic>{
+        'terms_accepted_at': acceptedAt.toUtc().toIso8601String(),
+        'terms_version': termsVersion,
+      };
+
   static Future<void> openPrivacyPolicy(BuildContext context) async {
     if (!context.mounted) return;
     await Navigator.of(context).push<void>(MaterialPageRoute(
@@ -391,20 +567,10 @@ abstract final class AppLegalLinks {
   }
 
   static Future<void> openTermsOfService(BuildContext context) async {
-    final uri = Uri.tryParse(termsOfServiceUrl);
-    if (uri != null && isSafeExternalUrl(uri)) {
-      try {
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          return;
-        }
-      } catch (_) {}
-    }
-    if (context.mounted) {
-      await Navigator.of(context).push<void>(MaterialPageRoute(
-        builder: (_) => const PrivacyPolicyScreen(),
-      ));
-    }
+    if (!context.mounted) return;
+    await Navigator.of(context).push<void>(MaterialPageRoute(
+      builder: (_) => const TermsOfServiceScreen(),
+    ));
   }
 
   /// Kullanıcı geri bildirim ve hata bildirimi kanalı.
@@ -493,6 +659,34 @@ String canonicalPlaceCategory(String value) {
 
 bool isPlaceAmenity(Place place) => place.isUtility;
 
+/// Canlı verideki eski alt türleri, sadeleştirilmiş yedi keşif kategorisine
+/// dönüştürür. Böylece eski satırlar uygulamada eski kategori adlarıyla görünmez.
+({String? mainCategory, String? subtype}) cleanDiscoveryTaxonomy({
+  required String? mainCategory,
+  required String? subtype,
+  required String legacyKind,
+}) {
+  final canonicalSubtype = switch (subtype) {
+    'camp_site' || 'camp' => 'camp',
+    'caravan_site' || 'caravan' => 'caravan',
+    'lake' => 'lake',
+    'waterfall' => 'waterfall',
+    'canyon' || 'valley' || 'canyon_valley' => 'canyon_valley',
+    'cave' => 'cave',
+    'national_park' || 'nature_park' => 'national_park',
+    _ => null,
+  };
+  if (canonicalSubtype != null) {
+    return (mainCategory: canonicalSubtype, subtype: canonicalSubtype);
+  }
+
+  final legacy = taxonomyFromLegacy(legacyKind);
+  return (
+    mainCategory: mainCategory ?? legacy.mainCategory,
+    subtype: subtype ?? legacy.subtype,
+  );
+}
+
 class Place {
   const Place(
     this.name,
@@ -515,6 +709,7 @@ class Place {
     this.subtype,
     this.facilities = const PlaceFacilities(),
     this.googlePhotoSearchUrl,
+    this.contributorName,
   }) : _legacyKind = kind;
   final String name, location, description;
   final String _legacyKind;
@@ -540,14 +735,18 @@ class Place {
   final String? subtype;
   final PlaceFacilities facilities;
   final String? googlePhotoSearchUrl;
+  final String? contributorName;
 
   ({String? mainCategory, String? subtype}) get resolvedTaxonomy {
-    final legacy = taxonomyFromLegacy(_legacyKind);
-    final resolvedSubtype = subtype ?? legacy.subtype;
+    final cleaned = cleanDiscoveryTaxonomy(
+      mainCategory: mainCategory,
+      subtype: subtype,
+      legacyKind: _legacyKind,
+    );
+    final resolvedSubtype = cleaned.subtype;
     return (
-      mainCategory: isUtilitySubtype(resolvedSubtype)
-          ? null
-          : mainCategory ?? legacy.mainCategory,
+      mainCategory:
+          isUtilitySubtype(resolvedSubtype) ? null : cleaned.mainCategory,
       subtype: resolvedSubtype,
     );
   }
@@ -558,7 +757,29 @@ class Place {
         subtype: resolvedTaxonomy.subtype,
       );
 
-  bool get isUtility => isUtilitySubtype(resolvedTaxonomy.subtype);
+  bool get isUtility {
+    if (isUtilitySubtype(resolvedTaxonomy.subtype)) return true;
+    final normalizedKind = AddPlaceQualityService.normalizeName(_legacyKind);
+    if (normalizedKind.contains('cesme') ||
+        normalizedKind.contains('hayrat') ||
+        normalizedKind.contains('icme suyu') ||
+        normalizedKind.contains('tuvalet') ||
+        normalizedKind == 'wc') {
+      return true;
+    }
+    final normalizedName = AddPlaceQualityService.normalizeName(name);
+    if (normalizedName.contains('cesmesi') ||
+        normalizedName.contains('hayrati') ||
+        normalizedName.contains('icme suyu') ||
+        normalizedName.contains('tuvalet') ||
+        normalizedName.contains('umumi wc') ||
+        normalizedName == 'wc') {
+      return true;
+    }
+    return false;
+  }
+
+  bool get showsWeather => !isUtility && !isMobileService;
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
@@ -576,6 +797,34 @@ class Place {
     }
     return null;
   }
+
+  String? get contactPhone {
+    for (final f in features) {
+      if (f.startsWith('Telefon: ') || f.startsWith('Tel: ')) {
+        return f.replaceFirst(RegExp(r'^(Telefon|Tel):\s*'), '').trim();
+      }
+    }
+    return null;
+  }
+
+  String? get workingHours {
+    for (final f in features) {
+      if (f.startsWith('Saatler: ') ||
+          f.startsWith('Çalışma: ') ||
+          f.startsWith('Calisma: ')) {
+        return f
+            .replaceFirst(RegExp(r'^(Saatler|Çalışma|Calisma):\s*'), '')
+            .trim();
+      }
+    }
+    return null;
+  }
+
+  bool get isMobileService =>
+      resolvedTaxonomy.mainCategory == 'local_service' ||
+      resolvedTaxonomy.subtype == 'local_service' ||
+      (resolvedTaxonomy.subtype != null &&
+          resolvedTaxonomy.subtype!.startsWith('service_'));
 }
 
 enum PlaceDuplicateLevel { none, probable, strong }
@@ -703,6 +952,9 @@ class AddPlaceQualityService {
   }) {
     final errors = <String, String>{};
     if (validateName(name) case final error?) errors['name'] = error;
+    if (isNonNatureCandidateName(name)) {
+      errors['name'] = 'Su deposu gibi altyapı noktaları eklenemez.';
+    }
     if (category == null || category.trim().isEmpty) {
       errors['category'] = 'Bir ana kategori seç.';
     }
@@ -862,6 +1114,50 @@ abstract final class ContentSafetyService {
   }
 }
 
+class MapFocusController {
+  MapFocusController._();
+
+  static final ValueNotifier<Place?> focusedPlace = ValueNotifier<Place?>(null);
+
+  static void focus(Place place) {
+    focusedPlace.value = place;
+  }
+
+  static void clear() {
+    focusedPlace.value = null;
+  }
+}
+
+/// Ana sayfadaki bir il seçimini, haritanın bölgesel keşif akışına taşır.
+/// Bu yalnızca geçici bir gezinme niyetidir; kullanıcı konumu ya da Supabase
+/// verisi burada saklanmaz.
+class MapRegionFocus {
+  const MapRegionFocus({
+    required this.label,
+    required this.center,
+    this.zoom = 8.6,
+  });
+
+  final String label;
+  final LatLng center;
+  final double zoom;
+}
+
+class MapRegionFocusController {
+  MapRegionFocusController._();
+
+  static final ValueNotifier<MapRegionFocus?> focusedRegion =
+      ValueNotifier<MapRegionFocus?>(null);
+
+  static void focus(MapRegionFocus region) {
+    focusedRegion.value = region;
+  }
+
+  static void clear() {
+    focusedRegion.value = null;
+  }
+}
+
 class UserPlacesController {
   UserPlacesController._();
 
@@ -913,9 +1209,17 @@ class UserPlacesController {
                     ?.map((item) => item.toString())
                     .toList(growable: false) ??
                 const <String>[],
+            contributorName: data['contributorName']?.toString(),
           );
         })
         .where((place) => place.hasCoordinates)
+        .where(
+          (place) => !isNonNatureCandidateName(
+            place.name,
+            subtype: place.resolvedTaxonomy.subtype,
+            mainCategory: place.resolvedTaxonomy.mainCategory,
+          ),
+        )
         .toList(growable: false);
   }
 
@@ -958,6 +1262,7 @@ class UserPlacesController {
                 'mainCategory': item.resolvedTaxonomy.mainCategory,
                 'subtype': item.resolvedTaxonomy.subtype,
                 'facilities': item.facilities.toJson(),
+                'contributorName': item.contributorName,
               }))
           .toList(growable: false),
     );
@@ -965,6 +1270,110 @@ class UserPlacesController {
 }
 
 enum SubmissionSyncResult { sent, queued, signInRequired }
+
+class SubmissionFeedback {
+  const SubmissionFeedback({
+    required this.status,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    this.placeName,
+  });
+
+  final String status;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final String? placeName;
+
+  bool get isActionRequired => status == 'changes_requested';
+
+  factory SubmissionFeedback.fromModeration({
+    required String status,
+    required String placeName,
+    String? moderatorNote,
+    DateTime? createdAt,
+  }) {
+    final note = moderatorNote?.trim();
+    return switch (status) {
+      'approved' => SubmissionFeedback(
+          status: status,
+          title: 'Katkın onaylandı',
+          body: '$placeName artık Doğadayım’da yayınlandı.',
+          createdAt: createdAt ?? DateTime.now(),
+          placeName: placeName,
+        ),
+      'changes_requested' => SubmissionFeedback(
+          status: status,
+          title: 'Katkın için düzeltme istendi',
+          body: note?.isNotEmpty == true
+              ? note!
+              : '$placeName için yönetici notunu incele.',
+          createdAt: createdAt ?? DateTime.now(),
+          placeName: placeName,
+        ),
+      'rejected' => SubmissionFeedback(
+          status: status,
+          title: 'Katkın yayınlanamadı',
+          body: note?.isNotEmpty == true
+              ? note!
+              : '$placeName yayın kriterlerini karşılamadı.',
+          createdAt: createdAt ?? DateTime.now(),
+          placeName: placeName,
+        ),
+      _ => SubmissionFeedback(
+          status: status,
+          title: 'Katkı durumun güncellendi',
+          body: '$placeName için yeni bir durum var.',
+          createdAt: createdAt ?? DateTime.now(),
+          placeName: placeName,
+        ),
+    };
+  }
+
+  factory SubmissionFeedback.fromNotification(Map<String, dynamic> row) {
+    return SubmissionFeedback(
+      status: row['type']?.toString() ?? '',
+      title: row['title']?.toString() ?? 'Katkı durumun güncellendi',
+      body: row['body']?.toString() ?? '',
+      createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+class SubmissionFeedbackController {
+  SubmissionFeedbackController._();
+
+  static final items = ValueNotifier<List<SubmissionFeedback>>(
+    const <SubmissionFeedback>[],
+  );
+
+  static Future<void> load() async {
+    try {
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      if (user == null) {
+        items.value = const <SubmissionFeedback>[];
+        return;
+      }
+      final rows = await client
+          .from('user_notifications')
+          .select('type, title, body, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false)
+          .limit(20);
+      items.value = rows
+          .map((row) => SubmissionFeedback.fromNotification(
+                Map<String, dynamic>.from(row),
+              ))
+          .toList(growable: false);
+    } catch (_) {
+      // The app remains compatible until the feedback migration is deployed.
+      items.value = const <SubmissionFeedback>[];
+    }
+  }
+}
 
 class PlaceSubmissionController {
   PlaceSubmissionController._();
@@ -1035,6 +1444,7 @@ class PlaceSubmissionController {
     } catch (_) {
       // Ağ yoksa veya oturum sorgulanamıyorsa local kayıtlar korunur.
     }
+    await SubmissionFeedbackController.load();
   }
 
   static Future<void> _reconcileSubmittedPlaces() async {
@@ -1139,6 +1549,15 @@ class PlaceSubmissionController {
         }
       }
 
+      final metadata = user.userMetadata;
+      final fullName = (metadata?['full_name']?.toString() ??
+              metadata?['name']?.toString() ??
+              metadata?['display_name']?.toString() ??
+              '')
+          .trim();
+      final authorName =
+          fullName.isNotEmpty ? fullName : (user.email?.split('@').first ?? '');
+
       final inserted = await client
           .from('place_submissions')
           .insert({
@@ -1160,6 +1579,7 @@ class PlaceSubmissionController {
             'subtype': taxonomy.subtype,
             'facilities': facilities,
             'status': 'pending',
+            'author_name': authorName,
           })
           .select('id')
           .single();
@@ -1199,9 +1619,24 @@ class PlaceSubmissionController {
   }
 
   static String _databaseCategoryName(String category) => switch (category) {
+        'Kamp' => 'Kamp Alanı',
         'Piknik' => 'Piknik Alanı',
         'Yürüyüş' => 'Yürüyüş Rotası',
         'Karavan' => 'Karavan Alanı',
+        'Kanyon & Vadi' => 'Kanyon',
+        'Millî / Doğa Parkı' => 'Milli Park',
+        'Mobil Servis' ||
+        'Mobil Servis & İşletme' ||
+        'Oto Kurtarma / Çekici' ||
+        'Mobil Lastikçi' ||
+        'Mobil Akü & Takviye' ||
+        'Mobil Mekanik & Yol Yardım' ||
+        'Karavan Tamiri & Bakım' ||
+        'Mobil Çilingir' ||
+        'Mobil Elektrik & Güneş Paneli' ||
+        'Karavan Su Tesisatı & Gaz' ||
+        '4x4 / Off-Road Kurtarma' =>
+          'Mobil Servis & İşletme',
         _ => category,
       };
 
@@ -1238,10 +1673,174 @@ class PlaceSubmissionController {
   }
 }
 
+class NearbyAmenity {
+  const NearbyAmenity({
+    required this.id,
+    required this.name,
+    required this.subtype,
+    required this.distanceMeters,
+  });
+
+  factory NearbyAmenity.fromJson(Map<String, dynamic> row) => NearbyAmenity(
+        id: (row['id'] as num?)?.toInt() ?? 0,
+        name: row['name']?.toString().trim() ?? '',
+        subtype: row['subtype']?.toString().trim() ?? '',
+        distanceMeters: (row['distance_m'] as num?)?.round() ?? 0,
+      );
+
+  final int id;
+  final String name;
+  final String subtype;
+  final int distanceMeters;
+
+  String get typeLabel => switch (subtype) {
+        'drinking_water' => 'İçme suyu',
+        'water_fountain' => 'Çeşme',
+        'toilet' => 'WC',
+        _ => 'Yakındaki olanak',
+      };
+
+  IconData get icon => switch (subtype) {
+        'drinking_water' || 'water_fountain' => Icons.water_drop_outlined,
+        'toilet' => Icons.wc_outlined,
+        _ => Icons.place_outlined,
+      };
+}
+
+class NearbyAmenitiesService {
+  NearbyAmenitiesService._();
+
+  static Future<List<NearbyAmenity>> fetchFor(Place place) async {
+    if (!place.hasCoordinates) return const [];
+    final response = await Supabase.instance.client.rpc(
+      'nearby_amenities',
+      params: {
+        'p_latitude': place.latitude,
+        'p_longitude': place.longitude,
+        'p_radius_m': 2000,
+      },
+    );
+    if (response is! List) return const [];
+    return response
+        .whereType<Map>()
+        .map((row) => NearbyAmenity.fromJson(Map<String, dynamic>.from(row)))
+        .where((amenity) => amenity.id != 0 && amenity.name.isNotEmpty)
+        .toList(growable: false);
+  }
+}
+
+/// Harita için ekrandaki alanla sınırlı, geri alınabilir veri kaynağı.
+/// `enabled` false yapıldığında MapScreen mevcut tam-liste davranışına döner;
+/// bu sınıf hiçbir kaydı silmez veya kalıcı veriyi değiştirmez.
+abstract final class MapViewportPointsService {
+  static const enabled = true;
+
+  /// Bölgesel keşif deneyimi tek bir anahtarla geri alınabilir. `false`
+  /// yapıldığında MapScreen önceki tam-liste/filtre düzenine döner; bu ayar
+  /// hiçbir Supabase verisini veya kullanıcı kaydını değiştirmez.
+  static const regionalExplorerEnabled = true;
+  // Yardımcı noktalar, kullanıcı bir bölgeyi keşfederken de görünür olmalı;
+  // yalnızca yakına gelindiğinde beliren bir "yakınımda" özelliği değildir.
+  static const auxiliaryMinZoom = 9.0;
+  static const amenityMinZoom = 13.0;
+  static const maxPoints = 300;
+
+  static Future<List<Place>> fetch({
+    required LatLngBounds bounds,
+    required double zoom,
+    required List<String>? filterTypes,
+  }) async {
+    if (!enabled) return const <Place>[];
+    // PostgREST integer RPC parametresinde `13.0` değil, gerçek bir int
+    // gönderilmelidir; aksi halde PostgreSQL tip dönüşüm hatası verir.
+    final zoomLevel = zoom.round().clamp(4, 18).toInt();
+    final normalizedFilter = filterTypes
+        ?.where((key) => key.trim().isNotEmpty && key != 'all')
+        .toSet()
+        .toList(growable: false);
+    final response = await Supabase.instance.client.rpc(
+      'map_points_in_bbox',
+      params: <String, dynamic>{
+        'p_min_lat': bounds.south,
+        'p_max_lat': bounds.north,
+        'p_min_lng': bounds.west,
+        'p_max_lng': bounds.east,
+        'p_zoom_level': zoomLevel,
+        'p_filter_types': normalizedFilter == null || normalizedFilter.isEmpty
+            ? null
+            : normalizedFilter,
+      },
+    );
+    if (response is! List) return const <Place>[];
+    final points = <Place>[];
+    final seen = <String>{};
+    for (final raw in response) {
+      if (raw is! Map) continue;
+      final row = Map<String, dynamic>.from(raw);
+      final latitude = (row['latitude'] as num?)?.toDouble();
+      final longitude = (row['longitude'] as num?)?.toDouble();
+      final name = row['name']?.toString().trim() ?? '';
+      final subtype = row['subtype']?.toString();
+      final mainCategory = row['main_category']?.toString();
+      final sourceKind = row['source_kind']?.toString() ?? 'place';
+      final id = row['id']?.toString() ?? '';
+      if (name.isEmpty ||
+          !AddPlaceQualityService.isValidCoordinate(latitude, longitude) ||
+          isNonNatureCandidateName(
+            name,
+            subtype: subtype,
+            mainCategory: mainCategory,
+          ) ||
+          !seen.add('$sourceKind:$id')) {
+        continue;
+      }
+      final locationParts = <String>[
+        row['district']?.toString().trim() ?? '',
+        row['city']?.toString().trim() ?? '',
+      ].where((part) => part.isNotEmpty).toList(growable: false);
+      final isAmenity = row['is_amenity'] == true;
+      final categoryKey = mainCategory ?? subtype;
+      points.add(
+        Place(
+          name,
+          locationParts.join(', '),
+          canonicalPlaceCategory(categoryKey ?? 'Doğa Noktası'),
+          0,
+          iconForCategoryKey(categoryKey),
+          _paletteFor(categoryKey, isAmenity: isAmenity),
+          null,
+          latitude: latitude,
+          longitude: longitude,
+          sourceId: '$sourceKind:$id',
+          source: PlaceSource.curated,
+          verificationStatus: VerificationStatus.verified,
+          mainCategory: mainCategory,
+          subtype: subtype,
+        ),
+      );
+    }
+    return points;
+  }
+
+  static List<Color> _paletteFor(String? key, {required bool isAmenity}) {
+    if (isAmenity) {
+      return const [AppColors.categoryUtility, AppColors.categoryUtility];
+    }
+    return switch (key) {
+      'lake' || 'waterfall' => AppColors.lakeGradient,
+      'camp' || 'caravan' => AppColors.campGradient,
+      'cave' => AppColors.caveGradient,
+      _ => AppColors.defaultGradient,
+    };
+  }
+}
+
 class SupabasePlacesController {
   SupabasePlacesController._();
 
-  static const _storageKey = 'supabase_places_cache_v1';
+  // Veritabanındaki ham nokta düzeni değiştiği için eski listeyi yeniden
+  // göstermemek adına önbellek sürümünü yükseltiyoruz.
+  static const _storageKey = 'supabase_places_cache_v2';
   static final places = ValueNotifier<List<Place>>(<Place>[]);
 
   // Isolate-safe helper: sadece JSON string -> Map decode eder.
@@ -1302,14 +1901,20 @@ class SupabasePlacesController {
               mainCategory: data['mainCategory']?.toString(),
               subtype: data['subtype']?.toString(),
               facilities: PlaceFacilities.fromJson(data['facilities']),
+              contributorName: data['contributorName']?.toString(),
             );
           } catch (_) {
             return null;
           }
         })
         .whereType<Place>()
-        .where(
-            (place) => place.verificationStatus == VerificationStatus.verified)
+        .where((place) =>
+            place.verificationStatus == VerificationStatus.verified &&
+            !isNonNatureCandidateName(
+              place.name,
+              subtype: place.resolvedTaxonomy.subtype,
+              mainCategory: place.resolvedTaxonomy.mainCategory,
+            ))
         .toList(growable: false);
   }
 
@@ -1348,6 +1953,7 @@ class SupabasePlacesController {
             'id, name, short_description, description, city, district, '
             'latitude, longitude, is_verified, updated_at, main_category, '
             'subtype, name_tr, verification_level, publish_status, '
+            'author_name, '
             'categories(name), place_facilities(*)',
           )
           .eq('is_active', true)
@@ -1380,12 +1986,22 @@ class SupabasePlacesController {
       final description = data['description']?.toString().trim() ?? '';
       final turkishName = data['name_tr']?.toString().trim() ?? '';
       final verificationLevel = data['verification_level']?.toString();
+      final placeName = turkishName.isNotEmpty
+          ? turkishName
+          : data['name']?.toString() ?? 'Doğa Noktası';
+      final subtype = data['subtype']?.toString();
+      final mainCategory = data['main_category']?.toString();
+      if (isNonNatureCandidateName(
+        placeName,
+        subtype: subtype,
+        mainCategory: mainCategory,
+      )) {
+        continue;
+      }
 
       loadedPlaces.add(
         Place(
-          turkishName.isNotEmpty
-              ? turkishName
-              : data['name']?.toString() ?? 'Doğa Noktası',
+          placeName,
           location,
           canonicalPlaceCategory(categoryName ?? 'Doğa Noktası'),
           0,
@@ -1412,6 +2028,7 @@ class SupabasePlacesController {
           mainCategory: data['main_category']?.toString(),
           subtype: data['subtype']?.toString(),
           facilities: PlaceFacilities.fromJson(data['place_facilities']),
+          contributorName: data['author_name']?.toString(),
         ),
       );
     }
@@ -1440,6 +2057,7 @@ class SupabasePlacesController {
                 'mainCategory': place.resolvedTaxonomy.mainCategory,
                 'subtype': place.resolvedTaxonomy.subtype,
                 'facilities': place.facilities.toJson(),
+                'contributorName': place.contributorName,
               }))
           .toList(growable: false),
     );
@@ -1699,6 +2317,13 @@ class UserReviewsController {
     await _persist();
   }
 
+  static Future<void> deleteReview(Place place) async {
+    final updated =
+        reviews.value.where((r) => !_matches(r, place)).toList(growable: false);
+    reviews.value = updated;
+    await _persist();
+  }
+
   static Future<void> clear() async {
     reviews.value = const <UserReviewRecord>[];
     final preferences = await SharedPreferences.getInstance();
@@ -1713,6 +2338,479 @@ class UserReviewsController {
           .map((item) => jsonEncode(item.toJson()))
           .toList(growable: false),
     );
+  }
+}
+
+class UserFavoritesController {
+  UserFavoritesController._();
+
+  static const _storageKey = 'user_favorites_v1';
+  static final favorites = ValueNotifier<Set<String>>(<String>{});
+
+  static Future<void> load() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final list = preferences.getStringList(_storageKey) ?? const <String>[];
+      favorites.value = list.toSet();
+    } catch (_) {}
+  }
+
+  static bool isFavorite(String placeName) =>
+      favorites.value.contains(placeName.trim());
+
+  static Future<void> toggle(String placeName) async {
+    final trimmed = placeName.trim();
+    if (trimmed.isEmpty) return;
+    final current = Set<String>.from(favorites.value);
+    if (current.contains(trimmed)) {
+      current.remove(trimmed);
+    } else {
+      current.add(trimmed);
+    }
+    favorites.value = current;
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setStringList(
+        _storageKey,
+        current.toList(growable: false),
+      );
+    } catch (_) {}
+  }
+
+  static Future<void> clear() async {
+    favorites.value = <String>{};
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.remove(_storageKey);
+    } catch (_) {}
+  }
+}
+
+class CommunityFacilityUpdatesController {
+  CommunityFacilityUpdatesController._();
+
+  static const _storageKey = 'community_facility_updates_v1';
+  static final updates = ValueNotifier<Map<String, Map<String, bool>>>(
+      <String, Map<String, bool>>{});
+
+  static Future<void> load() async {
+    final preferences = await SharedPreferences.getInstance();
+    final raw = preferences.getString(_storageKey);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        final map = <String, Map<String, bool>>{};
+        for (final entry in decoded.entries) {
+          if (entry.value is Map) {
+            map[entry.key] = Map<String, bool>.from(
+              (entry.value as Map).map(
+                (k, v) => MapEntry(k.toString(), v == true),
+              ),
+            );
+          }
+        }
+        updates.value = map;
+      } catch (_) {}
+    }
+  }
+
+  static String placeKey(Place place) {
+    if (place.sourceId != null && place.sourceId!.isNotEmpty) {
+      return place.sourceId!;
+    }
+    return place.name.trim().toLowerCase();
+  }
+
+  static bool? getStatus(Place place, String facilityKey) {
+    final key = placeKey(place);
+    return updates.value[key]?[facilityKey];
+  }
+
+  static Future<void> setStatus({
+    required Place place,
+    required String facilityKey,
+    required bool? value,
+  }) async {
+    final key = placeKey(place);
+    final current = Map<String, Map<String, bool>>.from(updates.value);
+    final placeMap =
+        Map<String, bool>.from(current[key] ?? const <String, bool>{});
+    if (value == null) {
+      placeMap.remove(facilityKey);
+    } else {
+      placeMap[facilityKey] = value;
+    }
+    if (placeMap.isEmpty) {
+      current.remove(key);
+    } else {
+      current[key] = placeMap;
+    }
+    updates.value = current;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_storageKey, jsonEncode(current));
+  }
+}
+
+class CommunityPlacePhoto {
+  const CommunityPlacePhoto({
+    required this.id,
+    required this.placeKey,
+    required this.placeName,
+    required this.imageUrl,
+    required this.authorName,
+    this.authorId = '',
+    required this.createdAt,
+  });
+
+  final String id;
+  final String placeKey;
+  final String placeName;
+  final String imageUrl;
+  final String authorName;
+  final String authorId;
+  final DateTime createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'placeKey': placeKey,
+        'placeName': placeName,
+        'imageUrl': imageUrl,
+        'authorName': authorName,
+        'authorId': authorId,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory CommunityPlacePhoto.fromJson(Map<String, dynamic> json) {
+    return CommunityPlacePhoto(
+      id: json['id']?.toString() ?? '',
+      placeKey: json['placeKey']?.toString() ?? '',
+      placeName: json['placeName']?.toString() ?? '',
+      imageUrl: json['imageUrl']?.toString() ?? '',
+      authorName: json['authorName']?.toString() ?? 'Doğa Kaşifi',
+      authorId: json['authorId']?.toString() ?? '',
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+class CommunityPlacePhotosController {
+  CommunityPlacePhotosController._();
+
+  static const _storageKey = 'community_place_photos_v1';
+  static final photos =
+      ValueNotifier<List<CommunityPlacePhoto>>(<CommunityPlacePhoto>[]);
+
+  static Future<void> load() async {
+    final preferences = await SharedPreferences.getInstance();
+    final records = preferences.getStringList(_storageKey) ?? const <String>[];
+    photos.value = records
+        .map((r) {
+          try {
+            return CommunityPlacePhoto.fromJson(
+              jsonDecode(r) as Map<String, dynamic>,
+            );
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<CommunityPlacePhoto>()
+        .toList(growable: false);
+    await refreshApprovedPhotos();
+  }
+
+  /// Sadece yönetici tarafından onaylanan katkılar herkese gösterilir.
+  static Future<void> refreshApprovedPhotos() async {
+    try {
+      final client = Supabase.instance.client;
+      final rows = await client
+          .from('place_photo_submissions')
+          .select(
+              'id, place_key, place_name, photo_path, submitter_name, submitted_by, created_at')
+          .eq('status', 'approved')
+          .not('photo_path', 'is', null)
+          .order('created_at', ascending: false)
+          .limit(300);
+      final approved = <CommunityPlacePhoto>[];
+      for (final row in rows) {
+        final path = row['photo_path']?.toString().trim() ?? '';
+        if (path.isEmpty) continue;
+        try {
+          final signedUrl = await client.storage
+              .from('community-photos')
+              .createSignedUrl(path, 3600);
+          approved.add(CommunityPlacePhoto(
+            id: 'moderated-${row['id']}',
+            placeKey: row['place_key']?.toString() ?? '',
+            placeName: row['place_name']?.toString() ?? '',
+            imageUrl: signedUrl,
+            authorName: row['submitter_name']?.toString() ?? 'Doğa Kaşifi',
+            authorId: row['submitted_by']?.toString() ?? '',
+            createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+                DateTime.now(),
+          ));
+        } catch (_) {
+          // Bir görselin imzalanamaması diğer onaylı fotoğrafları engellemez.
+        }
+      }
+      final legacy = photos.value
+          .where((photo) => !photo.id.startsWith('moderated-'))
+          .toList(growable: false);
+      photos.value = <CommunityPlacePhoto>[...approved, ...legacy];
+    } catch (_) {
+      // Uygulama çevrimdışıyken eski yerel katkılar görünmeye devam eder.
+    }
+  }
+
+  static String placeKey(Place place) {
+    if (place.sourceId != null && place.sourceId!.isNotEmpty) {
+      return place.sourceId!;
+    }
+    return place.name.trim().toLowerCase();
+  }
+
+  static List<CommunityPlacePhoto> forPlace(Place place) {
+    final key = placeKey(place);
+    final pName = place.name.trim().toLowerCase();
+    return photos.value
+        .where((p) =>
+            p.placeKey == key || p.placeName.trim().toLowerCase() == pName)
+        .toList(growable: false);
+  }
+
+  static List<CommunityPlacePhoto> byAuthor(
+    String authorName, {
+    String? authorId,
+  }) {
+    final normName = authorName.trim().toLowerCase();
+    return photos.value.where((p) {
+      if (authorId != null && authorId.isNotEmpty && p.authorId == authorId) {
+        return true;
+      }
+      return p.authorName.trim().toLowerCase() == normName;
+    }).toList(growable: false);
+  }
+
+  static Future<void> addPhoto({
+    required Place place,
+    required String imageUrl,
+    required String authorName,
+    String authorId = '',
+  }) async {
+    final newPhoto = CommunityPlacePhoto(
+      id: 'cpp_${DateTime.now().millisecondsSinceEpoch}',
+      placeKey: placeKey(place),
+      placeName: place.name,
+      imageUrl: imageUrl.trim(),
+      authorName:
+          authorName.trim().isNotEmpty ? authorName.trim() : 'Doğa Kaşifi',
+      authorId: authorId,
+      createdAt: DateTime.now(),
+    );
+    final current = List<CommunityPlacePhoto>.from(photos.value);
+    current.insert(0, newPhoto);
+    photos.value = current;
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      _storageKey,
+      current.map((p) => jsonEncode(p.toJson())).toList(growable: false),
+    );
+  }
+
+  /// Var olan bir mekânın fotoğrafını yönetici incelemesine gönderir.
+  /// Fotoğraf, onay verilmeden topluluk galerisine eklenmez.
+  static Future<void> submitPhotoForModeration({
+    required Place place,
+    required XFile photo,
+  }) async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      throw StateError('Fotoğraf göndermek için giriş yapmalısınız.');
+    }
+    final bytes = await photo.readAsBytes();
+    if (bytes.isEmpty || bytes.length > 8 * 1024 * 1024) {
+      throw StateError('Fotoğraf 8 MB sınırını aşmamalıdır.');
+    }
+    final inserted = await client
+        .from('place_photo_submissions')
+        .insert({
+          'place_key': placeKey(place),
+          'place_name': place.name.trim(),
+          'place_location': place.location.trim(),
+          'submitted_by': user.id,
+        })
+        .select('id')
+        .single();
+    final submissionId = inserted['id'].toString();
+    final type = _photoType(photo.name);
+    final path = '${user.id}/$submissionId/primary${type.extension}';
+    try {
+      await client.storage.from('community-photos').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: type.contentType,
+            ),
+          );
+      await client.rpc(
+        'attach_community_photo',
+        params: {
+          'p_submission_id': submissionId,
+          'p_path': path,
+        },
+      );
+    } catch (_) {
+      try {
+        await client.storage.from('community-photos').remove([path]);
+      } catch (_) {
+        // Başarısız başvuru için en iyi çabayla temizlik yapılır.
+      }
+      rethrow;
+    }
+  }
+
+  static ({String extension, String contentType}) _photoType(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.png')) {
+      return (extension: '.png', contentType: 'image/png');
+    }
+    if (lower.endsWith('.webp')) {
+      return (extension: '.webp', contentType: 'image/webp');
+    }
+    return (extension: '.jpg', contentType: 'image/jpeg');
+  }
+
+  static Future<void> removePhoto(String photoId) async {
+    final current =
+        photos.value.where((p) => p.id != photoId).toList(growable: false);
+    photos.value = current;
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      _storageKey,
+      current.map((p) => jsonEncode(p.toJson())).toList(growable: false),
+    );
+  }
+
+  /// Hesap silme ve oturum kapatma sonrasında cihazdaki eski fotoğraf
+  /// kayıtlarını kaldırır. Onaylı uzak fotoğraflar sonraki oturumda yüklenir.
+  static Future<void> clear() async {
+    photos.value = const <CommunityPlacePhoto>[];
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove(_storageKey);
+  }
+}
+
+class UserSocialAccounts {
+  const UserSocialAccounts({
+    this.instagram = '',
+    this.facebook = '',
+    this.youtube = '',
+  });
+
+  final String instagram;
+  final String facebook;
+  final String youtube;
+
+  bool get isEmpty =>
+      instagram.trim().isEmpty &&
+      facebook.trim().isEmpty &&
+      youtube.trim().isEmpty;
+  bool get isNotEmpty => !isEmpty;
+
+  static Uri? resolveUri(String platform, String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return Uri.tryParse(trimmed);
+    }
+    final handle = trimmed.replaceAll('@', '');
+    return switch (platform.toLowerCase()) {
+      'instagram' => Uri.tryParse('https://instagram.com/$handle'),
+      'facebook' => Uri.tryParse('https://facebook.com/$handle'),
+      'youtube' => Uri.tryParse('https://youtube.com/@$handle'),
+      _ => Uri.tryParse('https://$trimmed'),
+    };
+  }
+
+  Map<String, dynamic> toJson() => {
+        'instagram': instagram,
+        'facebook': facebook,
+        'youtube': youtube,
+      };
+
+  factory UserSocialAccounts.fromJson(Map<String, dynamic> json) =>
+      UserSocialAccounts(
+        instagram: json['instagram']?.toString() ?? '',
+        facebook: json['facebook']?.toString() ?? '',
+        youtube: json['youtube']?.toString() ?? '',
+      );
+}
+
+class UserSocialAccountsController {
+  UserSocialAccountsController._();
+
+  static const _storageKey = 'user_social_accounts_v1';
+  static final accounts =
+      ValueNotifier<UserSocialAccounts>(const UserSocialAccounts());
+
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_storageKey);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+        accounts.value = UserSocialAccounts.fromJson(data);
+      } catch (_) {}
+    }
+  }
+
+  static Future<void> save({
+    required String instagram,
+    required String facebook,
+    required String youtube,
+  }) async {
+    final updated = UserSocialAccounts(
+      instagram: instagram.trim(),
+      facebook: facebook.trim(),
+      youtube: youtube.trim(),
+    );
+    accounts.value = updated;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storageKey, jsonEncode(updated.toJson()));
+  }
+}
+
+class UserProfileAvatarController {
+  UserProfileAvatarController._();
+
+  static const _storageKey = 'user_custom_avatar_v1';
+  static final avatarNotifier = ValueNotifier<String?>(null);
+
+  static Future<void> load() async {
+    final preferences = await SharedPreferences.getInstance();
+    avatarNotifier.value = preferences.getString(_storageKey);
+  }
+
+  static Future<void> setAvatar(String? avatarUrl) async {
+    avatarNotifier.value = avatarUrl;
+    final preferences = await SharedPreferences.getInstance();
+    if (avatarUrl == null || avatarUrl.isEmpty) {
+      await preferences.remove(_storageKey);
+    } else {
+      await preferences.setString(_storageKey, avatarUrl);
+    }
+  }
+
+  static Future<void> clear() async {
+    avatarNotifier.value = null;
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.remove(_storageKey);
+    } catch (_) {}
   }
 }
 
@@ -1832,14 +2930,261 @@ class WeatherTarget {
       : 'city:${label.trim().toLowerCase()}';
 }
 
+class LocationReverseGeocoder {
+  LocationReverseGeocoder._();
+
+  static const _turkishReferenceLocations =
+      <({String name, double lat, double lon})>[
+    (name: 'Adana', lat: 37.0000, lon: 35.3213),
+    (name: 'Pozantı, Adana', lat: 37.4278, lon: 34.8719),
+    (name: 'Kozan, Adana', lat: 37.4553, lon: 35.8158),
+    (name: 'Adıyaman', lat: 37.7648, lon: 38.2786),
+    (name: 'Afyonkarahisar', lat: 38.7507, lon: 30.5567),
+    (name: 'Ağrı', lat: 39.7191, lon: 43.0503),
+    (name: 'Amasya', lat: 40.6534, lon: 35.8336),
+    (name: 'Ankara', lat: 39.9334, lon: 32.8597),
+    (name: 'Yenimahalle, Ankara', lat: 39.9700, lon: 32.7900),
+    (name: 'Çankaya, Ankara', lat: 39.9000, lon: 32.8600),
+    (name: 'Kızılcahamam, Ankara', lat: 40.4700, lon: 32.6500),
+    (name: 'Beypazarı, Ankara', lat: 40.1683, lon: 31.9211),
+    (name: 'Antalya', lat: 36.8969, lon: 30.7133),
+    (name: 'Alanya, Antalya', lat: 36.5438, lon: 31.9998),
+    (name: 'Manavgat, Antalya', lat: 36.7869, lon: 31.4428),
+    (name: 'Kaş, Antalya', lat: 36.2003, lon: 29.6378),
+    (name: 'Kemer, Antalya', lat: 36.5986, lon: 30.5606),
+    (name: 'Artvin', lat: 41.1828, lon: 41.8183),
+    (name: 'Aydın', lat: 37.8560, lon: 27.8416),
+    (name: 'Balıkesir', lat: 39.6484, lon: 27.8826),
+    (name: 'Bilecik', lat: 40.1451, lon: 29.9799),
+    (name: 'Bingöl', lat: 38.8854, lon: 40.4983),
+    (name: 'Bitlis', lat: 38.4006, lon: 42.1095),
+    (name: 'Bolu', lat: 40.7358, lon: 31.6061),
+    (name: 'Burdur', lat: 37.7203, lon: 30.2908),
+    (name: 'Bursa', lat: 40.1885, lon: 29.0610),
+    (name: 'Çanakkale', lat: 40.1553, lon: 26.4142),
+    (name: 'Çankırı', lat: 40.6013, lon: 33.6134),
+    (name: 'Çorum', lat: 40.5506, lon: 34.9556),
+    (name: 'Denizli', lat: 37.7765, lon: 29.0864),
+    (name: 'Diyarbakır', lat: 37.9144, lon: 40.2306),
+    (name: 'Edirne', lat: 41.6772, lon: 26.5557),
+    (name: 'Elazığ', lat: 38.6810, lon: 39.2264),
+    (name: 'Erzincan', lat: 39.7500, lon: 39.5000),
+    (name: 'Erzurum', lat: 39.9000, lon: 41.2700),
+    (name: 'Eskişehir', lat: 39.7767, lon: 30.5206),
+    (name: 'Gaziantep', lat: 37.0662, lon: 37.3833),
+    (name: 'Giresun', lat: 40.9128, lon: 38.3895),
+    (name: 'Gümüşhane', lat: 40.4600, lon: 39.4700),
+    (name: 'Hakkari', lat: 37.5833, lon: 43.7333),
+    (name: 'Hatay', lat: 36.2023, lon: 36.1606),
+    (name: 'Isparta', lat: 37.7648, lon: 30.5566),
+    (name: 'Mersin', lat: 36.8121, lon: 34.6415),
+    (name: 'Tarsus, Mersin', lat: 36.9167, lon: 34.8833),
+    (name: 'İstanbul', lat: 41.0082, lon: 28.9784),
+    (name: 'İzmir', lat: 38.4192, lon: 27.1287),
+    (name: 'Kars', lat: 40.6167, lon: 43.1000),
+    (name: 'Kastamonu', lat: 41.3887, lon: 33.7827),
+    (name: 'Kayseri', lat: 38.7312, lon: 35.4787),
+    (name: 'Kırklareli', lat: 41.7333, lon: 27.2167),
+    (name: 'Kırşehir', lat: 39.1425, lon: 34.1709),
+    (name: 'Kocaeli', lat: 40.8533, lon: 29.8815),
+    (name: 'Konya', lat: 37.8667, lon: 32.4833),
+    (name: 'Beyşehir, Konya', lat: 37.6789, lon: 31.7214),
+    (name: 'Kütahya', lat: 39.4167, lon: 29.9833),
+    (name: 'Malatya', lat: 38.3552, lon: 38.3095),
+    (name: 'Manisa', lat: 38.6191, lon: 27.4289),
+    (name: 'Kahramanmaraş', lat: 37.5858, lon: 36.9371),
+    (name: 'Mardin', lat: 37.3212, lon: 40.7245),
+    (name: 'Muğla', lat: 37.2153, lon: 28.3636),
+    (name: 'Fethiye, Muğla', lat: 36.6534, lon: 29.1244),
+    (name: 'Bodrum, Muğla', lat: 37.0344, lon: 27.4305),
+    (name: 'Marmaris, Muğla', lat: 36.8550, lon: 28.2742),
+    (name: 'Muş', lat: 38.7432, lon: 41.5064),
+    (name: 'Nevşehir', lat: 38.6244, lon: 34.7231),
+    (name: 'Niğde', lat: 37.9667, lon: 34.6833),
+    (name: 'Ordu', lat: 40.9839, lon: 37.8764),
+    (name: 'Rize', lat: 41.0201, lon: 40.5234),
+    (name: 'Sakarya', lat: 40.7569, lon: 30.3783),
+    (name: 'Samsun', lat: 41.2928, lon: 36.3313),
+    (name: 'Siirt', lat: 37.9333, lon: 41.9500),
+    (name: 'Sinop', lat: 42.0231, lon: 35.1531),
+    (name: 'Sivas', lat: 39.7477, lon: 37.0179),
+    (name: 'Tekirdağ', lat: 40.9833, lon: 27.5167),
+    (name: 'Tokat', lat: 40.3167, lon: 36.5500),
+    (name: 'Trabzon', lat: 41.0027, lon: 39.7168),
+    (name: 'Tunceli', lat: 39.1079, lon: 39.5401),
+    (name: 'Şanlıurfa', lat: 37.1591, lon: 38.7969),
+    (name: 'Uşak', lat: 38.6823, lon: 29.4082),
+    (name: 'Van', lat: 38.4891, lon: 43.4089),
+    (name: 'Yozgat', lat: 39.8181, lon: 34.8147),
+    (name: 'Zonguldak', lat: 41.4564, lon: 31.7987),
+    (name: 'Aksaray', lat: 38.3687, lon: 34.0370),
+    (name: 'Bayburt', lat: 40.2552, lon: 40.2249),
+    (name: 'Karaman', lat: 37.1759, lon: 33.2287),
+    (name: 'Kırıkkale', lat: 39.8468, lon: 33.5153),
+    (name: 'Batman', lat: 37.8812, lon: 41.1351),
+    (name: 'Şırnak', lat: 37.5164, lon: 42.4611),
+    (name: 'Bartın', lat: 41.6344, lon: 32.3375),
+    (name: 'Ardahan', lat: 41.1105, lon: 42.7022),
+    (name: 'Iğdır', lat: 39.9196, lon: 44.0454),
+    (name: 'Yalova', lat: 40.6550, lon: 29.2769),
+    (name: 'Karabük', lat: 41.2061, lon: 32.6204),
+    (name: 'Kilis', lat: 36.7184, lon: 37.1212),
+    (name: 'Osmaniye', lat: 37.0742, lon: 36.2472),
+    (name: 'Düzce', lat: 40.8438, lon: 31.1565),
+  ];
+
+  static Future<String> reverseGeocode(
+      double latitude, double longitude) async {
+    // 1. Online: BigDataCloud reverse geocode client API
+    try {
+      final uri =
+          Uri.https('api.bigdatacloud.net', '/data/reverse-geocode-client', {
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+        'localityLanguage': 'tr',
+      });
+      final response = await http.get(uri).timeout(const Duration(seconds: 4));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          final city = data['city']?.toString().trim();
+          final locality = data['locality']?.toString().trim();
+          final principalSubdivision =
+              data['principalSubdivision']?.toString().trim();
+
+          String? district;
+          final localityInfo = data['localityInfo'];
+          if (localityInfo is Map<String, dynamic>) {
+            final admin = localityInfo['administrative'];
+            if (admin is List) {
+              for (final item in admin) {
+                if (item is Map &&
+                    (item['adminLevel'] == 6 || item['order'] == 7)) {
+                  final name = item['name']?.toString().trim();
+                  if (name != null &&
+                      name.isNotEmpty &&
+                      !name.contains('Bölge')) {
+                    district = name;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+
+          final effectiveDistrict = (district != null && district.isNotEmpty)
+              ? district
+              : ((locality != null && locality.isNotEmpty && locality != city)
+                  ? locality
+                  : null);
+
+          final province =
+              (principalSubdivision != null && principalSubdivision.isNotEmpty)
+                  ? principalSubdivision
+                  : (city != null && city.isNotEmpty ? city : null);
+
+          if (effectiveDistrict != null &&
+              province != null &&
+              effectiveDistrict.toLowerCase() != province.toLowerCase()) {
+            return '$effectiveDistrict, $province';
+          }
+          if (effectiveDistrict != null && effectiveDistrict.isNotEmpty) {
+            return effectiveDistrict;
+          }
+          if (province != null && province.isNotEmpty) {
+            return province;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Online: OpenStreetMap Nominatim reverse geocode
+    try {
+      final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+        'lat': latitude.toString(),
+        'lon': longitude.toString(),
+        'format': 'json',
+        'accept-language': 'tr',
+      });
+      final response = await http.get(uri, headers: {
+        'User-Agent': 'DogadayimApp/1.0',
+      }).timeout(const Duration(seconds: 4));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          final address = data['address'];
+          if (address is Map<String, dynamic>) {
+            final town = address['town']?.toString().trim() ??
+                address['district']?.toString().trim() ??
+                address['suburb']?.toString().trim() ??
+                address['county']?.toString().trim();
+            final province = address['province']?.toString().trim() ??
+                address['city']?.toString().trim() ??
+                address['state']?.toString().trim();
+            if (town != null &&
+                town.isNotEmpty &&
+                province != null &&
+                province.isNotEmpty &&
+                town.toLowerCase() != province.toLowerCase()) {
+              return '$town, $province';
+            }
+            if (town != null && town.isNotEmpty) return town;
+            if (province != null && province.isNotEmpty) return province;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. Offline nearest reference
+    return findNearestOfflineCity(latitude, longitude);
+  }
+
+  static String findNearestOfflineCity(double lat, double lon) {
+    var minDistance = double.infinity;
+    var nearestName = 'Konya';
+    for (final loc in _turkishReferenceLocations) {
+      final d =
+          NearbyPlacesService.calculateDistanceKm(lat, lon, loc.lat, loc.lon);
+      if (d < minDistance) {
+        minDistance = d;
+        nearestName = loc.name;
+      }
+    }
+    return nearestName;
+  }
+}
+
 class HomeWeatherLocationController {
   HomeWeatherLocationController._();
 
   static const unavailableLabel = 'Konum izni gerekli';
+  static const _storageKeyLat = 'saved_device_location_lat';
+  static const _storageKeyLon = 'saved_device_location_lon';
+  static const _storageKeyLabel = 'saved_device_location_label';
+  static const _storageKeyApprox = 'saved_device_location_is_approx';
+
   static final current =
       ValueNotifier<WeatherTarget>(const WeatherTarget.city('İstanbul'));
   static final isResolvingLocation = ValueNotifier<bool>(false);
   static final isApproximateLocation = ValueNotifier<bool>(false);
+
+  static Future<void> load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lat = prefs.getDouble(_storageKeyLat);
+      final lon = prefs.getDouble(_storageKeyLon);
+      final label = prefs.getString(_storageKeyLabel);
+      final approx = prefs.getBool(_storageKeyApprox) ?? false;
+      if (lat != null && lon != null && label != null && label.isNotEmpty) {
+        isApproximateLocation.value = approx;
+        current.value = WeatherTarget.coordinates(
+          latitude: lat,
+          longitude: lon,
+          label: label,
+        );
+      }
+    } catch (_) {}
+  }
 
   static void useManualCity(String city) {
     final value = city.trim();
@@ -1847,6 +3192,17 @@ class HomeWeatherLocationController {
       isApproximateLocation.value = false;
       current.value = WeatherTarget.city(value);
     }
+  }
+
+  static Future<void> clearSavedLocation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_storageKeyLat);
+      await prefs.remove(_storageKeyLon);
+      await prefs.remove(_storageKeyLabel);
+      await prefs.remove(_storageKeyApprox);
+    } catch (_) {}
+    useFallbackCity();
   }
 
   static void useDeviceCoordinates({
@@ -1867,13 +3223,54 @@ class HomeWeatherLocationController {
     isResolvingLocation.value = true;
     try {
       final coordinates = await DeviceLocationService.requestCurrentPosition();
+      var label = coordinates.label;
+      if (label == 'Konumum' ||
+          label.trim().toLowerCase() == 'konumum' ||
+          label.trim().toLowerCase() == 'bulunduğu alan') {
+        label = await LocationReverseGeocoder.reverseGeocode(
+          coordinates.latitude,
+          coordinates.longitude,
+        );
+      }
       useDeviceCoordinates(
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
-        label: coordinates.label,
+        label: label,
         isApproximate: coordinates.isApproximate,
       );
-      return coordinates;
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble(_storageKeyLat, coordinates.latitude);
+        await prefs.setDouble(_storageKeyLon, coordinates.longitude);
+        await prefs.setString(_storageKeyLabel, label);
+        await prefs.setBool(_storageKeyApprox, coordinates.isApproximate);
+      } catch (_) {}
+
+      final target = current.value;
+      unawaited(WeatherService.fetchTarget(target, forceRefresh: true)
+          .catchError((_) => WeatherSnapshot(
+                resolvedLocation: label,
+                temperature: 20,
+                apparentTemperature: 20,
+                humidity: 50,
+                windSpeed: 10,
+                visibilityKm: 10,
+                uvIndex: 4,
+                minimumTemperature: 15,
+                maximumTemperature: 25,
+                weatherCode: 1,
+                isDay: true,
+              )));
+      unawaited(NearbyPlacesService.refresh(target)
+          .catchError((_) => const <Place>[]));
+
+      return DeviceCoordinates(
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        label: label,
+        isApproximate: coordinates.isApproximate,
+      );
     } catch (_) {
       useFallbackCity();
       rethrow;
@@ -2293,6 +3690,13 @@ class NearbyPlacesService {
     ];
     final seen = <String>{};
     merged.retainWhere((place) {
+      if (isNonNatureCandidateName(
+        place.name,
+        subtype: place.resolvedTaxonomy.subtype,
+        mainCategory: place.resolvedTaxonomy.mainCategory,
+      )) {
+        return false;
+      }
       final latitude = place.latitude;
       final longitude = place.longitude;
       final key = latitude != null && longitude != null
@@ -2320,7 +3724,7 @@ class NearbyPlacesService {
         _lastFilteredKey == filterKey) {
       return _lastFilteredResult!;
     }
-    final nearby = places
+    final sorted = places
         .where((place) => place.hasCoordinates)
         .map((place) => _withTargetDistance(target, place))
         .where(
@@ -2329,6 +3733,26 @@ class NearbyPlacesService {
         .toList()
       ..sort((a, b) => (a.distanceKm ?? double.infinity)
           .compareTo(b.distanceKm ?? double.infinity));
+    final List<Place> nearby;
+    if (preferredCategory == null && sorted.length > 2) {
+      final primary = <Place>[];
+      final deferred = <Place>[];
+      final typeCounts = <String, int>{};
+
+      for (final place in sorted) {
+        final key = place.resolvedTaxonomy.subtype ?? place.kind;
+        final count = typeCounts[key] ?? 0;
+        if (count < 2) {
+          primary.add(place);
+          typeCounts[key] = count + 1;
+        } else {
+          deferred.add(place);
+        }
+      }
+      nearby = [...primary, ...deferred];
+    } else {
+      nearby = sorted;
+    }
     if (places is List<Place>) {
       _lastFilteredPlacesRef = places;
       _lastFilteredKey = filterKey;

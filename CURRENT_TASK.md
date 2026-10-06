@@ -1,13 +1,248 @@
-# Güncel Görev — Tasarım Sistemi Refactor
+# Güncel Görev — Üretime Hazırlık & Yayın Öncesi Doğrulama (P0/P1/P2)
 
-> **⚠️ AKTİF PLAN — BİTMEDEN BAŞKA GÖREVE GEÇİLMEZ**
-> Kullanıcı konu değiştirmek isterse: "Bu plan henüz bitmedi, lütfen önce buradaki günü bitirelim."
+> **✅ TAMAMLANDI — Üretim-hazır duruma getirme yol haritası başarıyla yürütüldü:**
+> 1. **Yönetici Paneli & MFA (P1 #5 & #6):** Duplicate kontrolü (`_DuplicateCheck`), değiştirilemeyen moderasyon geçmişi (`_AuditLogSection`), canlı sayaç rozetleri (`_statusCounts`) ve Supabase TOTP MFA iki aşamalı kimlik doğrulama (`AAL2` kontrolü, doğrulama ekranı ve ayarlar diyaloğu) eksiksiz tamamlandı.
+> 2. **Kullanıcı Hesap Silme & Yerel Kalıcılık (P1 #8 & P0 #3):** `delete-account` Edge Function doğrulaması, yerel SharedPreferences favori yöneticisi (`UserFavoritesController`), hesap silindiğinde tüm yerel ve uzak verilerin temizlenmesi bağlandı.
+> 3. **Veri & Fotoğraf Entegrasyonu (P2 #9 & #10):** Pixabay A/B-Q1/Q2 kalite filtreleri (`PlacePhotoPolicy`), EKOTABAN doğrulanmış görsel arşivi ve Wikimedia Commons veri akışı doğrulandı. `clean_places_data.py` ve `import_81il_master.py` araç testleri çalıştırıldı.
+> 4. **Kod Kalitesi & Test Paketi:** `flutter test --concurrency=1` tüm 217 testi (%100) başarıyla geçti. `flutter analyze` 0 hata ve 0 uyarı ile tamamlandı.
+> 5. **Yayın Öncesi Checklist:** `docs/RELEASE_CHECKLIST.md` ve `PLAY_STORE_RELEASE_PLAN.md` gereksinimleri doğrulandı. Kalan tek adım mağaza kabul testleridir (Faz 5).
 
 ---
 
-## Genel Hedef
+# Önceki Görev — Yayın Öncesi Güvenlik Sıkılaştırması (Kritik & Yüksek Öncelikli Maddeler)
 
-Doğadayım uygulamasının tasarım sistemini kod mantığını bozmadan düzeltmek:
+> **✅ TAMAMLANDI — Kullanıcı tarafından iletilen yayın öncesi güvenlik denetimi maddeleri incelendi. Kod ve veritabanı tarafında yapılabilecek tüm kritik ve yüksek öncelikli maddeler (Yardım çağrısı tam konum/iletişim gizliliği, sunucu taraflı kabul tablosu & RPC yetkilendirmesi, canlıya bekleyen tüm migration'ların uygulanması, bildirim tablosundaki doğrudan UPDATE açığının kapatılması, fotoğraflardan EXIF/GPS verilerinin temizlenmesi, cihazdaki hassas konum/avatar önbelleklerinin çıkışta temizlenmesi ve Android allowBackup koruması, 3+ şikayet alan çağrıların otomatik gizlenmesi) eksiksiz uygulandı. Canlı Supabase veritabanına push edildi. `flutter analyze` 0 hata ve tüm testler (167/167) başarıyla geçti.**
+
+---
+
+## Yapılan İyileştirmeler:
+1. **Yardım Çağrısı Tam Konum & İletişim Gizliliği (Kritik 1 & 2):**
+   - `help_requests` tablosuna yönelik açık `SELECT` politikası kaldırıldı; yalnızca çağrı sahibi ve sunucuda kabul kaydı bulunan aktif yardımcılar tam satırı okuyabilir.
+   - Genel kullanıcılar için sunucu tarafında maskelenen `help_requests_feed` görünümü oluşturuldu (iletişim bilgisi null, koordinatlar ~1 km yuvarlanmış/yaklaşık).
+   - Sunucu tarafında `help_request_acceptances` tablosu oluşturuldu (helper_id, request_id, status, accepted_at).
+   - `accept_help_request` ve `cancel_help_request_acceptance` RPC fonksiyonları eklendi. "Yardım Etmek İstiyorum" butonu sunucuya RPC çağrısı yaparak yetki alır ve gerçek bilgileri sunucu kontrollü açar.
+2. **Migration'ların Canlıya Uygulanması (Kritik 3):**
+   - Canlıda eksik olan `202609250001`, `202609270001`, `202609280001`, `202610020001`, `202610020002` ve yeni `202610020003` migration dosyaları `npx supabase db push` ile canlı veritabanına sorunsuz uygulandı.
+3. **Bildirim Güncelleme Yetki Açığının Kapatılması (Yüksek 4):**
+   - `user_notifications` tablosundaki doğrudan `UPDATE` politikası ve yetkisi kullanıcılardan geri alındı (`revoke update on user_notifications`).
+   - Sadece `mark_notification_as_read(uuid)` RPC fonksiyonunun okundu bilgisini değiştirmesine izin verildi; kullanıcıların başlık, içerik veya tür değiştirmesi engellendi.
+4. **Fotoğraflardan EXIF / GPS Konum Bilgisinin Temizlenmesi (Yüksek 5):**
+   - `PlacePhotoStorage.persistPrimaryPhoto` içine JPEG byte-düzeyinde APP1/APP2 EXIF temizleyicisi (`stripExif`) eklendi.
+   - `ImagePicker().pickMultiImage` çağrısına `requestFullMetadata: false` eklenerek işletim sistemi düzeyinde de konum/cihaz metaverisinin aktarılmaması sağlandı.
+5. **Cihazda Hassas Veri Güvenliği & Oturum Temizliği (Yüksek 6):**
+   - `android/app/src/main/AndroidManifest.xml` içinde `android:allowBackup="false"` ve `android:fullBackupContent="false"` tanımlanarak hassas yerel verilerin Google Drive / adb yedeklerine sızması engellendi.
+   - Çıkış yapıldığında (`signOut`) ve hesap silindiğinde (`_deleteAccount`); son kullanılan GPS koordinatları (`HomeWeatherLocationController.clearSavedLocation()`) ve kullanıcı avatarı (`UserProfileAvatarController.clear()`) SharedPreferences'tan tamamen silinecek şekilde bağlandı.
+6. **Yardım Çağrısı Kötüye Kullanım Koruması (Yüksek 7):**
+   - `help_request_reports` tablosuna `trg_check_help_request_reports_threshold` tetikleyicisi eklendi; bir çağrı 3 veya daha fazla şikayet aldığında otomatik olarak `resolved` durumuna çekilerek haritadan ve genel akıştan anında kaldırılır.
+
+---
+
+# Önceki Görev — Ana Sayfadaki Canlı Harita Bölümünün Kaldırılması
+1. **Ana Sayfa Canlı Harita Bölümünün Temizlenmesi:**
+   - `_buildPhoneLayout`, `_buildPortraitTabletLayout` ve `_buildLandscapeLayout` düzenlerinden `_HomeMiniMapPreview` bölümü kaldırıldı.
+   - Ana sayfa akışı sadeleştirilerek doğrudan "Bugün sana uygun" önerileri ve "Yakındaki doğa noktaları" listesi öne çıkarıldı.
+   - Kullanılmayan `_HomeMiniMapPreview` sınıfı ve test beklentileri temizlendi.
+2. **Harita "Haritada Göster" Butonu Koruması:**
+   - Harita sekmesinde seçilen yerin altındaki "Haritada Göster" (`mapController.move` ile noktayı ortalama) ve "Detayları Gör" butonları eksiksiz çalışmaya devam ediyor.
+3. **Test ve Doğrulama:** 164/164 test başarıyla geçti.
+
+---
+
+# Önceki Görev — Bölge Havası Kartının Kompaktlaştırılması ve Açılır/Kapanır Detay Düzeni
+1. **Varsayılan Kompakt Görünüm (~120 px):**
+   - Kartın başlangıç yüksekliği 400+ px'ten ~120 px'e indirilerek dikey alanda %70 tasarruf sağlandı.
+   - Üst satırda yer adı, "ŞU AN" göstergesi ve kompakt "Doğaya Uygun / Tedbirli Ol" rozeti yer alıyor.
+   - Ana satırda 38 px derecesi, hava durumu açıklaması, hissedilen sıcaklık, hızlı nem/rüzgâr mini çipleri ve hava durumu emojisi zarifçe yan yana konumlandırıldı.
+2. **Açılır / Kapanır 5 Günlük Tahmin & Detaylar (`_isExpanded`):**
+   - Kartın altındaki "5 Günlük Doğa & Kamp Tahmini ▾" butonuna dokunulduğunda kart genişler.
+   - Genişletilmiş alanda 4'lü tam metrik şeridi (Nem, Rüzgâr, UV, Görüş mesafesi), açık hava öneri notu ve 5 günlük kamp tahmin şeridi (`Detail5DayForecastStrip`) görüntülenir.
+3. **Test ve Doğrulama:** 164/164 test geçti.
+
+---
+
+# Önceki Görev — Ana Sayfa "Bugün Sana Uygun" Kartlarının Yan Yana Eşit Hizalanması
+1. **"Bugün Sana Uygun" Öneri Kartları Düzeni (`_TodayRecommendationsSection`):**
+   - Telefondaki sabit `240 px` genişlik sınırından kaynaklanan 2. kartın yarıda kesilmesi sorunu çözüldü.
+   - Önerilen 2 kart, ekran genişliğini aralarında 12 px boşluk bırakarak eşit biçimde (%50 - %50) paylaşan bir `Row` ve `Expanded` yapısına kavuşturuldu.
+2. **Test ve Doğrulama:** 164/164 test geçti.
+
+---
+
+# Önceki Görev — Harita ve Ana Ekran Arama Bölümü Temizliği & İlgililik Sıralaması
+1. **Harita Arama Delegesi (`_MapPlaceSearchDelegate`):**
+   - Başlangıçta sorgu boşken (`query.trim().isEmpty`) tüm veritabanındaki yerlerin alt alta dökülmesi engellendi.
+   - Boş arama durumunda temiz rehber ikon ve *"Aramak istediğin doğa noktasını veya şehri yaz"* mesajı konumlandırıldı.
+   - Kelime girildiğinde alaka düzeyine göre sıralama yapıldı.
+2. **Ana Ekran Arama Ekranı (`FigmaSearchScreen`):**
+   - Arama metni girilmediği sürece alt alta yer kartları listelenmiyor. Dinamik kategori ipucu ve alaka sıralaması uygulandı.
+3. **Test ve Doğrulama:** 163/163 test geçti.
+
+---
+
+# Önceki Görev — Mobil Servis, Yol Yardım ve Hizmet Sağlayıcı Sistemi (Görsel Tasarım Uyumlu)
+1. **Haritada Yüzen "Servis 🛠️" Butonu (Ekran Görüntüsü 2):**
+   - Keşfet haritasının sağ alt köşesinde sarı/amber kenarlıklı, gölgeli beyaz hap buton (`_buildServiceFloatingButton`) konumlandırıldı.
+   - Dokunulduğunda "Mobil Servis" ekranı açılır; kategori seçildiğinde haritada filtrelenir ve servise odaklanılır.
+2. **"Mobil Servis" Ana Hub Ekranı (Ekran Görüntüsü 1):**
+   - `MobileServiceHubScreen`: Üst bar "Mobil Servis", başlık *"Hangi hizmete ihtiyacın var?"* ve açıklama.
+   - 3 kolonlu ızgarada 10 ana hizmet kategorisi:
+     1. 🚛 **Çekici / Yol Yardım**
+     2. 🚐 **Yıllık Bakım**
+     3. 🔥 **Gaz Tesisatı**
+     4. 🌡️ **Isıtma & Soğutma**
+     5. ⚡ **Elektrik & Enerji**
+     6. 🚿 **Su & Tesisat**
+     7. 💧 **Nem & Gövde**
+     8. 🛞 **Şasi & Fren**
+     9. ⚙️ **Montaj & Parça**
+     10. 🔍 **Muayene**
+   - 2 kolon genişliğinde yeşil kesikli çerçeveli **"Servis veren firma mısınız? / Firmanızı ekleyin, inceleyip listeleyelim"** kayıt kartı.
+3. **Servis Veren Firma Ekleme Formu (`_AddServiceFirmSheet`):**
+   - Firma adı, 10 hizmetten seçim, telefon numarası (direkt arama için), çalışma saatleri (7/24, mesai saatleri çipleri), konum ve detay açıklama alanları.
+   - `AppAuthGuard.requireAuth` korumalı (misafir için güvenlik kalkanı devrede).
+   - Kalıcı olarak yerel ve uzaktan kaydedilir.
+4. **Yer Detayında Doğrudan Arama ve Çalışma Saatleri:**
+   - İletişim telefonu bulunan işletmelerde hem alt barda hem de detay sayfasında yeşil **"Hemen Ara: [Telefon]"** butonu (`launchUrl('tel:...')`).
+   - "Çalışma Saatleri: 7/24 Açık" bilgi rozeti.
+5. **Türkiye Geneli Örnek Doğrulanmış Servisler:**
+   - Antalya, Muğla, Bolu, İzmir, Kapadokya ve Ankara hatlarında gerçekçi başlangıç servis kayıtları (`SampleMobileServices`).
+6. **Test ve Doğrulama:**
+   - `test/guest_restriction_test.dart` içine yeni model ve ekran testleri eklendi.
+   - `flutter analyze` 0 hata / 0 uyarı.
+   - `flutter test` 162/162 test (%100) başarıyla geçti.
+
+---
+
+
+
+## Yapılan İyileştirmeler (6 Madde):
+1. **Değerlendirme Düzeltme ve Silme:**
+   - Daha önce değerlendirilmiş yerlerde buton "Değerlendirmeyi Düzenle" (`Icons.edit_note_rounded`) olarak görünür.
+   - Değerlendirme modalında mevcut puan, yorum ve tavsiye nedenleri yüklenir, kaydet butonu "Değerlendirmeyi Güncelle" olur.
+   - Modal içerisine "Değerlendirmeyi Sil" seçeneği ve `UserReviewsController.deleteReview` fonksiyonu eklendi.
+2. **Fotoğraf Ekleme & Yanlış Yükleme Durumunda Silme:**
+   - `CommunityPlacePhotosController.removePhoto(photoId)` eklendi.
+   - Fotoğraf ekleme modalında (`_openAddPhotoModal`) o yere yüklenmiş topluluk fotoğrafları listelenir ve yanlış yüklenen fotoğraf tek dokunuşla silinebilir.
+   - Tam ekran galeri dialogunda (`_PhotoGalleryDialog`) topluluk fotoğrafı görüntülenirken üst barda silme ikonu ve onay penceresi bulunur.
+3. **Topluluk Katkısı — Olanak Durumu Düzeltme:**
+   - Olanak durumu güncelleme modalında (`_openFacilityConditionDialog`) gerçeği yansıtmayan veya hatalı işaretlenmiş durumlar için açıkça "Yanlış / Hatalı Bilgiyi Düzelt" (`Icons.edit_off_rounded`) seçeneği eklendi.
+4. **Veri Kaynağı Kısımlarının Kaldırılması:**
+   - Hakkında bölümündeki "Veri Kaynağı: OpenStreetMap / Supabase" ve "Kayıt Türü" kartları kaldırıldı; koordinatlar ve son güncelleme tek satırda birleştirildi.
+   - Dış kaynak link çipleri (`aboutSourcesSection`) gizlendi.
+5. **Fotoğraf Kaynaklarının / Atıflarının Silinmesi:**
+   - Yer detay sayfasındaki harici fotoğraf kaynak / atıf liste elemanları (`Fotoğraf: ... / Pixabay / Commons` satırları) tamamen kaldırıldı.
+6. **Profilde Instagram, Facebook, YouTube Hesapları:**
+   - `UserSocialAccounts` modeli ve `UserSocialAccountsController` ile kalıcı sosyal medya hesap yönetimi oluşturuldu.
+   - Profil sayfasında hem profil kartına hem de ayarlar menüsüne "Sosyal Medya Hesapları" modalı eklendi.
+   - Herkese açık profilde (`PublicUserProfileScreen`) sosyal medya hesapları renkli ve doğrudan açılabilir rozetler olarak görüntülendi.
+7. **Test ve Doğrulama:**
+   - `test/guest_restriction_test.dart` içine silme ve sosyal medya testleri eklendi.
+   - `flutter analyze` 0 hata / 0 uyarı.
+   - `flutter test` 160/160 test (%100) başarılı.
+
+---
+
+
+
+## Tablet Uyum İyileştirmeleri (9/9 Adım Tamamlandı):
+1. **Temel Ekran Sistemi:**
+   - `AppBreakpoints` & `AppResponsiveContext`: `phone` (0–599 dp), `tabletPortrait` (600–839 dp), `tabletLandscape` (840+ dp, max 1440 dp).
+   - `AppResponsiveScaffoldBody` ve `context.centerContent(maxWidth: ...)` ortak genişlik merkezleme mimarisi kuruldu.
+   - Telefonlardaki 430 dp genişlik sınırı yalnızca telefonlarda (`0-599 dp`) korundu.
+2. **Harita:**
+   - Tablet dikey: Tam genişlik harita, alttan açılan responsive bilgi paneli.
+   - Tablet yatay: Sol %68 harita alanı, Sağ %32 arama, filtreler, seçili yer kartı ve yakındaki yerler listesi (sidebar keşif paneli).
+3. **Ana Sayfa:**
+   - Tablet dikey: İki sütunlu öneriler ve yakınındaki yerler, taşmasız `AppPlaceHeroCard`.
+   - Tablet yatay: Sol %55 "Bugün sana uygun" ve keşif kartları, Sağ %45 yakın yerler ve interaktif canlı harita.
+4. **Yer Detay Sayfası:**
+   - Tablet dikey: 420 dp genişletilmiş kapak fotoğrafı, merkezlenmiş düzenli bilgi blokları.
+   - Tablet yatay: Sol %46 fotoğraf galerisi, kapak ve canlı hava durumu; Sağ %54 yer adı, imkanlar/olanaklar, güven durumu ve navigasyon/aksiyonlar.
+   - Sabit alt gezinme/aksiyon çubuğu unbounded constraint hatası `heightFactor: 1.0` ile çözüldü.
+5. **Profil ve Katkılar:**
+   - Tablet dikey: Üstte profil kartı, altta katkılar, acil yardım ve ayarlar iki kolonlu düzen.
+   - Tablet yatay: Sol %38 avatar, hesap kartı, acil durum ve ayarlar; Sağ %62 katkı kartları tablosu, onay durumları ve bildirimler.
+6. **İyilik Harekâtı:**
+   - Tablet dikey: 320 dp yüksekliğe genişleyen fitted Türkiye haritası, istatistikler ve iyilik tablosu iki kolon.
+   - Tablet yatay: Sol %58 büyük dokunulabilir Türkiye haritası ve rehber; Sağ %42 "İyilik Ekle" aksiyonu, istatistikler, seçili il detay kartı ve iyilik sıralaması.
+7. **Topluluk Sohbetleri:**
+   - Tablet dikey: Merkezlenmiş kategori listesi, oda seçilince tam sayfa sohbet.
+   - Tablet yatay: Telegram/Discord tarzı master-detail düzen (Sol 340 dp kategoriler/odalar, Sağ aktif sohbet penceresi doğrudan entegre).
+8. **Yer Ekleme ve Formlar:**
+   - Tablet dikey: Tek akışta 720 dp genişletilmiş form alanları ve merkezlenmiş buton.
+   - Tablet yatay: Sol %54 form adımları ve alanları; Sağ %46 doğrudan açık harita konumu pini, fotoğraf galerisi, gönderim özeti ve "Kaydet" aksiyonu.
+9. **Test ve Kalite Kontrolü:**
+   - `test/tablet_responsiveness_test.dart` ile 6 kritik çözünürlük doğrulandı:
+     - Telefon: 360 × 800
+     - Büyük telefon: 430 × 932
+     - Küçük tablet dikey: 600 × 960
+     - iPad dikey: 834 × 1194
+     - iPad yatay: 1194 × 834
+     - Android tablet yatay: 1280 × 800
+   - Sıfır overflow/taşma, açık ve koyu temalarda kusursuz render, tüm 157 test %100 başarılı.
+10. **Mobil Odaklı Geliştirme ve Önizleme Sabitlemesi:**
+   - Web/Masaüstü ortamında (`mediaQuery.size.width > 430`) uygulamanın yapay bir web sitesine yayılması engellendi; uygulama `430 px` genişliğinde, ortalanmış, şık gölgeli saf cep telefonu çerçevesine sabitlendi.
+   - `MediaQuery` genişliği 430 px olarak alt ağaca aktarıldığından alt gezinme barı, kartlar ve tüm sayfalar bilgisayarda test edilirken de tam olarak cep telefonundaki yerleşiminde ve oranında görüntülenir.
+
+---
+
+# Önceki Görev — Obruk Temizliği, Profil Avatarı, Olanak Güncelleme, Mekâna Fotoğraf & Haritada İşletmeler
+
+## Yapılan İyileştirmeler:
+1. **Obruk Yer Eklerinin Temizlenmesi:**
+   - OSM ve idari kaynaklardan sızan kentsel sokak, cadde, kümeevleri, mahalle/köy sınırları ve camiler (`Yukarı Obruk Kümeevleri Sokağı`, `Yukarı Obruk Camii`, `Yukarı Obruk - Özlüce mahalle sınırı` vb.) `isNonNatureCandidateName` algoritması ile elendi.
+   - Gerçek karstik jeolojik obruklar (`Kızören Obruğu`, `Çıralı Obruğu`, `Meyil Obruğu`, `Obruk Gölü Tabiat Parkı`, `Cennet Cehennem Obrukları`) eksiksiz korundu.
+2. **Profilde Kullanıcı Fotoğrafı / Avatar Ekleme:**
+   - `UserProfileAvatarController` ile kalıcı (`user_custom_avatar_v1`) profil avatarı desteği eklendi.
+   - Profil ekranındaki avatara kamera düzenleme rozeti eklendi; modal içerisinden hazır doğa avatarları, özel URL veya varsayılan baş harfe dönüş imkânı sunuldu.
+3. **Olanakları Tıklayıp Güncelleme (Topluluk Katkısı):**
+   - Yer detayındaki olanaklar kartı (`_FieldConditionsCard`) `ValueListenableBuilder` ve `CommunityFacilityUpdatesController` ile reaktif kılındı.
+   - Su, tuvalet, otopark ve piknik/kamp olanaklarına dokunulduğunda yetkilendirme (`AppAuthGuard.requireAuth`) sonrası "Var", "Yok" veya "Bilmiyorum / Sıfırla" seçenekleri sunan modal açılır ve anında yerel/topluluk hafızasına kaydedilir.
+4. **Mekâna Fotoğraf Ekleme:**
+   - Fotoğraf galerisi başlığına compact "+ Ekle" butonu entegre edildi (dar ekranlarda overflow korumalı).
+   - Kullanıcılar geçerli URL veya doğa önizleme kareleri seçerek fotoğraf katkısında bulunabilir (`CommunityPlacePhotosController`).
+5. **Ekleyen İsmi & Kamuya Açık Sade Profil:**
+   - Fotoğraf galerisinde topluluk fotoğraflarının altında `Fotoğraf: [Kullanıcı] ›` bağlantısı gösterildi.
+   - Dokunulduğunda açılan `PublicUserProfileScreen`, kullanıcının yalnızca herkese açık katkılarını (fotoğraf galerisi ve eklediği mekanlar) listeler. Ayarlar, şifre, hesap silme veya profil düzenleme gibi özel alanlar kesinlikle gösterilmez.
+6. **Haritada İşletmeler / Hizmetler Bölümü:**
+   - Harita filtre çipleri arasına `🏪 İşletmeler` (`local_service`) eklendi.
+   - Yer Ekleme (`AddPlaceScreen`) ekranına "İşletme / Hizmet" kategorisi (kaynakçı, fırın, oto tamir, hamam, çamaşırhane vb.) dahil edildi.
+   - Yerel hizmetlerin harita marker rengi, ikonu ve taksonomi eşleşmeleri tamamlandı.
+7. **Test ve Doğrulama:**
+   - `test/guest_restriction_test.dart` (13/13) ve tüm proje testleri (141/141) başarıyla geçti.
+   - `flutter analyze` 0 hata ile doğrulandı.
+
+---
+
+## Önceki Görev — Haritada Seçili Yer Vurgusu & "Haritada Göster" Butonu
+
+## Önceki Görev — Misafir Kullanıcı Yetkilendirme ve Kısıtlama Sistemi (Guest Mode Security Wall)
+
+## Misafir Kullanıcı Kısıtlama Sistemi Özeti
+Misafir olarak uygulamaya giren kullanıcılar haritayı, keşfet ekranını, yer detaylarını, iyilik hareketini ve topluluk mesajlarını sadece okuma/izleme modunda kullanabilir. Veri müdahalesinde (yer ekleme, yorum/puanlama, iyilik ekleme, mesaj gönderme, acil yardım açma/kabul etme) bulunamazlar; dokunduklarında şık cam tasarımlı `_GuestAuthWallSheet` modalı ile karşılanırlar.
+
+### Tamamlanan Adımlar:
+1. [x] **Merkezi Yetkilendirme Kalkanı (`AppAuthGuard` & `_GuestAuthWallSheet`):**
+   - `AppAuthGuard.isAuthenticated`, `isGuest`, `requireAuth(...)` ve test desteği için `debugOverrideAuthenticated`.
+   - `_GuestAuthWallSheet` cam tasarımlı alt modal ve çok dilli metinler eklendi.
+2. [x] **Katkı Noktalarının Kilitlenmesi:**
+   - Ana gezinme `+` (Yer Ekle) ve `AddPlaceScreen.savePlace()` korundu.
+   - Yer Detay yorum/puanlama modalı (`openReviewRecommendSheet`) korundu.
+   - İyilik Harekâtı iyilik ekleme akışı (`_openAddDeed`) korundu.
+3. [x] **İletişim ve Acil Yardım Koruması:**
+   - Topluluk Sohbetinde misafire kilitli mesaj uyarısı ve gönderim engeli (`addPreviewMessage`).
+   - Acil Yardım çağrısı oluşturma ve çağrı kabul etme (`acceptRequest`) korundu.
+4. [x] **Profil Ekranı Misafir Adaptasyonu:**
+   - Profil kartında "Doğa Kaşifi (Misafir)" gösterimi ve hızlı giriş butonu.
+   - Çıkış/Hesap Silme yerine "Giriş Yap / Kayıt Ol" aksiyonu.
+5. [x] **Doğrulama ve Testler:**
+   - `test/guest_restriction_test.dart` (4/4 geçti).
+   - `test/widget_test.dart` ve projedeki tüm testler (130/130 geçti).
+   - `flutter analyze` (0 issue).
+
+---
+
+## Önceki Görevler (Referans)
 - Dağınık renk kullanımı → AppColors token'larına konsolidasyon
 - 32 farklı font boyutu → Sabit tip skalası (6 seviye)
 - 7.5–9px küçük yazılar → minimum 11–12px
@@ -91,6 +326,7 @@ Doğadayım uygulamasının tasarım sistemini kod mantığını bozmadan düzel
 - [x] Tüm dosyalarda `GestureDetector`, `InkWell`, `IconButton`, `GlassIconButton` dokunma hedefleri denetlendi
 - [x] `GlassIconButton` bileşeni `AppControlSizes.minimumTouchTarget` (48px) `ConstrainedBox` korumasıyla 48×48 dp standardına bağlandı
 - [x] `_HomeHeaderButton`, `add_place.dart` fotoğraf silme ve `detail.dart` galeri butonlarındaki dar dokunma alanları 48px standardına genişletildi
+- [x] `search_map.dart` `_MapClusterMarker` (36px) ve `goodness_movement.dart` il rozetleri (44px) görsel tasarımları bozulmadan 48px (`AppControlSizes.minimumTouchTarget`) dokunma alanına genişletildi
 - [x] `flutter analyze lib/main.dart` → 0 hata (No issues found!)
 - [x] `flutter test --concurrency=1` → **101/101 geçti!**
 
@@ -106,10 +342,18 @@ Doğadayım uygulamasının tasarım sistemini kod mantığını bozmadan düzel
 
 ## Güncel Durum
 
-**Plan Durumu:** ✅ **Kullanıcı Deneyimi Yol Haritası (Faz U0 – U5) %100 TAMAMLANDI! 🎉**  
-**Sıradaki Hedef:** 🎯 **Faz 5 — Gerçek cihaz kabul testi (Android / iOS) ve mağaza sürümü**  
-**Son Test:** 2026-09-26 — 114 testin 114'ü geçti (%100 Başarı)  
-`dart analyze lib/main.dart` → 0 hata (No issues found!)
+**Plan Durumu:** ✅ **Doğadayım Premium Tasarım Sistemi, UX & Güvenlik Master Planı (Faz 1 – 7) %100 TAMAMLANDI! 🎉**  
+- **Faz 1 (Güvenlik & RLS):** Yardım çağrısı ~300m koordinat fuzzing, gizli telefon/iletişim koruması, 112 banner'ı, bildirim okundu RPC'si, oturum kapatmada yerel veri temizliği.
+- **Faz 2 (Renkler & İkonlar):** `AppColors.communityWarm` (sıcak kehribar/altın) token'ı, taksonomiye `IconData` standardı, emoji yerine tutarlı `IconData` çizgi ikonları.
+- **Faz 3 (Harita Ekranı):** Baskın kategori ikonu + sayı gösteren harita kümeleri (`🌲 12`), seçili pin için hale efekti, boşluğa dokununca alt kartı kapatma.
+- **Faz 4 (Ana Sayfa & Kartlar):** Konum başlığı `Bulunduğu alan`, fotoğraf ağırlıklı öneri algoritması, topluluk önerileri bölümü, temiz placeholder yapısı.
+- **Faz 5 (İyilik Harekâtı):** "Örnek veri" etiketlerinin temizliği, "İyilik Ekle" butonu, kutlama SnackBar'ı, il haritası rozet iyileştirmesi.
+- **Faz 6 (Topluluk & Profil):** Topluluk kartlarında "Aktif" rozeti, boş sohbet yönlendirici soruları, profilde maskeli e-posta (`j***@domain.com`), sakin/kırmızı acil durum kartı.
+- **Faz 7 (Onboarding & Kalite):** Onboarding 3 adıma indirgendi, ilk slayttan itibaren "Misafir olarak keşfet" butonu, alt navigasyon güvenli boşlukları doğrulandı.
+
+**Son Test Doğrulaması:**
+- `flutter analyze` → 0 issues found!
+- `flutter test` → **126/126 test geçti!** (%100 Başarı)
 
 ### U5 Kontrol Listesi ✅ TAMAMLANDI
 - [x] 320–430 px telefon ve 768–1024 px tablet/geniş ekran genişliklerinde `DetailScreen`, `MapScreen`, `MainShell`, `PrivacyPolicyScreen` ve `FigmaHomeScreen` için görsel regresyon ve taşma kontrolleri yapıldı.

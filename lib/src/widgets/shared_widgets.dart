@@ -30,6 +30,9 @@ class PlaceImage extends StatelessWidget {
         return null;
       }
     }
+    if (value.startsWith('assets/')) {
+      return AssetImage(value);
+    }
     return localPlaceImageProvider(value);
   }
 

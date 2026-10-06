@@ -185,6 +185,7 @@ class FigmaHomeScreen extends StatefulWidget {
     required this.onSearch,
     required this.onMessages,
     this.onExploreMap,
+    this.onExploreProvince,
     this.onAddPlace,
     this.onRequestLocation,
   });
@@ -192,6 +193,7 @@ class FigmaHomeScreen extends StatefulWidget {
   final VoidCallback onSearch;
   final VoidCallback onMessages;
   final VoidCallback? onExploreMap;
+  final ValueChanged<MapRegionFocus>? onExploreProvince;
   final VoidCallback? onAddPlace;
   final VoidCallback? onRequestLocation;
 
@@ -242,90 +244,382 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
         selectedCategory = selectedCategory == category ? null : category;
       });
 
-  @override
-  Widget build(BuildContext context) => SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-          children: [
-            ValueListenableBuilder<bool>(
-              valueListenable:
-                  HomeWeatherLocationController.isResolvingLocation,
-              builder: (_, isResolvingLocation, __) =>
-                  ValueListenableBuilder<WeatherTarget>(
-                valueListenable: HomeWeatherLocationController.current,
-                builder: (_, target, __) => _HomePremiumHeader(
-                  target: target,
-                  isResolvingLocation: isResolvingLocation,
-                  onMessages: widget.onMessages,
+  Widget _buildSearchField() => Semantics(
+        label: AppStrings.get('map_search_places'),
+        button: true,
+        child: GestureDetector(
+          onTap: widget.onSearch,
+          child: AbsorbPointer(
+            child: GlassContainer(
+              borderRadius: BorderRadius.circular(AppRadii.large),
+              blur: 14,
+              color: Colors.white.withValues(alpha: 0.70),
+              borderColor: Colors.white.withValues(alpha: 0.90),
+              borderWidth: 1.2,
+              boxShadow: const [
+                BoxShadow(
+                  color: AppColors.shadow08,
+                  blurRadius: 14,
+                  offset: Offset(0, 3),
                 ),
+              ],
+              child: AppSearchField(onFilterTap: widget.onSearch),
+            ),
+          ),
+        ),
+      );
+
+  Widget _buildCategoryStrip() => SizedBox(
+        height: AppControlSizes.minimumTouchTarget,
+        child: ScrollConfiguration(
+          behavior: const _MouseDragScrollBehavior(),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: _homeCategories.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, index) {
+              final category = _homeCategories[index];
+              return AppCategoryChip(
+                label: category.localizedLabel,
+                icon: _categoryIcon(category.key),
+                selected: selectedCategory == category.key,
+                onSelected: (_) => selectCategory(category.key),
+              );
+            },
+          ),
+        ),
+      );
+
+  Widget _buildProvinceExplorerSection() {
+    if (widget.onExploreProvince == null) return const SizedBox.shrink();
+    return _ProvinceExplorerEntry(
+      onOpenAll: () => _showProvinceExplorer(context),
+      onSelect: _openProvinceOnMap,
+    );
+  }
+
+  void _showProvinceExplorer(BuildContext context) {
+    final onExplore = widget.onExploreProvince;
+    if (onExplore == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _ProvinceExplorerSheet(
+        onSelect: (region) {
+          Navigator.pop(sheetContext);
+          _openProvinceOnMap(region);
+        },
+      ),
+    );
+  }
+
+  void _openProvinceOnMap(MapRegionFocus region) {
+    widget.onExploreProvince?.call(region);
+  }
+
+  Widget _buildPhoneLayout(BuildContext context) => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+        children: [
+          ValueListenableBuilder<bool>(
+            valueListenable: HomeWeatherLocationController.isResolvingLocation,
+            builder: (_, isResolvingLocation, __) =>
+                ValueListenableBuilder<WeatherTarget>(
+              valueListenable: HomeWeatherLocationController.current,
+              builder: (_, target, __) => _HomePremiumHeader(
+                target: target,
+                isResolvingLocation: isResolvingLocation,
+                onMessages: widget.onMessages,
               ),
             ),
-            const SizedBox(height: 20),
-            Semantics(
-              label: AppStrings.get('map_search_places'),
-              button: true,
-              child: GestureDetector(
-                onTap: widget.onSearch,
-                child: AbsorbPointer(
-                  child: GlassContainer(
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                    blur: 14,
-                    color: Colors.white.withValues(alpha: 0.70),
-                    borderColor: Colors.white.withValues(alpha: 0.90),
-                    borderWidth: 1.2,
-                    boxShadow: const [
-                      BoxShadow(
-                        color: AppColors.shadow08,
-                        blurRadius: 14,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                    child: AppSearchField(onFilterTap: widget.onSearch),
+          ),
+          const SizedBox(height: 20),
+          _buildSearchField(),
+          const SizedBox(height: 16),
+          _buildCategoryStrip(),
+          const SizedBox(height: 20),
+          _buildProvinceExplorerSection(),
+          const SizedBox(height: 24),
+          ValueListenableBuilder<WeatherTarget>(
+            valueListenable: HomeWeatherLocationController.current,
+            builder: (_, target, __) => _TodayRecommendationsSection(
+              target: target,
+              preferredCategory: selectedCategory,
+              onOpen: widget.onOpen,
+              onExploreMap: widget.onExploreMap,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ValueListenableBuilder<WeatherTarget>(
+            valueListenable: HomeWeatherLocationController.current,
+            builder: (_, target, __) => _NearbyPlacesSection(
+              target: target,
+              preferredCategory: selectedCategory,
+              onOpen: widget.onOpen,
+              onExploreMap: widget.onExploreMap,
+              onRequestLocation: widget.onRequestLocation,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ValueListenableBuilder<WeatherTarget>(
+            valueListenable: HomeWeatherLocationController.current,
+            builder: (_, target, __) => _CommunitySuggestionsSection(
+              target: target,
+              onOpen: widget.onOpen,
+            ),
+          ),
+        ],
+      );
+
+  Widget _buildPortraitTabletLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) =>
+      ListView(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 100),
+        children: [
+          ValueListenableBuilder<bool>(
+            valueListenable: HomeWeatherLocationController.isResolvingLocation,
+            builder: (_, isResolvingLocation, __) =>
+                ValueListenableBuilder<WeatherTarget>(
+              valueListenable: HomeWeatherLocationController.current,
+              builder: (_, target, __) => _HomePremiumHeader(
+                target: target,
+                isResolvingLocation: isResolvingLocation,
+                onMessages: widget.onMessages,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildSearchField(),
+          const SizedBox(height: 16),
+          _buildCategoryStrip(),
+          const SizedBox(height: 20),
+          _buildProvinceExplorerSection(),
+          const SizedBox(height: 24),
+          ValueListenableBuilder<WeatherTarget>(
+            valueListenable: HomeWeatherLocationController.current,
+            builder: (_, target, __) => Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _TodayRecommendationsSection(
+                    target: target,
+                    preferredCategory: selectedCategory,
+                    onOpen: widget.onOpen,
+                    onExploreMap: widget.onExploreMap,
                   ),
                 ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: _NearbyPlacesSection(
+                    target: target,
+                    preferredCategory: selectedCategory,
+                    onOpen: widget.onOpen,
+                    onExploreMap: widget.onExploreMap,
+                    onRequestLocation: widget.onRequestLocation,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          ValueListenableBuilder<WeatherTarget>(
+            valueListenable: HomeWeatherLocationController.current,
+            builder: (_, target, __) => _CommunitySuggestionsSection(
+              target: target,
+              onOpen: widget.onOpen,
+            ),
+          ),
+        ],
+      );
+
+  Widget _buildLandscapeLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) =>
+      ListView(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 100),
+        children: [
+          ValueListenableBuilder<bool>(
+            valueListenable: HomeWeatherLocationController.isResolvingLocation,
+            builder: (_, isResolvingLocation, __) =>
+                ValueListenableBuilder<WeatherTarget>(
+              valueListenable: HomeWeatherLocationController.current,
+              builder: (_, target, __) => _HomePremiumHeader(
+                target: target,
+                isResolvingLocation: isResolvingLocation,
+                onMessages: widget.onMessages,
               ),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: AppControlSizes.minimumTouchTarget,
-              child: ScrollConfiguration(
-                behavior: const _MouseDragScrollBehavior(),
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: _homeCategories.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (_, index) {
-                    final category = _homeCategories[index];
-                    return AppCategoryChip(
-                      label: category.localizedLabel,
-                      icon: _categoryIcon(category.key),
-                      selected: selectedCategory == category.key,
-                      onSelected: (_) => selectCategory(category.key),
-                    );
-                  },
+          ),
+          const SizedBox(height: 20),
+          ValueListenableBuilder<WeatherTarget>(
+            valueListenable: HomeWeatherLocationController.current,
+            builder: (_, target, __) => Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Sol %55: Arama, kategoriler, Bugün sana uygun ve topluluk önerileri
+                Expanded(
+                  flex: 55,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSearchField(),
+                      const SizedBox(height: 16),
+                      _buildCategoryStrip(),
+                      const SizedBox(height: 20),
+                      _buildProvinceExplorerSection(),
+                      const SizedBox(height: 24),
+                      _TodayRecommendationsSection(
+                        target: target,
+                        preferredCategory: selectedCategory,
+                        onOpen: widget.onOpen,
+                        onExploreMap: widget.onExploreMap,
+                      ),
+                      const SizedBox(height: 24),
+                      _CommunitySuggestionsSection(
+                        target: target,
+                        onOpen: widget.onOpen,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                // Sağ %45: Yakın yerler
+                Expanded(
+                  flex: 45,
+                  child: _NearbyPlacesSection(
+                    target: target,
+                    preferredCategory: selectedCategory,
+                    onOpen: widget.onOpen,
+                    onExploreMap: widget.onExploreMap,
+                    onRequestLocation: widget.onRequestLocation,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isLandscapeTablet =
+                constraints.maxWidth >= AppBreakpoints.tabletLandscapeMin;
+            final isPortraitTablet = !isLandscapeTablet &&
+                constraints.maxWidth >= AppBreakpoints.tabletPortraitMin;
+
+            if (isLandscapeTablet) {
+              return _buildLandscapeLayout(context, constraints);
+            }
+            if (isPortraitTablet) {
+              return _buildPortraitTabletLayout(context, constraints);
+            }
+            return _buildPhoneLayout(context);
+          },
+        ),
+      );
+}
+
+IconData _categoryIcon(String category) => switch (category) {
+      'camp' => Icons.cabin_rounded,
+      'caravan' => Icons.rv_hookup_rounded,
+      'lake' => Icons.water_rounded,
+      'waterfall' => Icons.waterfall_chart_rounded,
+      'canyon_valley' => Icons.terrain_rounded,
+      'cave' => Icons.landscape_rounded,
+      'national_park' => Icons.forest_rounded,
+      _ => Icons.category_outlined,
+    };
+
+/// İller için önce o ile ait, bulunamazsa eldeki telifsiz/uygulama arşivinden
+/// seçilmiş bir doğa görseli döner. Bu sayede 81 kartın hiçbirinde boş görsel
+/// alanı oluşmaz; il bazlı fotoğraf arşivi genişledikçe bu liste güncellenir.
+const _provincePhotoAssets = <String, String>{
+  'Adana': 'assets/photos/ekotaban_optimized/012f751248c32853523e.jpg',
+  'Afyonkarahisar': 'assets/photos/ekotaban_optimized/6163f613af33596c7c1a.jpg',
+  'Ankara': 'assets/photos/ekotaban_optimized/bd65c7c5d50856793c17.jpg',
+  'Artvin': 'assets/photos/ekotaban_optimized/7aa43047063126595c33.jpg',
+  'Bursa': 'assets/photos/ekotaban_optimized/6bd6868d93af4cf609d5.jpg',
+  'Burdur': 'assets/photos/ekotaban_optimized/2de1507c506dcbc463ec.jpg',
+  'Denizli': 'assets/photos/ekotaban_optimized/191144a986a7537f8510.jpg',
+  'Mersin': 'assets/photos/ekotaban_optimized/530c804189b8a718fda7.jpg',
+};
+
+const _provinceFallbackPhotos = <String>[
+  'assets/photos/ekotaban_optimized/012f751248c32853523e.jpg',
+  'assets/photos/ekotaban_optimized/6163f613af33596c7c1a.jpg',
+  'assets/photos/ekotaban_optimized/bd65c7c5d50856793c17.jpg',
+  'assets/photos/ekotaban_optimized/7aa43047063126595c33.jpg',
+  'assets/photos/ekotaban_optimized/530c804189b8a718fda7.jpg',
+  'assets/photos/ekotaban_optimized/6bd6868d93af4cf609d5.jpg',
+  'assets/photos/ekotaban_optimized/2de1507c506dcbc463ec.jpg',
+  'assets/photos/ekotaban_optimized/191144a986a7537f8510.jpg',
+];
+
+String _provincePhotoAsset(String province) {
+  final knownPhoto = _provincePhotoAssets[province];
+  if (knownPhoto != null) return knownPhoto;
+  final stableIndex =
+      province.runes.fold<int>(0, (total, rune) => total + rune) %
+          _provinceFallbackPhotos.length;
+  return _provinceFallbackPhotos[stableIndex];
+}
+
+class _ProvincePhotoCard extends StatelessWidget {
+  const _ProvincePhotoCard({required this.province, this.compact = false});
+
+  final String province;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.large),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              _provincePhotoAsset(province),
+              fit: BoxFit.cover,
+              cacheWidth: compact ? 240 : 360,
+              errorBuilder: (_, __, ___) => ColoredBox(
+                color: AppColors.primarySoft,
+                child: Icon(
+                  Icons.landscape_rounded,
+                  color: AppColors.primary,
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            ValueListenableBuilder<WeatherTarget>(
-              valueListenable: HomeWeatherLocationController.current,
-              builder: (_, target, __) => _TodayRecommendationsSection(
-                target: target,
-                preferredCategory: selectedCategory,
-                onOpen: widget.onOpen,
-                onExploreMap: widget.onExploreMap,
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x08000000), Color(0xC6002315)],
+                  stops: [.22, 1],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-            ValueListenableBuilder<WeatherTarget>(
-              valueListenable: HomeWeatherLocationController.current,
-              builder: (_, target, __) => _NearbyPlacesSection(
-                target: target,
-                preferredCategory: selectedCategory,
-                onOpen: widget.onOpen,
-                onExploreMap: widget.onExploreMap,
-                onRequestLocation: widget.onRequestLocation,
+            Padding(
+              padding: EdgeInsets.all(compact ? 10 : 12),
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  province,
+                  maxLines: compact ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.label.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    shadows: const [
+                      Shadow(color: Color(0x99000000), blurRadius: 4),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
@@ -333,17 +627,160 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
       );
 }
 
-IconData _categoryIcon(String category) => switch (category) {
-      'water' => Icons.water_drop_outlined,
-      'mountain_terrain' => Icons.terrain_outlined,
-      'natural_formation' => Icons.landscape_outlined,
-      'nature_area' => Icons.park_outlined,
-      'camp_caravan' => Icons.terrain_outlined,
-      'route_activity' => Icons.hiking_outlined,
-      'discovery_point' => Icons.explore_outlined,
-      'wildlife' => Icons.forest_outlined,
-      _ => Icons.category_outlined,
-    };
+class _ProvinceExplorerEntry extends StatelessWidget {
+  const _ProvinceExplorerEntry({
+    required this.onOpenAll,
+    required this.onSelect,
+  });
+
+  final VoidCallback onOpenAll;
+  final ValueChanged<MapRegionFocus> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final provinces = _provinceCenters.entries.take(8).toList(growable: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'İllere göre keşfet',
+                style: AppTypography.title.copyWith(color: textPrimary),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onOpenAll,
+              icon: const Icon(Icons.grid_view_rounded, size: 18),
+              label: const Text('Tüm iller'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: provinces.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, index) {
+              final entry = provinces[index];
+              return Semantics(
+                button: true,
+                label: '${entry.key} bölgesini haritada aç',
+                child: InkWell(
+                  onTap: () => onSelect(MapRegionFocus(
+                    label: entry.key,
+                    center: entry.value,
+                  )),
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                  child: Ink(
+                    width: 106,
+                    child: _ProvincePhotoCard(
+                      province: entry.key,
+                      compact: true,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProvinceExplorerSheet extends StatelessWidget {
+  const _ProvinceExplorerSheet({required this.onSelect});
+
+  final ValueChanged<MapRegionFocus> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    final entries = _provinceCenters.entries.toList(growable: false);
+    return FractionallySizedBox(
+      heightFactor: .88,
+      child: Material(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadii.hero),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkBorder : AppColors.border,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  '81 ilde doğayı keşfet',
+                  style: AppTypography.title.copyWith(color: textPrimary),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Bir il seç; harita yalnızca o bölgenin yerlerini açsın.',
+                  style: AppTypography.body.copyWith(color: textSecondary),
+                ),
+                const SizedBox(height: 18),
+                Expanded(
+                  child: GridView.builder(
+                    itemCount: entries.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: 1.06,
+                    ),
+                    itemBuilder: (_, index) {
+                      final entry = entries[index];
+                      return Semantics(
+                        button: true,
+                        label: '${entry.key} bölgesini haritada aç',
+                        child: InkWell(
+                          onTap: () => onSelect(MapRegionFocus(
+                            label: entry.key,
+                            center: entry.value,
+                          )),
+                          borderRadius: BorderRadius.circular(AppRadii.large),
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.large),
+                            ),
+                            child: _ProvincePhotoCard(province: entry.key),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _HomePremiumHeader extends StatelessWidget {
   const _HomePremiumHeader({
@@ -356,78 +793,108 @@ class _HomePremiumHeader extends StatelessWidget {
   final bool isResolvingLocation;
   final VoidCallback onMessages;
 
+  void _showLocationSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => LocationUpdateSheet(target: target),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 370;
           return Row(
             children: [
-              Icon(
-                Icons.park_rounded,
-                color: AppColors.primary,
-                size: compact ? 24 : AppIconSizes.large,
-              ),
-              SizedBox(width: compact ? 6 : 8),
-              Expanded(
-                child: Text(
-                  'Doğadayım',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      AppTypography.brand.copyWith(fontSize: compact ? 26 : 34),
+              Semantics(
+                image: true,
+                label: 'Doğadayım',
+                child: Container(
+                  width: compact ? 112 : 154,
+                  height: compact ? 38 : AppControlSizes.minimumTouchTarget,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 8 : 10,
+                    vertical: compact ? 7 : 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadii.medium),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Image.asset(
+                    'assets/branding/dogadayim_logo_full.png',
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
                 ),
               ),
+              SizedBox(width: compact ? 4 : 8),
+              const Spacer(),
               ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: compact ? 94 : 130),
+                constraints: BoxConstraints(maxWidth: compact ? 112 : 155),
                 child: GlassContainer(
                   borderRadius: BorderRadius.circular(AppRadii.medium),
                   blur: 12,
                   color: Colors.white.withValues(alpha: 0.65),
                   borderColor: Colors.white.withValues(alpha: 0.90),
                   borderWidth: 1.2,
-                  padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 12),
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10),
                   height: compact ? 38 : AppControlSizes.minimumTouchTarget,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.location_on_outlined,
-                          color: AppColors.textPrimary,
-                          size: AppIconSizes.small),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          isResolvingLocation
-                              ? AppStrings.get('home_locating')
-                              : (target.label.trim().toLowerCase() == 'konumum'
-                                  ? AppStrings.get('my_location')
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showLocationSheet(context),
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.location_on_outlined,
+                              color: AppColors.textPrimary,
+                              size: AppIconSizes.small),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              isResolvingLocation
+                                  ? AppStrings.get('home_locating')
                                   : (target.label ==
                                           HomeWeatherLocationController
                                               .unavailableLabel
                                       ? AppStrings.get(
                                           'home_location_permission_required')
-                                      : target.label)),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.label
-                              .copyWith(fontSize: AppFontSizes.label),
-                        ),
+                                      : (target.label.trim().toLowerCase() ==
+                                                  'konumum' ||
+                                              target.label
+                                                      .trim()
+                                                      .toLowerCase() ==
+                                                  'bulunduğu alan'
+                                          ? AppStrings.get('my_location')
+                                          : target.label)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.label
+                                  .copyWith(fontSize: AppFontSizes.label),
+                            ),
+                          ),
+                          if (!isResolvingLocation && !compact) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.keyboard_arrow_down_rounded,
+                                size: AppIconSizes.small),
+                          ],
+                        ],
                       ),
-                      if (!isResolvingLocation && !compact) ...[
-                        const SizedBox(width: 4),
-                        const Icon(Icons.keyboard_arrow_down_rounded,
-                            size: AppIconSizes.small),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-              SizedBox(width: compact ? 6 : 8),
+              SizedBox(width: compact ? 4 : 6),
               GlassIconButton(
                 icon: Icons.forum_outlined,
                 onTap: onMessages,
                 tooltip: AppStrings.get('profile_community_chat'),
-                size: compact ? 38 : AppControlSizes.minimumTouchTarget,
-                iconSize: compact ? 19 : 20,
+                size: compact ? 38 : 42,
+                iconSize: 20,
                 blur: 12,
                 color: Colors.white.withValues(alpha: 0.65),
                 borderColor: Colors.white.withValues(alpha: 0.90),
@@ -436,6 +903,277 @@ class _HomePremiumHeader extends StatelessWidget {
           );
         },
       );
+}
+
+class LocationUpdateSheet extends StatefulWidget {
+  const LocationUpdateSheet({super.key, required this.target});
+  final WeatherTarget target;
+
+  @override
+  State<LocationUpdateSheet> createState() => _LocationUpdateSheetState();
+}
+
+class _LocationUpdateSheetState extends State<LocationUpdateSheet> {
+  bool _isLoading = false;
+
+  Future<void> _updateLocation() async {
+    setState(() => _isLoading = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final coordinates =
+          await HomeWeatherLocationController.requestAndUseDeviceLocation();
+      if (!mounted) return;
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Konum güncellendi: ${coordinates.label}'),
+              ),
+            ],
+          ),
+          backgroundColor: green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    final target = widget.target;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadii.hero),
+        ),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppColors.darkPrimarySoft
+                      : AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                ),
+                child: Icon(
+                  Icons.location_on_rounded,
+                  color: isDark ? AppColors.darkPrimaryLight : green,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Konum Bilgisi & Güncelleme',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.title,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close_rounded, size: 20),
+                color: textSecondary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color:
+                  isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadii.large),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Mevcut Konum',
+                      style: TextStyle(
+                        fontSize: AppFontSizes.caption,
+                        color: textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (target.usesCoordinates)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkPrimarySoft
+                              : AppColors.primarySoft,
+                          borderRadius: BorderRadius.circular(AppRadii.small),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.gps_fixed_rounded,
+                              size: 11,
+                              color:
+                                  isDark ? AppColors.darkPrimaryLight : green,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'GPS Doğrulanmış',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    isDark ? AppColors.darkPrimaryLight : green,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  target.label,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.title,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                if (target.usesCoordinates) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${target.latitude!.toStringAsFixed(4)}° K, ${target.longitude!.toStringAsFixed(4)}° D',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.caption,
+                      color: textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppColors.darkPrimarySoft.withValues(alpha: 0.15)
+                  : sand.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(AppRadii.medium),
+              border: Border.all(
+                color:
+                    isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.verified_user_outlined,
+                  size: 18,
+                  color: isDark ? AppColors.darkPrimaryLight : green,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Doğa güvenliği, rota mesafeleri ve anlık hava durumunun doğruluğu için konum yalnızca cihazınızın gerçek GPS alıcısından alınır. Konuma dışarıdan elle veya yapay müdahale yapılamaz.',
+                    style: TextStyle(
+                      fontSize: AppFontSizes.caption,
+                      height: 1.4,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: _isLoading ? null : _updateLocation,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.my_location_rounded, size: 18),
+            label: Text(
+              _isLoading ? 'Konum Güncelleniyor...' : 'Konumu Güncelle',
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.body,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: isDark ? AppColors.darkPrimary : green,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.large),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ignore: unused_element
@@ -575,6 +1313,30 @@ class _TodayRecommendationsSectionState
         else
           LayoutBuilder(
             builder: (context, constraints) {
+              if (recommendations.length == 2) {
+                return SizedBox(
+                  height: 228,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _RecommendationCard(
+                          recommendation: recommendations[0],
+                          showDistance: widget.target.usesCoordinates,
+                          onTap: () => widget.onOpen(recommendations[0].place),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _RecommendationCard(
+                          recommendation: recommendations[1],
+                          showDistance: widget.target.usesCoordinates,
+                          onTap: () => widget.onOpen(recommendations[1].place),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
               final cardWidth = (constraints.maxWidth - 12) / 2;
               return SizedBox(
                 height: 228,
@@ -588,7 +1350,9 @@ class _TodayRecommendationsSectionState
                     itemBuilder: (_, index) {
                       final recommendation = recommendations[index];
                       return _RecommendationCard(
-                        width: cardWidth,
+                        width: recommendations.length == 1
+                            ? constraints.maxWidth
+                            : cardWidth,
                         recommendation: recommendation,
                         showDistance: widget.target.usesCoordinates,
                         onTap: () => widget.onOpen(recommendation.place),
@@ -605,20 +1369,25 @@ class _TodayRecommendationsSectionState
 }
 
 bool _isTodayTripCandidate(Place place) {
-  return !place.isUtility;
+  return !place.isUtility &&
+      !isNonNatureCandidateName(
+        place.name,
+        subtype: place.resolvedTaxonomy.subtype,
+        mainCategory: place.resolvedTaxonomy.mainCategory,
+      );
 }
 
 class _RecommendationCard extends StatelessWidget {
   const _RecommendationCard({
     required this.recommendation,
     required this.onTap,
-    required this.width,
+    this.width,
     required this.showDistance,
   });
 
   final PlaceRecommendation recommendation;
   final VoidCallback onTap;
-  final double width;
+  final double? width;
   final bool showDistance;
 
   @override
@@ -628,6 +1397,8 @@ class _RecommendationCard extends StatelessWidget {
           place: recommendation.place,
           onTap: onTap,
           showDistance: showDistance,
+          decisionLabel: recommendation.suitabilityLabel,
+          decisionReason: recommendation.primaryReason,
         ),
       );
 }
@@ -1035,7 +1806,13 @@ class _NearbyPlacesSectionState extends State<_NearbyPlacesSection> {
             // Konum yokken şehir bazlı Supabase önerileri
             Builder(builder: (context) {
               final places = SupabasePlacesController.places.value
-                  .where((p) => !p.isUtility)
+                  .where((p) =>
+                      !p.isUtility &&
+                      !isNonNatureCandidateName(
+                        p.name,
+                        subtype: p.resolvedTaxonomy.subtype,
+                        mainCategory: p.resolvedTaxonomy.mainCategory,
+                      ))
                   .take(6)
                   .toList(growable: false);
               if (places.isEmpty) return const SizedBox.shrink();
@@ -1123,10 +1900,29 @@ class _NearbyPlacesSectionState extends State<_NearbyPlacesSection> {
                   );
                 }
 
+                final recommendedIds = RecommendationService.rank(
+                  places: <Place>[
+                    ...SupabasePlacesController.places.value,
+                    ...UserPlacesController.places.value,
+                    ...NearbyPlacesService.availableNow(widget.target),
+                  ].where(_isTodayTripCandidate),
+                  weather: WeatherService.availableNow(widget.target),
+                  hasUserLocation: widget.target.usesCoordinates,
+                  preferredCategory: widget.preferredCategory,
+                ).take(2).map((r) => r.place.sourceId ?? r.place.name).toSet();
+
+                final distinctNearby = nearby.where((place) {
+                  final id = place.sourceId ?? place.name;
+                  return !recommendedIds.contains(id);
+                }).toList(growable: false);
+
+                final displayPlaces =
+                    distinctNearby.isNotEmpty ? distinctNearby : nearby;
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ...nearby.take(6).map(
+                    ...displayPlaces.take(6).map(
                           (place) => Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: AppCompactPlaceCard(
@@ -2214,11 +3010,11 @@ class _CommunityCard extends StatelessWidget {
       ? '${distanceKm.toStringAsFixed(1)} km'
       : '${distanceKm.round()} km';
 
-  String get categoryEmoji {
-    if (suggestion.place.kind.contains('Göl')) return '🌊';
-    if (suggestion.place.kind.contains('Yürüyüş')) return '🥾';
-    if (suggestion.place.kind.contains('Kamp')) return '🏕️';
-    return '🌿';
+  IconData get categoryIcon {
+    if (suggestion.place.kind.contains('Göl')) return Icons.water_rounded;
+    if (suggestion.place.kind.contains('Yürüyüş')) return Icons.hiking_rounded;
+    if (suggestion.place.kind.contains('Kamp')) return Icons.cabin_rounded;
+    return Icons.park_rounded;
   }
 
   Color get categoryColor {
@@ -2302,14 +3098,22 @@ class _CommunityCard extends StatelessWidget {
                         color: AppColors.shadow80,
                         borderRadius: BorderRadius.circular(AppRadii.large),
                       ),
-                      child: Text(
-                        '👥 ${suggestion.recommendationCount} kişi önerdi',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          color: Colors.white,
-                          fontSize: AppFontSizes.caption,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.people_rounded,
+                              size: 13, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${suggestion.recommendationCount} kişi önerdi',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              color: Colors.white,
+                              fontSize: AppFontSizes.caption,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2375,9 +3179,7 @@ class _CommunityCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(categoryEmoji,
-                                style: const TextStyle(
-                                    fontSize: AppFontSizes.caption, height: 1)),
+                            Icon(categoryIcon, size: 14, color: categoryColor),
                             const SizedBox(width: 3),
                             Flexible(
                               child: Text(
@@ -2491,20 +3293,20 @@ class _PlaceRow extends StatelessWidget {
   final Place place;
   final VoidCallback onTap;
 
-  String get categoryEmoji {
-    if (place.kind.contains('Su Kaynağı')) return '💧';
+  IconData get categoryIcon {
+    if (place.kind.contains('Su Kaynağı')) return Icons.water_drop_rounded;
     if (place.kind.contains('Doğal Kaynak') || place.kind.contains('Şelale')) {
-      return '🌊';
+      return Icons.water_rounded;
     }
-    if (place.kind.contains('Göl')) return '🏞️';
-    if (place.kind.contains('Kamp')) return '🏕️';
-    if (place.kind.contains('Piknik')) return '🌿';
-    if (place.kind.contains('Yürüyüş')) return '🥾';
-    if (place.kind.contains('Seyir')) return '🔭';
-    if (place.kind.contains('Mağara')) return '🪨';
-    if (place.kind.contains('Karavan')) return '🚐';
-    if (place.kind.contains('Milli Park')) return '🌲';
-    return '🌿';
+    if (place.kind.contains('Göl')) return Icons.water_rounded;
+    if (place.kind.contains('Kamp')) return Icons.cabin_rounded;
+    if (place.kind.contains('Piknik')) return Icons.deck_rounded;
+    if (place.kind.contains('Yürüyüş')) return Icons.hiking_rounded;
+    if (place.kind.contains('Seyir')) return Icons.explore_rounded;
+    if (place.kind.contains('Mağara')) return Icons.landscape_rounded;
+    if (place.kind.contains('Karavan')) return Icons.rv_hookup_rounded;
+    if (place.kind.contains('Milli Park')) return Icons.forest_rounded;
+    return Icons.park_rounded;
   }
 
   Color get categoryColor {
@@ -2596,8 +3398,7 @@ class _PlaceRow extends StatelessWidget {
                   ]),
                   const SizedBox(height: 7),
                   Row(children: [
-                    Text(categoryEmoji,
-                        style: const TextStyle(fontSize: 12, height: 1)),
+                    Icon(categoryIcon, size: 14, color: categoryColor),
                     const SizedBox(width: 3),
                     Flexible(
                         child: Text(place.kind,

@@ -328,6 +328,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
   void initState() {
     super.initState();
     unawaited(EmergencyHelpController.load());
+    unawaited(SubmissionFeedbackController.load());
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _showExpiredCallPrompt());
   }
@@ -527,11 +528,15 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
             'Account deletion failed with status ${response.status}');
       }
 
-      // Başarılı: Yerel kullanıcı verilerini temizle
       await PlaceSubmissionController.clearQueue();
       await UserPlacesController.clear();
       await PlacePhotoStorage.clearLocalPhotos();
       await UserReviewsController.clear();
+      await UserFavoritesController.clear();
+      await CommunityPlacePhotosController.clear();
+      await HomeWeatherLocationController.clearSavedLocation();
+      await UserProfileAvatarController.clear();
+      EmergencyHelpController.clearLocalData();
 
       // Auth oturumunu kapat (Server-side kullanıcı silinmiş olabileceğinden signOut hata verebilir, başarı akışını bozmaz)
       try {
@@ -765,16 +770,26 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
             metadata?['display_name']?.toString() ??
             '')
         .trim();
-    final email = user?.email?.trim() ?? '';
-    final displayName = fullName.isNotEmpty
-        ? fullName
-        : (email.isNotEmpty
-            ? email
-            : AppStrings.get('profile_default_user_name'));
-    final subtitle = fullName.isNotEmpty && email.isNotEmpty ? email : null;
-    final avatarInitial = displayName.isNotEmpty
-        ? displayName.characters.first.toUpperCase()
-        : 'D';
+    final rawEmail = user?.email?.trim() ?? '';
+    final maskedEmail = rawEmail.contains('@') && rawEmail.indexOf('@') > 1
+        ? '${rawEmail.substring(0, 2)}***@${rawEmail.split('@').last}'
+        : (rawEmail.isNotEmpty ? '***@***' : '');
+    final isGuest = user == null;
+    final displayName = isGuest
+        ? AppStrings.get('profile_guest_user')
+        : (fullName.isNotEmpty
+            ? fullName
+            : (maskedEmail.isNotEmpty
+                ? maskedEmail
+                : AppStrings.get('profile_default_user_name')));
+    final subtitle = isGuest
+        ? AppStrings.get('profile_guest_subtitle')
+        : (fullName.isNotEmpty && maskedEmail.isNotEmpty ? maskedEmail : null);
+    final avatarInitial = isGuest
+        ? 'M'
+        : (displayName.isNotEmpty
+            ? displayName.characters.first.toUpperCase()
+            : 'D');
     final avatarUrl =
         metadata?['avatar_url']?.toString() ?? metadata?['picture']?.toString();
 
@@ -783,11 +798,71 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
     final textSecondary = AppColors.textSecondaryOf(context);
     final dividerColor = AppColors.borderOf(context);
 
+    if (context.isTabletLandscape) {
+      return SafeArea(
+        child: _buildLandscapeLayout(
+          context: context,
+          isDark: isDark,
+          isGuest: isGuest,
+          displayName: displayName,
+          subtitle: subtitle,
+          avatarInitial: avatarInitial,
+          avatarUrl: avatarUrl,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          dividerColor: dividerColor,
+        ),
+      );
+    }
+
+    if (context.isTabletPortrait) {
+      return SafeArea(
+        child: _buildPortraitTabletLayout(
+          context: context,
+          isDark: isDark,
+          isGuest: isGuest,
+          displayName: displayName,
+          subtitle: subtitle,
+          avatarInitial: avatarInitial,
+          avatarUrl: avatarUrl,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          dividerColor: dividerColor,
+        ),
+      );
+    }
+
     return SafeArea(
-      child: ListView(
+      child: _buildPhoneLayout(
+        context: context,
+        isDark: isDark,
+        isGuest: isGuest,
+        displayName: displayName,
+        subtitle: subtitle,
+        avatarInitial: avatarInitial,
+        avatarUrl: avatarUrl,
+        textPrimary: textPrimary,
+        textSecondary: textSecondary,
+        dividerColor: dividerColor,
+      ),
+    );
+  }
+
+  Widget _buildPhoneLayout({
+    required BuildContext context,
+    required bool isDark,
+    required bool isGuest,
+    required String displayName,
+    required String? subtitle,
+    required String avatarInitial,
+    required String? avatarUrl,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color dividerColor,
+  }) =>
+      ListView(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 100),
         children: [
-          // 1. ÜST BAR: Sol "Profil"
           Text(
             AppStrings.get('profile_title'),
             style: TextStyle(
@@ -799,9 +874,263 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          _buildProfileUserCard(
+            context: context,
+            isDark: isDark,
+            isGuest: isGuest,
+            displayName: displayName,
+            subtitle: subtitle,
+            avatarInitial: avatarInitial,
+            avatarUrl: avatarUrl,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+          ),
+          const SizedBox(height: 20),
+          _buildEmergencyHelpCard(
+            context: context,
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+          ),
+          const SizedBox(height: 22),
+          _buildNotificationsSection(
+            context: context,
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+          ),
+          _buildContributionsSection(
+            context: context,
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            isGrid: false,
+          ),
+          const SizedBox(height: 22),
+          _buildSettingsMenu(
+            context: context,
+            isDark: isDark,
+            isGuest: isGuest,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            dividerColor: dividerColor,
+          ),
+        ],
+      );
 
-          // 2. KULLANICI PROFİL ALANI (CircleAvatar + Ad + Doğa Kaşifi + Katkı Sayısı)
-          GlassContainer(
+  Widget _buildPortraitTabletLayout({
+    required BuildContext context,
+    required bool isDark,
+    required bool isGuest,
+    required String displayName,
+    required String? subtitle,
+    required String avatarInitial,
+    required String? avatarUrl,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color dividerColor,
+  }) =>
+      Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 780),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 100),
+            children: [
+              Text(
+                AppStrings.get('profile_title'),
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.display,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _buildProfileUserCard(
+                context: context,
+                isDark: isDark,
+                isGuest: isGuest,
+                displayName: displayName,
+                subtitle: subtitle,
+                avatarInitial: avatarInitial,
+                avatarUrl: avatarUrl,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildContributionsSection(
+                          context: context,
+                          isDark: isDark,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                          isGrid: false,
+                        ),
+                        const SizedBox(height: 24),
+                        _buildEmergencyHelpCard(
+                          context: context,
+                          isDark: isDark,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildNotificationsSection(
+                          context: context,
+                          isDark: isDark,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                        ),
+                        _buildSettingsMenu(
+                          context: context,
+                          isDark: isDark,
+                          isGuest: isGuest,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                          dividerColor: dividerColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildLandscapeLayout({
+    required BuildContext context,
+    required bool isDark,
+    required bool isGuest,
+    required String displayName,
+    required String? subtitle,
+    required String avatarInitial,
+    required String? avatarUrl,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color dividerColor,
+  }) =>
+      AppResponsiveScaffoldBody(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Sol (%38): Avatar, hesap, yardım iste, ayarlar
+            Expanded(
+              flex: 38,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppStrings.get('profile_title'),
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: AppFontSizes.display,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildProfileUserCard(
+                      context: context,
+                      isDark: isDark,
+                      isGuest: isGuest,
+                      displayName: displayName,
+                      subtitle: subtitle,
+                      avatarInitial: avatarInitial,
+                      avatarUrl: avatarUrl,
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildEmergencyHelpCard(
+                      context: context,
+                      isDark: isDark,
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildSettingsMenu(
+                      context: context,
+                      isDark: isDark,
+                      isGuest: isGuest,
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                      dividerColor: dividerColor,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 28),
+            // Sağ (%62): Katkılar, onay durumları ve bildirimler
+            Expanded(
+              flex: 62,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildNotificationsSection(
+                      context: context,
+                      isDark: isDark,
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                    ),
+                    _buildContributionsSection(
+                      context: context,
+                      isDark: isDark,
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                      isGrid: true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildProfileUserCard({
+    required BuildContext context,
+    required bool isDark,
+    required bool isGuest,
+    required String displayName,
+    required String? subtitle,
+    required String avatarInitial,
+    required String? avatarUrl,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) =>
+      Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isGuest
+              ? () => AppAuthGuard.requireAuth(
+                    context,
+                    title: AppStrings.get('guest_auth_title'),
+                    message:
+                        'Profilini görüntülemek ve yönetmek için giriş yapmalısın.',
+                  )
+              : null,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          child: GlassContainer(
             borderRadius: BorderRadius.circular(AppRadii.large),
             blur: 14,
             color: isDark
@@ -820,26 +1149,79 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: isDark
-                      ? AppColors.darkPrimarySoft
-                      : AppColors.primarySoft,
-                  backgroundImage:
-                      (avatarUrl != null && avatarUrl.startsWith('http'))
-                          ? NetworkImage(avatarUrl)
-                          : null,
-                  child: (avatarUrl != null && avatarUrl.startsWith('http'))
-                      ? null
-                      : Text(
-                          avatarInitial,
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            color: AppColors.primary,
-                            fontSize: AppFontSizes.display,
-                            fontWeight: FontWeight.w700,
-                          ),
+                ValueListenableBuilder<String?>(
+                  valueListenable: UserProfileAvatarController.avatarNotifier,
+                  builder: (context, customAvatar, _) {
+                    final effectiveAvatar =
+                        (customAvatar != null && customAvatar.isNotEmpty)
+                            ? customAvatar
+                            : avatarUrl;
+                    final hasImage = effectiveAvatar != null &&
+                        effectiveAvatar.startsWith('http');
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CircleAvatar(
+                          radius: 32,
+                          backgroundColor: isDark
+                              ? AppColors.darkPrimarySoft
+                              : AppColors.primarySoft,
+                          backgroundImage:
+                              hasImage ? NetworkImage(effectiveAvatar) : null,
+                          child: hasImage
+                              ? null
+                              : Text(
+                                  avatarInitial,
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    color: AppColors.primary,
+                                    fontSize: AppFontSizes.display,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                         ),
+                        if (!isGuest)
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => _showAvatarPickerModal(context),
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? AppColors.darkPrimary
+                                        : AppColors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark
+                                          ? AppColors.darkSurface
+                                          : Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: AppColors.shadow08,
+                                        blurRadius: 4,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt_rounded,
+                                    size: 13,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -860,7 +1242,9 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        AppStrings.get('profile_nature_explorer'),
+                        isGuest
+                            ? AppStrings.get('profile_guest_subtitle')
+                            : AppStrings.get('profile_nature_explorer'),
                         style: TextStyle(
                           fontSize: AppFontSizes.label,
                           fontWeight: FontWeight.w500,
@@ -870,27 +1254,161 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      ValueListenableBuilder<List<Place>>(
-                        valueListenable: UserPlacesController.places,
-                        builder: (context, places, _) => Text(
-                          '${places.length} ${AppStrings.get('profile_contributions')}',
-                          style: TextStyle(
-                            fontSize: AppFontSizes.caption,
-                            fontWeight: FontWeight.w400,
-                            color: textSecondary,
+                      if (isGuest) ...[
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 32,
+                          child: FilledButton.icon(
+                            onPressed: () => Navigator.push<void>(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => const AuthScreen(),
+                              ),
+                            ),
+                            icon: const Icon(Icons.login_rounded, size: 15),
+                            label: Text(
+                              AppStrings.get('guest_auth_btn_login'),
+                              style: const TextStyle(
+                                fontSize: AppFontSizes.caption,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: isDark
+                                  ? AppColors.darkPrimary
+                                  : AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 0),
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: AppFontSizes.caption,
-                            color: textSecondary,
+                      ] else ...[
+                        ValueListenableBuilder<List<Place>>(
+                          valueListenable: UserPlacesController.places,
+                          builder: (context, places, _) => Text(
+                            '${places.length} ${AppStrings.get('profile_contributions')}',
+                            style: TextStyle(
+                              fontSize: AppFontSizes.caption,
+                              fontWeight: FontWeight.w400,
+                              color: textSecondary,
+                            ),
                           ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: AppFontSizes.caption,
+                              color: textSecondary,
+                            ),
+                          ),
+                        ],
+                        ValueListenableBuilder<UserSocialAccounts>(
+                          valueListenable:
+                              UserSocialAccountsController.accounts,
+                          builder: (context, accounts, _) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  if (accounts.instagram.isNotEmpty)
+                                    _SocialIconBadge(
+                                      icon: Icons.camera_alt_outlined,
+                                      color: const Color(0xFFE1306C),
+                                      tooltip: 'Instagram',
+                                      onTap: () => _openSocialLink(
+                                        context,
+                                        'instagram',
+                                        accounts.instagram,
+                                      ),
+                                    ),
+                                  if (accounts.facebook.isNotEmpty)
+                                    _SocialIconBadge(
+                                      icon: Icons.facebook,
+                                      color: const Color(0xFF1877F2),
+                                      tooltip: 'Facebook',
+                                      onTap: () => _openSocialLink(
+                                        context,
+                                        'facebook',
+                                        accounts.facebook,
+                                      ),
+                                    ),
+                                  if (accounts.youtube.isNotEmpty)
+                                    _SocialIconBadge(
+                                      icon: Icons.smart_display_rounded,
+                                      color: const Color(0xFFFF0000),
+                                      tooltip: 'YouTube',
+                                      onTap: () => _openSocialLink(
+                                        context,
+                                        'youtube',
+                                        accounts.youtube,
+                                      ),
+                                    ),
+                                  InkWell(
+                                    onTap: () =>
+                                        _showSocialAccountsModal(context),
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.pill),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? AppColors.darkSurfaceMuted
+                                            : AppColors.surfaceMuted,
+                                        borderRadius: BorderRadius.circular(
+                                            AppRadii.pill),
+                                        border: Border.all(
+                                          color: isDark
+                                              ? AppColors.darkBorder
+                                              : AppColors.border,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            accounts.isEmpty
+                                                ? Icons.add_link_rounded
+                                                : Icons.edit_outlined,
+                                            size: 12,
+                                            color: isDark
+                                                ? AppColors.darkTextSecondary
+                                                : AppColors.textSecondary,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            accounts.isEmpty
+                                                ? 'Sosyal Hesap'
+                                                : 'Düzenle',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontFamily: 'Outfit',
+                                              fontWeight: FontWeight.w500,
+                                              color: isDark
+                                                  ? AppColors.darkTextSecondary
+                                                  : AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ],
@@ -899,104 +1417,319 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+        ),
+      );
 
-          ValueListenableBuilder<List<EmergencyHelpRequest>>(
-            valueListenable: EmergencyHelpController.requests,
-            builder: (context, _, __) {
-              final active = EmergencyHelpController.currentUserActiveRequest;
-              return Semantics(
-                button: true,
-                label: active == null
-                    ? 'Yardım iste'
-                    : 'Aktif yardım çağrını yönet',
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _openEmergencyHelp,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 72),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: isDark
+  Widget _buildEmergencyHelpCard({
+    required BuildContext context,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) =>
+      ValueListenableBuilder<List<EmergencyHelpRequest>>(
+        valueListenable: EmergencyHelpController.requests,
+        builder: (context, _, __) {
+          final active = EmergencyHelpController.currentUserActiveRequest;
+          return Semantics(
+            button: true,
+            label:
+                active == null ? 'Yardım iste' : 'Aktif yardım çağrını yönet',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _openEmergencyHelp,
+                borderRadius: BorderRadius.circular(AppRadii.large),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 72),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: active == null
+                        ? (isDark
+                            ? AppColors.darkSurfaceMuted
+                            : AppColors.surfaceMuted)
+                        : (isDark
                             ? AppColors.error.withValues(alpha: 0.15)
-                            : AppColors.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(AppRadii.large),
+                            : AppColors.error.withValues(alpha: 0.08)),
+                    borderRadius: BorderRadius.circular(AppRadii.large),
+                    border: Border.all(
+                      color: active == null
+                          ? (isDark ? AppColors.darkBorder : AppColors.border)
+                          : AppColors.error,
+                      width: active == null ? 1 : 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        active == null
+                            ? Icons.health_and_safety_outlined
+                            : Icons.warning_amber_rounded,
+                        color: active == null
+                            ? (isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary)
+                            : AppColors.error,
+                        size: 25,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              active == null
+                                  ? 'Yardım iste'
+                                  : 'Yardım çağrın aktif',
+                              style: TextStyle(
+                                fontSize: AppFontSizes.title,
+                                fontWeight: FontWeight.w700,
+                                color: textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              active == null
+                                  ? 'Konumunu ve ulaşım tercihini paylaş'
+                                  : 'Haritada gör, yardım ulaştığında sonlandır',
+                              style: TextStyle(
+                                  fontSize: AppFontSizes.caption,
+                                  color: textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded,
+                          color: textSecondary, size: 22),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+  Widget _buildNotificationsSection({
+    required BuildContext context,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) =>
+      ValueListenableBuilder<List<SubmissionFeedback>>(
+        valueListenable: SubmissionFeedbackController.items,
+        builder: (context, feedback, _) {
+          if (feedback.isEmpty) return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Katkı bildirimleri',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.title,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ...feedback.take(2).map(
+                    (item) => Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: item.isActionRequired
+                            ? (isDark
+                                ? AppColors.darkErrorSoft
+                                : AppColors.errorSoft)
+                            : (isDark
+                                ? AppColors.darkPrimarySoft
+                                : AppColors.primarySoft),
+                        borderRadius: BorderRadius.circular(AppRadii.medium),
                         border: Border.all(
-                          color: active == null
-                              ? AppColors.error.withValues(alpha: 0.3)
-                              : AppColors.error,
-                          width: active == null ? 1 : 1.5,
+                          color: item.isActionRequired
+                              ? AppColors.errorBorder
+                              : (isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.border),
                         ),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(
-                            active == null
-                                ? Icons.sos_rounded
-                                : Icons.warning_amber_rounded,
-                            color: AppColors.error,
-                            size: 25,
+                            item.isActionRequired
+                                ? Icons.edit_note_rounded
+                                : Icons.verified_outlined,
+                            color: item.isActionRequired
+                                ? AppColors.error
+                                : (isDark
+                                    ? AppColors.darkPrimaryLight
+                                    : AppColors.primary),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
-                              mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  active == null
-                                      ? 'Yardım iste'
-                                      : 'Yardım çağrın aktif',
-                                  style: TextStyle(
-                                    fontSize: AppFontSizes.title,
-                                    fontWeight: FontWeight.w700,
-                                    color: textPrimary,
-                                  ),
-                                ),
+                                Text(item.title,
+                                    style: TextStyle(
+                                        color: textPrimary,
+                                        fontWeight: FontWeight.w700)),
                                 const SizedBox(height: 2),
-                                Text(
-                                  active == null
-                                      ? 'Konumunu ve ulaşım tercihini paylaş'
-                                      : 'Haritada gör, yardım ulaştığında sonlandır',
-                                  style: TextStyle(
-                                      fontSize: AppFontSizes.caption,
-                                      color: textSecondary),
-                                ),
+                                Text(item.body,
+                                    style: TextStyle(
+                                        fontSize: AppFontSizes.caption,
+                                        color: textSecondary)),
                               ],
                             ),
                           ),
-                          Icon(Icons.chevron_right_rounded,
-                              color: textSecondary, size: 22),
                         ],
                       ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 22),
+              const SizedBox(height: 14),
+            ],
+          );
+        },
+      );
 
-          // 3. KATKILARIM BAŞLIĞI (Doğrudan kullanıcı alanından 20px sonra)
-          Text(
-            AppStrings.get('profile_my_contributions'),
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: AppFontSizes.title,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
-            ),
+  Widget _buildContributionsSection({
+    required BuildContext context,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    bool isGrid = false,
+  }) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  AppStrings.get('profile_my_contributions'),
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.title,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+              ),
+              ValueListenableBuilder<List<Place>>(
+                valueListenable: UserPlacesController.places,
+                builder: (context, places, _) {
+                  if (places.isEmpty) return const SizedBox.shrink();
+                  return TextButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AddPlaceScreen(
+                            onOpenExisting: widget.onOpen,
+                            onContributeToExisting: widget.onOpen,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: Text(
+                      AppStrings.get('add_place_nav_title'),
+                      style: const TextStyle(fontSize: AppFontSizes.caption),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 12),
-
-          // Katkılarım listesi veya kompakt empty state
           ValueListenableBuilder<List<Place>>(
             valueListenable: UserPlacesController.places,
             builder: (context, places, _) {
               if (places.isNotEmpty) {
+                if (isGrid) {
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: places.map((place) {
+                      return GestureDetector(
+                        onTap: () => widget.onOpen(place),
+                        child: Container(
+                          width: 140,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(AppRadii.large),
+                            color: isDark
+                                ? AppColors.darkSurfaceMuted
+                                : AppColors.surface,
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.border,
+                            ),
+                            boxShadow: AppShadows.softOf(context),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                height: 90,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    NatureArt(
+                                      place: place,
+                                      radius: 0,
+                                      showKind: false,
+                                    ),
+                                    if (place.verificationStatus !=
+                                        VerificationStatus.verified)
+                                      const Positioned(
+                                        top: 5,
+                                        left: 5,
+                                        child: _PendingApprovalBadge(),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      place.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: AppFontSizes.caption,
+                                        color: textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      place.location,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: AppFontSizes.caption * 0.9,
+                                        color: textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                }
                 return SizedBox(
                   height: 94,
                   child: ListView.separated(
@@ -1071,7 +1804,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                 );
               }
 
-              // Kompakt, kartsız empty state (yaklaşık 40px buton yüksekliği)
+              // Kompakt, kartsız empty state
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Column(
@@ -1126,9 +1859,20 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
               );
             },
           ),
-          const SizedBox(height: 22),
+        ],
+      );
 
-          // 4. ALT MENÜ LİSTESİ
+  Widget _buildSettingsMenu({
+    required BuildContext context,
+    required bool isDark,
+    required bool isGuest,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color dividerColor,
+  }) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           // Görünüm (Açık / Koyu tema switch)
           ValueListenableBuilder<ThemeMode>(
             valueListenable: AppThemeController.mode,
@@ -1242,6 +1986,65 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
             },
           ),
           Divider(height: 1, thickness: 0.8, color: dividerColor),
+
+          // Sosyal Medya Hesapları (Instagram, Facebook, YouTube)
+          if (!isGuest) ...[
+            InkWell(
+              onTap: () => _showSocialAccountsModal(context),
+              child: SizedBox(
+                height: 54,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.alternate_email_rounded,
+                      size: 20,
+                      color: textSecondary,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'Sosyal Medya Hesapları',
+                        style: TextStyle(
+                          fontSize: AppFontSizes.body,
+                          fontWeight: FontWeight.w500,
+                          color: textPrimary,
+                        ),
+                      ),
+                    ),
+                    ValueListenableBuilder<UserSocialAccounts>(
+                      valueListenable: UserSocialAccountsController.accounts,
+                      builder: (context, accounts, _) {
+                        final count = [
+                          accounts.instagram,
+                          accounts.facebook,
+                          accounts.youtube,
+                        ].where((s) => s.trim().isNotEmpty).length;
+                        return Text(
+                          count > 0 ? '$count hesap bağlı' : 'Ekle',
+                          style: TextStyle(
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? AppColors.darkPrimaryLight
+                                : AppColors.primary,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Divider(height: 1, thickness: 0.8, color: dividerColor),
+          ],
+
+          // Topluluk Sohbetleri
           InkWell(
             onTap: () {
               Navigator.push(
@@ -1384,76 +2187,958 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
           ),
           Divider(height: 1, thickness: 0.8, color: dividerColor),
 
-          // Çıkış Yap
-          InkWell(
-            onTap: () async {
-              await Supabase.instance.client.auth.signOut();
-              if (!context.mounted) return;
-              Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+          if (isGuest) ...[
+            InkWell(
+              onTap: () => Navigator.push<void>(
+                context,
                 MaterialPageRoute<void>(
                   builder: (_) => const AuthScreen(),
                 ),
-                (_) => false,
-              );
-            },
-            child: SizedBox(
-              height: 54,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.logout_rounded,
-                    size: 20,
-                    color: textSecondary,
+              ),
+              child: SizedBox(
+                height: 54,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.login_rounded,
+                      size: 20,
+                      color: isDark
+                          ? AppColors.darkPrimaryLight
+                          : AppColors.primary,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        AppStrings.get('guest_auth_btn_login'),
+                        style: TextStyle(
+                          fontSize: AppFontSizes.body,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.darkPrimaryLight
+                              : AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: isDark
+                          ? AppColors.darkPrimaryLight
+                          : AppColors.primary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Divider(height: 1, thickness: 0.8, color: dividerColor),
+          ] else ...[
+            // Çıkış Yap
+            InkWell(
+              onTap: () async {
+                try {
+                  await Supabase.instance.client.auth.signOut();
+                } catch (_) {}
+                await PlaceSubmissionController.clearQueue();
+                await PlacePhotoStorage.clearLocalPhotos();
+                await UserReviewsController.clear();
+                await CommunityPlacePhotosController.clear();
+                await HomeWeatherLocationController.clearSavedLocation();
+                await UserProfileAvatarController.clear();
+                EmergencyHelpController.clearLocalData();
+                SubmissionFeedbackController.items.value =
+                    const <SubmissionFeedback>[];
+                if (!context.mounted) return;
+                Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AuthScreen(),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      AppStrings.get('profile_logout'),
-                      style: TextStyle(
-                        fontSize: AppFontSizes.body,
-                        fontWeight: FontWeight.w500,
-                        color: textPrimary,
+                  (_) => false,
+                );
+              },
+              child: SizedBox(
+                height: 54,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.logout_rounded,
+                      size: 20,
+                      color: textSecondary,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        AppStrings.get('profile_logout'),
+                        style: TextStyle(
+                          fontSize: AppFontSizes.body,
+                          fontWeight: FontWeight.w500,
+                          color: textPrimary,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Divider(height: 1, thickness: 0.8, color: dividerColor),
+            const SizedBox(height: 16),
+
+            // Hesabımı Sil: en altta, kırmızı, sade ve küçük
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _isDeletingAccount ? null : _handleDeleteAccount,
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 15,
+                  color: AppColors.error,
+                ),
+                label: Text(
+                  AppStrings.get('profile_delete_account'),
+                  style: const TextStyle(
+                    fontSize: AppFontSizes.label,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.error,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+          ],
+        ],
+      );
+}
+
+Future<void> _showAvatarPickerModal(BuildContext context) async {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final textPrimary = AppColors.textPrimaryOf(context);
+  final textSecondary = AppColors.textSecondaryOf(context);
+
+  final presets = const [
+    (
+      '🌲',
+      'Orman Kaşifi',
+      'https://images.unsplash.com/photo-1511497584788-87676104235f?w=300'
+    ),
+    (
+      '⛰️',
+      'Zirve Dağcısı',
+      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=300'
+    ),
+    (
+      '⛺',
+      'Kamp Sever',
+      'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=300'
+    ),
+    (
+      '🦅',
+      'Kuş Gözlemcisi',
+      'https://images.unsplash.com/photo-1444464666168-49d633b86797?w=300'
+    ),
+    (
+      '🌊',
+      'Su Gezgini',
+      'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=300'
+    ),
+    (
+      '🚙',
+      'Rota & Karavan',
+      'https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7?w=300'
+    ),
+  ];
+
+  final urlController = TextEditingController();
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: isDark ? AppColors.darkSurfaceDeep : Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.hero)),
+    ),
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Profil Fotoğrafı Seç',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.heading,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Doğa profiline uygun bir avatar seç veya fotoğraf bağlantısı ekle.',
+            style: TextStyle(
+              fontSize: AppFontSizes.caption,
+              color: textSecondary,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Doğa Avatarları',
+            style: TextStyle(
+              fontSize: AppFontSizes.label,
+              fontWeight: FontWeight.w600,
+              color: textPrimary,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 90,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: presets.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, index) {
+                final preset = presets[index];
+                return GestureDetector(
+                  onTap: () async {
+                    await UserProfileAvatarController.setAvatar(preset.$3);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundImage: NetworkImage(preset.$3),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        preset.$1,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Özel Fotoğraf Bağlantısı',
+            style: TextStyle(
+              fontSize: AppFontSizes.label,
+              fontWeight: FontWeight.w600,
+              color: textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: urlController,
+                  decoration: InputDecoration(
+                    hintText: 'https://... (Fotoğraf linki)',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: () async {
+                  final url = urlController.text.trim();
+                  if (url.startsWith('http')) {
+                    await UserProfileAvatarController.setAvatar(url);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.medium),
+                  ),
+                ),
+                child: const Text('Kaydet'),
+              ),
+            ],
+          ),
+          if (UserProfileAvatarController.avatarNotifier.value != null) ...[
+            const SizedBox(height: 14),
+            Center(
+              child: TextButton.icon(
+                onPressed: () async {
+                  await UserProfileAvatarController.setAvatar(null);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                label: const Text('Varsayılan Baş Harfe Dön'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textTertiaryOf(ctx),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+Future<void> _showSocialAccountsModal(BuildContext context) async {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final textPrimary = AppColors.textPrimaryOf(context);
+  final textSecondary = AppColors.textSecondaryOf(context);
+
+  final currentAccounts = UserSocialAccountsController.accounts.value;
+  final instagramController =
+      TextEditingController(text: currentAccounts.instagram);
+  final facebookController =
+      TextEditingController(text: currentAccounts.facebook);
+  final youtubeController =
+      TextEditingController(text: currentAccounts.youtube);
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: isDark ? AppColors.darkSurfaceDeep : Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.hero)),
+    ),
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBorder : AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Sosyal Medya Hesapları',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.heading,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Doğa profiline Instagram, Facebook veya YouTube hesaplarını ekle.',
+            style: TextStyle(
+              fontSize: AppFontSizes.caption,
+              color: textSecondary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: instagramController,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(
+                Icons.camera_alt_outlined,
+                color: Color(0xFFE1306C),
+              ),
+              labelText: 'Instagram',
+              hintText: '@kullaniciadi veya link',
+              filled: true,
+              fillColor:
+                  isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                borderSide: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: facebookController,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(
+                Icons.facebook,
+                color: Color(0xFF1877F2),
+              ),
+              labelText: 'Facebook',
+              hintText: 'kullaniciadi veya link',
+              filled: true,
+              fillColor:
+                  isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                borderSide: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: youtubeController,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(
+                Icons.smart_display_rounded,
+                color: Color(0xFFFF0000),
+              ),
+              labelText: 'YouTube',
+              hintText: '@kanal veya link',
+              filled: true,
+              fillColor:
+                  isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                borderSide: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                ),
+              ),
+              onPressed: () async {
+                await UserSocialAccountsController.save(
+                  instagram: instagramController.text,
+                  facebook: facebookController.text,
+                  youtube: youtubeController.text,
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Sosyal medya hesapların kaydedildi.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.check, size: 18),
+              label: const Text(
+                'Kaydet',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Uri? _resolveSocialUri(String platform, String raw) =>
+    UserSocialAccounts.resolveUri(platform, raw);
+
+Future<void> _openSocialLink(
+    BuildContext context, String platform, String raw) async {
+  final uri = _resolveSocialUri(platform, raw);
+  if (uri != null && isSafeExternalUrl(uri)) {
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bağlantı açılamadı.')),
+      );
+    }
+  } else if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('Geçerli bir sosyal medya bağlantısı bulunamadı.')),
+    );
+  }
+}
+
+class _SocialIconBadge extends StatelessWidget {
+  const _SocialIconBadge({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget child = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadii.pill),
+      child: Container(
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 14, color: color),
+      ),
+    );
+    if (tooltip != null) {
+      child = Tooltip(message: tooltip!, child: child);
+    }
+    return child;
+  }
+}
+
+class _SocialChip extends StatelessWidget {
+  const _SocialChip({
+    required this.icon,
+    required this.label,
+    required this.url,
+    required this.color,
+    this.platform = '',
+  });
+
+  final IconData icon;
+  final String label;
+  final String url;
+  final Color color;
+  final String platform;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () =>
+          _openSocialLink(context, platform.isEmpty ? label : platform, url),
+      borderRadius: BorderRadius.circular(AppRadii.pill),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PublicUserProfileScreen extends StatelessWidget {
+  const PublicUserProfileScreen({
+    super.key,
+    required this.authorName,
+    this.authorId = '',
+    this.avatarUrl,
+  });
+
+  final String authorName;
+  final String authorId;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+
+    final cleanName =
+        authorName.trim().isNotEmpty ? authorName.trim() : 'Doğa Kaşifi';
+    final initial =
+        cleanName.isNotEmpty ? cleanName.characters.first.toUpperCase() : 'D';
+
+    final authorPhotos =
+        CommunityPlacePhotosController.byAuthor(cleanName, authorId: authorId);
+    final authorPlaces = [
+      ...UserPlacesController.places.value,
+      ...SupabasePlacesController.places.value,
+    ].where((p) {
+      return p.source == PlaceSource.user &&
+          (p.description.toLowerCase().contains(cleanName.toLowerCase()) ||
+              (authorId.isNotEmpty && p.sourceId?.contains(authorId) == true));
+    }).toList(growable: false);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Topluluk Profili',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w700,
+            fontSize: AppFontSizes.title,
+            color: textPrimary,
+          ),
+        ),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+        children: [
+          // 1. Profil Bilgi Kartı
+          GlassContainer(
+            borderRadius: BorderRadius.circular(AppRadii.large),
+            blur: 14,
+            color: isDark
+                ? AppColors.darkPrimarySoft.withValues(alpha: 0.2)
+                : Colors.white.withValues(alpha: 0.70),
+            borderColor: Colors.white.withValues(alpha: 0.85),
+            borderWidth: 1.2,
+            boxShadow: const [
+              BoxShadow(
+                color: AppColors.shadow08,
+                blurRadius: 12,
+                offset: Offset(0, 3),
+              ),
+            ],
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 34,
+                  backgroundColor: isDark
+                      ? AppColors.darkPrimarySoft
+                      : AppColors.primarySoft,
+                  backgroundImage:
+                      (avatarUrl != null && avatarUrl!.startsWith('http'))
+                          ? NetworkImage(avatarUrl!)
+                          : null,
+                  child: (avatarUrl != null && avatarUrl!.startsWith('http'))
+                      ? null
+                      : Text(
+                          initial,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            color: AppColors.primary,
+                            fontSize: AppFontSizes.display,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cleanName,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: AppFontSizes.title,
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkPrimarySoft
+                              : AppColors.primarySoft,
+                          borderRadius: BorderRadius.circular(AppRadii.pill),
+                        ),
+                        child: Text(
+                          'Doğa Kaşifi',
+                          style: TextStyle(
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? AppColors.darkPrimaryLight
+                                : AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${authorPhotos.length} fotoğraf katkısı · ${authorPlaces.length} yer katkısı',
+                        style: TextStyle(
+                          fontSize: AppFontSizes.caption,
+                          color: textSecondary,
+                        ),
+                      ),
+                      ValueListenableBuilder<UserSocialAccounts>(
+                        valueListenable: UserSocialAccountsController.accounts,
+                        builder: (context, accounts, _) {
+                          String currentUserId = '';
+                          String currentUserName = '';
+                          try {
+                            final u = Supabase.instance.client.auth.currentUser;
+                            currentUserId = u?.id ?? '';
+                            currentUserName =
+                                (u?.userMetadata?['full_name'] as String?) ??
+                                    '';
+                          } catch (_) {}
+                          final isCurrentUser = (authorId.isNotEmpty &&
+                                  authorId == currentUserId) ||
+                              (currentUserName.isNotEmpty &&
+                                  authorName == currentUserName);
+                          if (!isCurrentUser && accounts.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          if (accounts.isEmpty) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                if (accounts.instagram.isNotEmpty)
+                                  _SocialChip(
+                                    icon: Icons.camera_alt_outlined,
+                                    label: accounts.instagram.startsWith('@')
+                                        ? accounts.instagram
+                                        : '@${accounts.instagram.split('/').last}',
+                                    url: accounts.instagram,
+                                    platform: 'instagram',
+                                    color: const Color(0xFFE1306C),
+                                  ),
+                                if (accounts.facebook.isNotEmpty)
+                                  _SocialChip(
+                                    icon: Icons.facebook,
+                                    label: accounts.facebook.contains('/')
+                                        ? accounts.facebook.split('/').last
+                                        : accounts.facebook,
+                                    url: accounts.facebook,
+                                    platform: 'facebook',
+                                    color: const Color(0xFF1877F2),
+                                  ),
+                                if (accounts.youtube.isNotEmpty)
+                                  _SocialChip(
+                                    icon: Icons.smart_display_rounded,
+                                    label: accounts.youtube.startsWith('@')
+                                        ? accounts.youtube
+                                        : accounts.youtube.split('/').last,
+                                    url: accounts.youtube,
+                                    platform: 'youtube',
+                                    color: const Color(0xFFFF0000),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 2. Katkı Yaptığı Fotoğraflar Bölümü
+          Row(
+            children: [
+              const Icon(Icons.photo_library_outlined,
+                  size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Fotoğraf Katkıları (${authorPhotos.length})',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.title,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (authorPhotos.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                border: Border.all(
+                    color: isDark ? AppColors.darkBorder : AppColors.border),
+              ),
+              child: Center(
+                child: Text(
+                  'Henüz paylaştığı bir fotoğraf bulunmuyor.',
+                  style: TextStyle(color: textSecondary),
+                ),
+              ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: authorPhotos.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.1,
+              ),
+              itemBuilder: (ctx, i) {
+                final photo = authorPhotos[i];
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        photo.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: isDark
+                              ? AppColors.darkSurface
+                              : AppColors.surfaceMuted,
+                          child: const Icon(Icons.broken_image_rounded,
+                              color: AppColors.textTertiary),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.75)
+                              ],
+                            ),
+                          ),
+                          child: Text(
+                            photo.placeName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: AppFontSizes.caption,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+          const SizedBox(height: 28),
+
+          // 3. Eklediği Yerler Bölümü
+          Row(
+            children: [
+              const Icon(Icons.place_outlined,
+                  size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Eklediği Doğa Mekanları (${authorPlaces.length})',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.title,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (authorPlaces.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                border: Border.all(
+                    color: isDark ? AppColors.darkBorder : AppColors.border),
+              ),
+              child: Center(
+                child: Text(
+                  'Henüz yer eklemedi.',
+                  style: TextStyle(color: textSecondary),
+                ),
+              ),
+            )
+          else
+            ...authorPlaces.map(
+              (p) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: AppCompactPlaceCard(
+                  place: p,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DetailScreen(
+                        place: p,
+                        favorite: false,
+                        onFavorite: () {},
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 20,
-                    color: textSecondary,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Divider(height: 1, thickness: 0.8, color: dividerColor),
-          const SizedBox(height: 16),
-
-          // Hesabımı Sil: en altta, kırmızı, sade ve küçük
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _isDeletingAccount ? null : _handleDeleteAccount,
-              icon: const Icon(
-                Icons.delete_outline_rounded,
-                size: 15,
-                color: AppColors.error,
-              ),
-              label: Text(
-                AppStrings.get('profile_delete_account'),
-                style: const TextStyle(
-                  fontSize: AppFontSizes.label,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.error,
                 ),
               ),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.error,
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
             ),
-          ),
         ],
       ),
     );

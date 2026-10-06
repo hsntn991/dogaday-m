@@ -22,6 +22,7 @@ class GoodnessMovementScreen extends StatefulWidget {
 
 class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
   final List<_GoodDeed> _deeds = <_GoodDeed>[];
+  String? _selectedProvince;
 
   Map<String, List<_GoodDeed>> get _deedsByProvince {
     final grouped = <String, List<_GoodDeed>>{};
@@ -47,6 +48,13 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
   }
 
   Future<void> _openAddDeed() async {
+    final allowed = await AppAuthGuard.requireAuth(
+      context,
+      title: AppStrings.get('guest_auth_title'),
+      message: AppStrings.get('guest_goodness_prompt'),
+    );
+    if (!allowed || !mounted) return;
+
     String? province;
     String type = _deedTypes.first;
     final noteController = TextEditingController();
@@ -75,7 +83,7 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
                         .copyWith(fontSize: AppFontSizes.heading)),
                 const SizedBox(height: 6),
                 Text(
-                  'Katkın seçtiğin ilde sayılır. Konum ve kanıt sistemi tasarım onayından sonra bağlanacak.',
+                  'Katkın şu an bu cihazda görünür. Fotoğraf, konum ve topluluk doğrulaması bağlandığında herkese açık puana eklenir.',
                   style: AppTypography.metadataOf(context)
                       .copyWith(fontSize: AppFontSizes.label),
                 ),
@@ -150,8 +158,20 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '${result.province} için +${GoodnessCampaignScore.pointsFor(result.type)} iyilik puanı eklendi.',
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.primary,
+          content: Row(
+            children: [
+              const Icon(Icons.celebration_rounded,
+                  color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Harika! ${result.province} için katkın kaydedildi (+${GoodnessCampaignScore.pointsFor(result.type)} puan). Doğayı birlikte güzelleştiriyoruz!',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -159,7 +179,10 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
   }
 
   void _showProvince(String province, _GoodnessProvinceSummary summary) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    setState(() => _selectedProvince = province);
+    if (context.isTabletLandscape) {
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surfaceOf(context),
@@ -169,100 +192,265 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('$province · ${summary.contributionCount} iyilik',
-                  style: AppTypography.headingOf(context)
-                      .copyWith(fontSize: AppFontSizes.heading)),
-              const SizedBox(height: 4),
-              Text('${summary.score} iyilik puanı',
-                  style: AppTypography.metadataOf(context)),
-              Builder(builder: (context) {
-                final places = SupabasePlacesController.places.value
-                    .where((p) =>
-                        p.location.trim().toLowerCase() ==
-                            province.trim().toLowerCase() &&
-                        !p.isUtility)
-                    .toList(growable: false);
-                if (places.isEmpty) return const SizedBox.shrink();
-                final passing = places.where(PlacePublicationStandard.meetsThreshold).length;
-                final pct = ((passing / places.length) * 100).toInt();
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(AppRadii.medium),
-                      border: Border.all(
-                        color: isDark ? AppColors.darkBorder : AppColors.border,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.verified_outlined, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Yayın standardı: %$pct ($passing/${places.length} nokta)',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: AppFontSizes.caption,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-              const SizedBox(height: 14),
-              if (summary.userDeeds.isEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: isDark
-                        ? AppColors.darkSurfaceMuted
-                        : AppColors.primarySoft,
-                    child: const Icon(Icons.volunteer_activism_rounded,
-                        color: AppColors.primary),
-                  ),
-                  title: Text(summary.latestDeed,
-                      style: AppTypography.bodyOf(context)
-                          .copyWith(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Kampanya örnek verisi'),
-                ),
-              ...summary.userDeeds.reversed.map(
-                (deed) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: isDark
-                        ? AppColors.darkSurfaceMuted
-                        : AppColors.primarySoft,
-                    child: Icon(_deedIcon(deed.type), color: AppColors.primary),
-                  ),
-                  title: Text(deed.type,
-                      style: AppTypography.bodyOf(context)
-                          .copyWith(fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                    deed.note.isEmpty ? 'Az önce eklendi' : deed.note,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.metadataOf(context),
-                  ),
-                  trailing: TextButton(
-                    onPressed: () => _openContributorPreview(),
-                    child: const Text('Sen'),
-                  ),
+          child: _buildProvinceDetailsContent(context, province, summary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProvinceDetailsContent(
+    BuildContext context,
+    String province,
+    _GoodnessProvinceSummary summary,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$province · ${summary.contributionCount} iyilik',
+            style: AppTypography.headingOf(context)
+                .copyWith(fontSize: AppFontSizes.heading)),
+        const SizedBox(height: 4),
+        Text('${summary.score} iyilik puanı',
+            style: AppTypography.metadataOf(context)),
+        Builder(builder: (context) {
+          final places = SupabasePlacesController.places.value
+              .where((p) =>
+                  p.location.trim().toLowerCase() ==
+                      province.trim().toLowerCase() &&
+                  !p.isUtility)
+              .toList(growable: false);
+          if (places.isEmpty) return const SizedBox.shrink();
+          final passing =
+              places.where(PlacePublicationStandard.meetsThreshold).length;
+          final pct = ((passing / places.length) * 100).toInt();
+          return Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color:
+                    isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
                 ),
               ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.verified_outlined,
+                      size: 14, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Yayın standardı: %$pct ($passing/${places.length} nokta)',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.caption,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+        const SizedBox(height: 14),
+        if (summary.userDeeds.isEmpty)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: CircleAvatar(
+              backgroundColor: isDark
+                  ? AppColors.darkSurfaceMuted
+                  : AppColors.primarySoft,
+              child: const Icon(Icons.volunteer_activism_rounded,
+                  color: AppColors.primary),
+            ),
+            title: Text(summary.latestDeed,
+                style: AppTypography.bodyOf(context)
+                    .copyWith(fontWeight: FontWeight.w600)),
+            subtitle: const Text('Topluluk katkısı'),
+          ),
+        ...summary.userDeeds.reversed.map(
+          (deed) => ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: CircleAvatar(
+              backgroundColor: isDark
+                  ? AppColors.darkSurfaceMuted
+                  : AppColors.primarySoft,
+              child: Icon(_deedIcon(deed.type), color: AppColors.primary),
+            ),
+            title: Text(deed.type,
+                style: AppTypography.bodyOf(context)
+                    .copyWith(fontWeight: FontWeight.w600)),
+            subtitle: Text(
+              deed.note.isEmpty ? 'Az önce eklendi' : deed.note,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.metadataOf(context),
+            ),
+            trailing: TextButton(
+              onPressed: () => _openContributorPreview(),
+              child: const Text('Sen'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSelectedProvinceCard(
+    BuildContext context,
+    String? selectedProvince,
+    Map<String, _GoodnessProvinceSummary> summaries,
+  ) {
+    final province = selectedProvince ??
+        (summaries.entries
+            .where((e) => e.value.score > 0)
+            .toList()
+          ..sort((a, b) => b.value.score.compareTo(a.value.score)))
+            .firstOrNull
+            ?.key ??
+        'İstanbul';
+    final summary = summaries[province] ??
+        const _GoodnessProvinceSummary(
+          province: 'İstanbul',
+          contributionCount: 0,
+          score: 0,
+          latestDeed: 'İlk katkıyı sen yap!',
+          userDeeds: [],
+        );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.medium),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
+        ),
+      ),
+      child: _buildProvinceDetailsContent(context, province, summary),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('İyilik Harekâtı',
+                  style: AppTypography.headingOf(context)
+                      .copyWith(fontSize: AppFontSizes.display)),
+              const SizedBox(height: 3),
+              Text('İyilik yap, şehrini zirveye taşı.',
+                  style: AppTypography.metadataOf(context)
+                      .copyWith(fontSize: AppFontSizes.title)),
             ],
           ),
         ),
+        FilledButton.icon(
+          onPressed: _openAddDeed,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, AppControlSizes.button),
+            backgroundColor: AppColors.primary,
+          ),
+          icon: const Icon(Icons.volunteer_activism_rounded, size: 18),
+          label: const Text('İyilik Ekle'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoBanner(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(AppRadii.medium),
+        border: Border.all(
+          color: (isDark ? AppColors.darkPrimaryLight : AppColors.primary)
+              .withValues(alpha: 0.25),
+        ),
       ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.eco_rounded,
+            color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Başlangıç puanları örnek veridir. Eklediğin katkı bu cihazda görünür; doğrulama tamamlandığında herkese açık tabloya taşınır.',
+              style: AppTypography.labelOf(context).copyWith(
+                fontSize: AppFontSizes.label,
+                color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHowItWorks(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Nasıl işler?',
+            style: AppTypography.headingOf(context)
+                .copyWith(fontSize: AppFontSizes.heading)),
+        const SizedBox(height: 10),
+        const _GoodnessStep(
+          icon: Icons.add_location_alt_outlined,
+          title: 'Yaptığın iyiliği ve ili seç',
+          body:
+              'Fotoğraf, yaklaşık konum ve tarih sonraki aşamada kanıt olarak kullanılacak.',
+        ),
+        const _GoodnessStep(
+          icon: Icons.verified_user_outlined,
+          title: 'Topluluk doğrulasın',
+          body:
+              'Aynı kaydı tekrar kullanma ve sahte katkılar moderasyonla engellenecek.',
+        ),
+        const _GoodnessStep(
+          icon: Icons.public_rounded,
+          title: 'İlin katkısı büyüsün',
+          body:
+              'İl işaretine dokunanlar katkıları ve herkese açık profilleri görebilecek.',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLeaderboard(
+      BuildContext context, List<_GoodnessProvinceSummary> ranked) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('İyilik tablosu',
+            style: AppTypography.headingOf(context)
+                .copyWith(fontSize: AppFontSizes.heading)),
+        const SizedBox(height: 10),
+        ...ranked.take(5).toList().asMap().entries.map(
+              (entry) => _GoodnessLeaderboardRow(
+                rank: entry.key + 1,
+                summary: entry.value,
+                onTap: () =>
+                    _showProvince(entry.value.province, entry.value),
+              ),
+            ),
+      ],
     );
   }
 
@@ -271,6 +459,206 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => _GoodnessContributorPreview(deeds: _deeds),
+      ),
+    );
+  }
+
+  Widget _buildPhoneLayout(
+    BuildContext context,
+    bool isDark,
+    Map<String, _GoodnessProvinceSummary> summaries,
+    List<_GoodnessProvinceSummary> ranked,
+    int totalContributions,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 100),
+      children: [
+        _buildHeader(context),
+        const SizedBox(height: 16),
+        _buildInfoBanner(context, isDark),
+        const SizedBox(height: 14),
+        _TurkeyProvinceBoard(
+          summaries: summaries,
+          onProvinceTap: _showProvince,
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+                child: _GoodnessStat('$totalContributions', 'Toplam iyilik')),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _GoodnessStat('${ranked.length}', 'Katkı sunulan il')),
+          ],
+        ),
+        const SizedBox(height: 22),
+        _buildLeaderboard(context, ranked),
+        const SizedBox(height: 20),
+        _buildHowItWorks(context),
+      ],
+    );
+  }
+
+  Widget _buildPortraitTabletLayout(
+    BuildContext context,
+    bool isDark,
+    Map<String, _GoodnessProvinceSummary> summaries,
+    List<_GoodnessProvinceSummary> ranked,
+    int totalContributions,
+  ) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 100),
+      child: context.centerContent(
+        maxWidth: 820,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            const SizedBox(height: 16),
+            _buildInfoBanner(context, isDark),
+            const SizedBox(height: 16),
+            _TurkeyProvinceBoard(
+              height: 320,
+              summaries: summaries,
+              onProvinceTap: _showProvince,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _GoodnessStat(
+                                '$totalContributions', 'Toplam iyilik'),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _GoodnessStat(
+                                '${ranked.length}', 'Katkı sunulan il'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      _buildLeaderboard(context, ranked),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSelectedProvinceCard(
+                          context, _selectedProvince, summaries),
+                      const SizedBox(height: 20),
+                      _buildHowItWorks(context),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLandscapeLayout(
+    BuildContext context,
+    bool isDark,
+    Map<String, _GoodnessProvinceSummary> summaries,
+    List<_GoodnessProvinceSummary> ranked,
+    int totalContributions,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+      child: context.centerContent(
+        maxWidth: 1400,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 58,
+              child: ListView(
+                padding: const EdgeInsets.only(right: 16, bottom: 40),
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('İyilik Harekâtı',
+                          style: AppTypography.headingOf(context)
+                              .copyWith(fontSize: AppFontSizes.display)),
+                      const SizedBox(height: 3),
+                      Text(
+                          'İyilik yap, şehrini zirveye taşı. Haritadan bir il seçerek katkıları incele.',
+                          style: AppTypography.metadataOf(context)
+                              .copyWith(fontSize: AppFontSizes.title)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _buildInfoBanner(context, isDark),
+                  const SizedBox(height: 14),
+                  _TurkeyProvinceBoard(
+                    height: 380,
+                    summaries: summaries,
+                    onProvinceTap: _showProvince,
+                  ),
+                  const SizedBox(height: 18),
+                  _buildHowItWorks(context),
+                ],
+              ),
+            ),
+            const VerticalDivider(width: 24, thickness: 1),
+            Expanded(
+              flex: 42,
+              child: ListView(
+                padding: const EdgeInsets.only(left: 8, bottom: 40),
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _openAddDeed,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, AppControlSizes.button),
+                            backgroundColor: AppColors.primary,
+                          ),
+                          icon: const Icon(Icons.volunteer_activism_rounded,
+                              size: 18),
+                          label: const Text('İyilik Ekle'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _GoodnessStat(
+                            '$totalContributions', 'Toplam iyilik'),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _GoodnessStat(
+                            '${ranked.length}', 'Katkı sunulan il'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSelectedProvinceCard(
+                      context, _selectedProvince, summaries),
+                  const SizedBox(height: 20),
+                  _buildLeaderboard(context, ranked),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -287,118 +675,22 @@ class _GoodnessMovementScreenState extends State<GoodnessMovementScreen> {
       0,
       (sum, summary) => sum + summary.contributionCount,
     );
+
+    final Widget content;
+    if (context.isTabletLandscape) {
+      content = _buildLandscapeLayout(
+          context, isDark, summaries, ranked, totalContributions);
+    } else if (context.isTabletPortrait) {
+      content = _buildPortraitTabletLayout(
+          context, isDark, summaries, ranked, totalContributions);
+    } else {
+      content = _buildPhoneLayout(
+          context, isDark, summaries, ranked, totalContributions);
+    }
+
     return Scaffold(
       backgroundColor: AppColors.backgroundOf(context),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('İyilik Harekâtı',
-                          style: AppTypography.headingOf(context)
-                              .copyWith(fontSize: AppFontSizes.display)),
-                      const SizedBox(height: 3),
-                      Text('İyilik yap, şehrini zirveye taşı.',
-                          style: AppTypography.metadataOf(context)
-                              .copyWith(fontSize: AppFontSizes.title)),
-                    ],
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: _openAddDeed,
-                  icon: const Icon(Icons.add_rounded, size: 19),
-                  label: const Text('Ekle'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color:
-                    isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.visibility_outlined,
-                    color:
-                        isDark ? AppColors.darkPrimaryLight : AppColors.primary,
-                    size: 19,
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      'Kampanya örnek verisi · Eklediklerin yalnızca bu oturumda görünür.',
-                      style: AppTypography.labelOf(context)
-                          .copyWith(fontSize: AppFontSizes.label),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            _TurkeyProvinceBoard(
-              summaries: summaries,
-              onProvinceTap: _showProvince,
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                    child:
-                        _GoodnessStat('$totalContributions', 'Toplam iyilik')),
-                const SizedBox(width: 10),
-                Expanded(
-                    child:
-                        _GoodnessStat('${ranked.length}', 'Katkı sunulan il')),
-              ],
-            ),
-            const SizedBox(height: 22),
-            Text('İyilik tablosu',
-                style: AppTypography.headingOf(context)
-                    .copyWith(fontSize: AppFontSizes.heading)),
-            const SizedBox(height: 10),
-            ...ranked.take(5).toList().asMap().entries.map(
-                  (entry) => _GoodnessLeaderboardRow(
-                    rank: entry.key + 1,
-                    summary: entry.value,
-                    onTap: () =>
-                        _showProvince(entry.value.province, entry.value),
-                  ),
-                ),
-            const SizedBox(height: 20),
-            Text('Nasıl işler?',
-                style: AppTypography.headingOf(context)
-                    .copyWith(fontSize: AppFontSizes.heading)),
-            const SizedBox(height: 10),
-            const _GoodnessStep(
-              icon: Icons.add_location_alt_outlined,
-              title: 'Yaptığın iyiliği ve ili seç',
-              body:
-                  'Fotoğraf, yaklaşık konum ve tarih sonraki aşamada kanıt olarak kullanılacak.',
-            ),
-            const _GoodnessStep(
-              icon: Icons.verified_user_outlined,
-              title: 'Topluluk doğrulasın',
-              body:
-                  'Aynı kaydı tekrar kullanma ve sahte katkılar moderasyonla engellenecek.',
-            ),
-            const _GoodnessStep(
-              icon: Icons.public_rounded,
-              title: 'İlin katkısı büyüsün',
-              body:
-                  'İl işaretine dokunanlar katkıları ve herkese açık profilleri görebilecek.',
-            ),
-          ],
-        ),
-      ),
+      body: SafeArea(child: content),
     );
   }
 }
@@ -407,11 +699,13 @@ class _TurkeyProvinceBoard extends StatefulWidget {
   const _TurkeyProvinceBoard({
     required this.summaries,
     required this.onProvinceTap,
+    this.height,
   });
 
   final Map<String, _GoodnessProvinceSummary> summaries;
   final void Function(String province, _GoodnessProvinceSummary summary)
       onProvinceTap;
+  final double? height;
 
   @override
   State<_TurkeyProvinceBoard> createState() => _TurkeyProvinceBoardState();
@@ -421,7 +715,7 @@ class _TurkeyProvinceBoardState extends State<_TurkeyProvinceBoard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 224,
+      height: widget.height ?? 224,
       decoration: BoxDecoration(
         color: AppColors.goodnessMapBackground,
         border: Border.all(color: AppColors.goodnessMapBorder),
@@ -458,18 +752,23 @@ class _TurkeyProvinceBoardState extends State<_TurkeyProvinceBoard> {
                         final hasContribution = entry.value.score > 0;
                         if (!hasContribution) return const SizedBox.shrink();
                         return Positioned(
-                          left: position.dx - 22,
-                          top: position.dy - 22,
+                          left: position.dx - (AppControlSizes.minimumTouchTarget / 2),
+                          top: position.dy - (AppControlSizes.minimumTouchTarget / 2),
                           child: Semantics(
                             button: true,
                             label:
                                 '${entry.key}, ${entry.value.score} iyilik puanı',
                             child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
                               onTap: () =>
                                   widget.onProvinceTap(entry.key, entry.value),
-                              child: Container(
-                                width: 44,
-                                height: 44,
+                              child: SizedBox(
+                                width: AppControlSizes.minimumTouchTarget,
+                                height: AppControlSizes.minimumTouchTarget,
+                                child: Center(
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
                                   color: AppColors.primary,
@@ -491,6 +790,8 @@ class _TurkeyProvinceBoardState extends State<_TurkeyProvinceBoard> {
                                     color: Colors.white,
                                     fontSize: AppFontSizes.caption,
                                     fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                                   ),
                                 ),
                               ),
@@ -539,9 +840,9 @@ class _GoodnessStat extends StatelessWidget {
       blur: 12,
       color: isDark
           ? AppColors.darkSurfaceMuted.withValues(alpha: 0.88)
-          : Colors.white.withValues(alpha: 0.70),
+          : AppColors.surfaceMuted,
       borderColor:
-          isDark ? AppColors.darkBorder : Colors.white.withValues(alpha: 0.85),
+          isDark ? AppColors.darkBorder : AppColors.border,
       borderWidth: 1.2,
       padding: const EdgeInsets.all(14),
       boxShadow: const [
@@ -802,7 +1103,7 @@ class _GoodnessContributorPreview extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Text(
-                'Bu bir profil önizlemesidir. Gerçek kullanıcı profilleri hesap ve Supabase sistemi bağlandığında açılacak.',
+                'Topluluk üyesi profili. Katkıların doğayı korumaya devam ediyor.',
               ),
             ),
           ],

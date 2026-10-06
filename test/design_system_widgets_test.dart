@@ -1,8 +1,51 @@
+import 'dart:io';
+
 import 'package:dogada_gezi/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('authentication screen uses the supplied forest image as its background',
+      () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+    expect(source, contains('assets/images/auth_misty_forest.jpg'));
+    expect(source,
+        contains('AssetImage(\'assets/images/auth_misty_forest.jpg\')'));
+  });
+
+  test(
+      'authentication keeps social providers side by side without a form glass panel',
+      () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+    expect(source, contains('_buildSocialAuthRow(isDark)'));
+    expect(source, contains('FittedBox('));
+  });
+
+  test('authentication offers language selection before entering the app', () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+    expect(source, contains('_buildLanguageChooser()'));
+    expect(source, contains('AppLocaleController.setLocale'));
+  });
+
+  test(
+      'authentication layout scales its complete content instead of overflowing',
+      () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(source, contains('mainAxisSize: MainAxisSize.min'));
+    expect(source, isNot(contains('height: constraints.maxHeight')));
+  });
+
+  test(
+      'province explorer cards use bundled scenic photos with a readable label',
+      () {
+    final source = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(source, contains('_ProvincePhotoCard('));
+    expect(source, contains('_provincePhotoAsset('));
+    expect(source, contains('assets/photos/ekotaban_optimized/'));
+  });
+
   testWidgets(
       'secondary button fits bounded layout with full-width button theme',
       (tester) async {
@@ -191,6 +234,32 @@ void main() {
     }
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+  });
+
+  testWidgets('home header uses the official full Doğadayım wordmark',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FigmaHomeScreen(
+            onOpen: (_) {},
+            onSearch: () {},
+            onMessages: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName ==
+                'assets/branding/dogadayim_logo_full.png',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets(

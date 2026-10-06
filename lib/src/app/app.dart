@@ -126,8 +126,7 @@ class DogaApp extends StatelessWidget {
                       backgroundColor: green,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      minimumSize:
-                          const Size.fromHeight(AppControlSizes.button),
+                      minimumSize: const Size(0, AppControlSizes.button),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadii.medium),
                       ),
@@ -137,8 +136,7 @@ class DogaApp extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: ink,
                       side: const BorderSide(color: AppColors.border),
-                      minimumSize:
-                          const Size.fromHeight(AppControlSizes.button),
+                      minimumSize: const Size(0, AppControlSizes.button),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadii.medium),
                       ),
@@ -189,20 +187,59 @@ class DogaApp extends StatelessWidget {
                 darkTheme: _buildDarkTheme(),
                 themeMode: themeMode,
                 home: const SplashScreen(),
-                builder: (context, child) => Directionality(
-                  textDirection: locale.languageCode == 'ar'
-                      ? TextDirection.rtl
-                      : TextDirection.ltr,
-                  child: ColoredBox(
-                    color: Theme.of(context).colorScheme.surface,
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 430),
-                        child: child ?? const SizedBox.shrink(),
+                builder: (context, child) {
+                  final mediaQuery = MediaQuery.of(context);
+                  final isWide = mediaQuery.size.width > 430;
+                  final effectiveWidth = isWide ? 430.0 : mediaQuery.size.width;
+                  final effectiveMediaQuery = mediaQuery.copyWith(
+                    size: Size(effectiveWidth, mediaQuery.size.height),
+                  );
+
+                  Widget appContent = MediaQuery(
+                    data: effectiveMediaQuery,
+                    child: child ?? const SizedBox.shrink(),
+                  );
+
+                  if (isWide) {
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    appContent = Center(
+                      child: Container(
+                        width: 430,
+                        height: double.infinity,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark
+                                  ? const Color(0x66000000)
+                                  : const Color(0x22000000),
+                              blurRadius: 32,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: appContent,
                       ),
+                    );
+                  }
+
+                  return Directionality(
+                    textDirection: locale.languageCode == 'ar'
+                        ? TextDirection.rtl
+                        : TextDirection.ltr,
+                    child: ColoredBox(
+                      color: isWide
+                          ? (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF0F1411)
+                              : const Color(0xFFE4E9E6))
+                          : Theme.of(context).scaffoldBackgroundColor,
+                      child: appContent,
                     ),
-                  ),
-                ),
+                  );
+                },
               )));
 }
 
@@ -513,30 +550,23 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     (
       'https://images.unsplash.com/photo-1693921443047-c59f572a485f?w=1000&h=1600&fit=crop',
       'KEŞFET',
-      "Türkiye'nin\nGizli Cennetleri",
-      'Ormanlar, şelaleler, göller ve dağlarla dolu bu toprakların doğal hazinelerini seninle paylaşmaya hazırız.',
+      "Güvenilir Doğa\nNoktalarını Bul",
+      'Ormanlar, şelaleler, göller ve dağlar... Doğrulanmış doğa noktalarını en güncel harita verileriyle keşfet.',
       AppColors.onboardingGreen,
     ),
     (
       'https://images.unsplash.com/photo-1728365084805-cf142cf7d275?w=1000&h=1600&fit=crop',
-      'SU KAYNAKLARI',
-      'Temiz Su\nBulmanın Yeni Yolu',
-      'İçme suyu kaynakları, doğal pınarlar ve soğuk dağ sularını haritada anlık olarak keşfet.',
+      'ALTYAPI & GÜVENLİK',
+      'Gitmeden Önce\nHer Şeyi Gör',
+      'İçme suyu, tuvalet, yol durumu, kamp imkanları ve acil durum güvenlik bilgilerini gitmeden öğren.',
       AppColors.onboardingWater,
     ),
     (
-      'https://images.unsplash.com/photo-1760715648379-39d2e7f59e62?w=1000&h=1600&fit=crop',
-      'KAMP & YÜRÜYÜŞ',
-      'Doğada\nYaşamak İçin',
-      'Kamp alanları, karavan parkları ve yürüyüş rotaları — hepsini tek uygulamada, topluluktan doğrulanan bilgilerle.',
-      AppColors.onboardingCamp,
-    ),
-    (
       'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1000&h=1600&fit=crop',
-      'TOPLULUK',
-      'Birlikte\nDaha Güçlüyüz',
-      'Keşfettiğin yerleri ekle, fotoğraf paylaş, yorumlarınla diğer doğaseverlere yol göster.',
-      AppColors.onboardingGreen,
+      'TOPLULUK & İYİLİK',
+      'Keşfet, Doğrula,\nBirlikte Koru',
+      'Yeni yerler ekle, topluluk verilerini doğrula, iyilik hareketiyle doğayı birlikte koru.',
+      AppColors.onboardingCamp,
     ),
   ];
 
@@ -678,21 +708,27 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(children: [
-                              ClipOval(
-                                child: Image.asset(
-                                  'assets/branding/dogadayim_logo_mark.png',
-                                  width: 36,
-                                  height: 36,
-                                  fit: BoxFit.cover,
+                              Semantics(
+                                image: true,
+                                label: 'Doğadayım',
+                                child: Container(
+                                  width: 150,
+                                  height: 42,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: .94),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Image.asset(
+                                    'assets/branding/dogadayim_logo_full.png',
+                                    fit: BoxFit.contain,
+                                    filterQuality: FilterQuality.high,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 9),
-                              const Text('Doğadayım',
-                                  style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      color: Colors.white,
-                                      fontSize: AppFontSizes.title,
-                                      fontWeight: FontWeight.w500)),
                               const Spacer(),
                               TextButton(
                                 onPressed: finishing ? null : finish,
@@ -802,29 +838,26 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                     ]),
                               ),
                             ),
-                            // Son slide'da misafir seçeneği
-                            if (index == slides.length - 1) ...[
-                              const SizedBox(height: 8),
-                              Center(
-                                child: TextButton(
-                                  onPressed: finishing ? null : guestFinish,
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.white60,
-                                    disabledForegroundColor: Colors.white30,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 18, vertical: 8),
-                                  ),
-                                  child: const Text(
-                                    'Misafir olarak keşfet',
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: AppFontSizes.label,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                            const SizedBox(height: 6),
+                            Center(
+                              child: TextButton(
+                                onPressed: finishing ? null : guestFinish,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white60,
+                                  disabledForegroundColor: Colors.white30,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 18, vertical: 6),
+                                ),
+                                child: const Text(
+                                  'Misafir olarak keşfet',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: AppFontSizes.label,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
-                            ],
+                            ),
                           ],
                         ),
                       ),
@@ -861,6 +894,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _openingApp = false;
   StreamSubscription<AuthState>? _authSubscription;
   late final TapGestureRecognizer _privacyPolicyRecognizer;
+  late final TapGestureRecognizer _termsOfServiceRecognizer;
   late final TapGestureRecognizer _toggleTermsRecognizer;
 
   bool get _isSignUp => _mode == AuthMode.signUp;
@@ -873,6 +907,8 @@ class _AuthScreenState extends State<AuthScreen> {
     super.initState();
     _privacyPolicyRecognizer = TapGestureRecognizer()
       ..onTap = () => AppLegalLinks.openPrivacyPolicy(context);
+    _termsOfServiceRecognizer = TapGestureRecognizer()
+      ..onTap = () => AppLegalLinks.openTermsOfService(context);
     _toggleTermsRecognizer = TapGestureRecognizer()
       ..onTap = () => setState(() => _acceptedTerms = !_acceptedTerms);
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
@@ -890,6 +926,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   void dispose() {
     _privacyPolicyRecognizer.dispose();
+    _termsOfServiceRecognizer.dispose();
     _toggleTermsRecognizer.dispose();
     _authSubscription?.cancel();
     _nameController.dispose();
@@ -959,7 +996,10 @@ class _AuthScreenState extends State<AuthScreen> {
         final response = await Supabase.instance.client.auth.signUp(
           email: email,
           password: password,
-          data: {'full_name': _nameController.text.trim()},
+          data: <String, dynamic>{
+            'full_name': _nameController.text.trim(),
+            ...AppLegalLinks.termsAcceptanceMetadata(DateTime.now()),
+          },
           emailRedirectTo: _authRedirectUrl,
         );
         if (!mounted) return;
@@ -1120,6 +1160,75 @@ class _AuthScreenState extends State<AuthScreen> {
     ).whenComplete(controller.dispose);
   }
 
+  Widget _buildSocialAuthRow(bool isDark) => Row(
+        children: [
+          Expanded(
+            child: _SocialAuthButton(
+              label: 'Apple',
+              mark: const Icon(Icons.apple, size: 23, color: Colors.white),
+              dark: true,
+              onPressed: _loading ? null : () => _socialSignIn('apple'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _SocialAuthButton(
+              label: 'Google',
+              mark: const Text(
+                'G',
+                style: TextStyle(
+                  fontSize: AppFontSizes.title,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brandGoogle,
+                ),
+              ),
+              onPressed: _loading ? null : () => _socialSignIn('google'),
+            ),
+          ),
+        ],
+      );
+
+  Widget _buildLanguageChooser() => ValueListenableBuilder<Locale>(
+        valueListenable: AppLocaleController.current,
+        builder: (context, locale, _) => Column(
+          children: [
+            const Text(
+              'Uygulama dilini seç',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: AppFontSizes.caption,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              children: [
+                for (final option in AppLocaleController.options)
+                  ChoiceChip(
+                    label: Text(option.nativeLabel),
+                    selected: locale.languageCode == option.locale.languageCode,
+                    onSelected: (_) =>
+                        unawaited(AppLocaleController.setLocale(option.locale)),
+                    selectedColor: Colors.white,
+                    backgroundColor: Colors.black.withValues(alpha: .28),
+                    labelStyle: TextStyle(
+                      color: locale.languageCode == option.locale.languageCode
+                          ? AppColors.primary
+                          : Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: .58),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1128,23 +1237,35 @@ class _AuthScreenState extends State<AuthScreen> {
           isDark ? AppColors.darkBackground : AppColors.surfaceMuted,
       body: Stack(
         children: [
-          // Ambient natural gradient & blurred background depth orbs
+          // Kullanıcının seçtiği sisli orman görseli giriş ekranının ana
+          // atmosferidir. Üstteki koyu geçiş, form ve marka alanını her
+          // ekranda okunur tutar.
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/auth_misty_forest.jpg'),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                  filterQuality: FilterQuality.high,
+                  colorFilter: ColorFilter.mode(
+                    Color(0x770B482A),
+                    BlendMode.srcOver,
+                  ),
+                ),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: isDark
-                      ? const [
-                          AppColors.darkSurfaceDeep,
-                          AppColors.darkBackground,
-                          AppColors.darkSurface,
+                      ? [
+                          AppColors.darkSurfaceDeep.withValues(alpha: .90),
+                          AppColors.darkBackground.withValues(alpha: .82),
+                          AppColors.darkSurface.withValues(alpha: .90),
                         ]
-                      : const [
-                          AppColors.primarySoft,
-                          AppColors.surfaceMuted,
-                          AppColors.surface,
+                      : [
+                          AppColors.primary.withValues(alpha: .62),
+                          AppColors.primary.withValues(alpha: .48),
+                          AppColors.primaryPressed.withValues(alpha: .74),
                         ],
                 ),
               ),
@@ -1197,385 +1318,378 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: GlassIconButton(
-                        icon: Icons.arrow_back_rounded,
-                        onTap: () => Navigator.maybePop(context),
-                        iconColor: AppColors.textPrimary,
-                        darkIconColor: AppColors.darkTextPrimary,
-                        size: 44,
-                        iconSize: 22,
-                        blur: 14,
-                        color: Colors.white.withValues(alpha: 0.65),
-                        darkColor: AppColors.darkGlass,
-                        borderColor: Colors.white.withValues(alpha: 0.90),
-                        darkBorderColor: Colors.white.withValues(alpha: 0.14),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Center(
-                      child: Image.asset(
-                        'assets/branding/dogadayim_logo_full.png',
-                        width: 240,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 26),
-                    _SocialAuthButton(
-                      label: 'Apple ile devam et',
-                      mark: const Icon(Icons.apple,
-                          size: 25, color: Colors.white),
-                      dark: true,
-                      onPressed: _loading ? null : () => _socialSignIn('apple'),
-                    ),
-                    const SizedBox(height: 11),
-                    _SocialAuthButton(
-                      label: 'Google ile devam et',
-                      mark: const Text(
-                        'G',
-                        style: TextStyle(
-                          fontSize: AppFontSizes.heading,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.brandGoogle,
-                        ),
-                      ),
-                      onPressed:
-                          _loading ? null : () => _socialSignIn('google'),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(children: [
-                      Expanded(
-                        child: Divider(
-                          color:
-                              isDark ? AppColors.darkBorder : AppColors.border,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'veya e-posta ile',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: AppFontSizes.caption,
-                            fontWeight: FontWeight.w500,
-                            color: isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Divider(
-                          color:
-                              isDark ? AppColors.darkBorder : AppColors.border,
-                        ),
-                      ),
-                    ]),
-                    const SizedBox(height: 20),
-                    GlassContainer(
-                      borderRadius: BorderRadius.circular(24),
-                      blur: 18,
-                      color: Colors.white.withValues(alpha: 0.58),
-                      darkColor: AppColors.darkGlass,
-                      borderColor: Colors.white.withValues(alpha: 0.90),
-                      darkBorderColor: Colors.white.withValues(alpha: 0.12),
-                      borderWidth: 1.2,
-                      padding: const EdgeInsets.all(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              isDark ? AppColors.shadow33 : AppColors.shadow08,
-                          blurRadius: 20,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+            child: LayoutBuilder(
+              builder: (context, constraints) => Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    child: Form(
+                      key: _formKey,
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (_isSignUp) ...[
-                            _AuthField(
-                              controller: _nameController,
-                              label: 'Ad soyad',
-                              hint: 'Ad Soyad',
-                              icon: Icons.person_outline_rounded,
-                              textInputAction: TextInputAction.next,
-                              validator: (value) =>
-                                  (value?.trim().length ?? 0) < 3
-                                      ? 'Adını ve soyadını yaz.'
-                                      : null,
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: GlassIconButton(
+                              icon: Icons.arrow_back_rounded,
+                              onTap: () => Navigator.maybePop(context),
+                              iconColor: AppColors.textPrimary,
+                              darkIconColor: AppColors.darkTextPrimary,
+                              size: 44,
+                              iconSize: 22,
+                              blur: 14,
+                              color: Colors.white.withValues(alpha: 0.65),
+                              darkColor: AppColors.darkGlass,
+                              borderColor: Colors.white.withValues(alpha: 0.90),
+                              darkBorderColor:
+                                  Colors.white.withValues(alpha: 0.14),
                             ),
-                            const SizedBox(height: 16),
-                          ],
-                          _AuthField(
-                            controller: _emailController,
-                            label: 'E-posta',
-                            hint: 'ornek@eposta.com',
-                            icon: Icons.mail_outline_rounded,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            validator: (value) {
-                              final email = value?.trim() ?? '';
-                              if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                                  .hasMatch(email)) {
-                                return 'Geçerli bir e-posta adresi yaz.';
-                              }
-                              return null;
-                            },
                           ),
-                          const SizedBox(height: 16),
-                          _AuthField(
-                            controller: _passwordController,
-                            label: 'Şifre',
-                            hint:
-                                _isSignUp ? 'En az 8 karakter' : 'Şifreni yaz',
-                            icon: Icons.lock_outline_rounded,
-                            obscureText: !_passwordVisible,
-                            textInputAction: _isSignUp
-                                ? TextInputAction.next
-                                : TextInputAction.done,
-                            suffix: IconButton(
-                              onPressed: () => setState(
-                                  () => _passwordVisible = !_passwordVisible),
-                              icon: Icon(_passwordVisible
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined),
-                            ),
-                            validator: (value) => (value?.length ?? 0) < 8
-                                ? 'Şifre en az 8 karakter olmalı.'
-                                : null,
-                            onSubmitted: (_) {
-                              if (!_isSignUp) _submit();
-                            },
-                          ),
-                          if (_isSignUp) ...[
-                            const SizedBox(height: 16),
-                            _AuthField(
-                              controller: _confirmController,
-                              label: 'Şifre tekrarı',
-                              hint: 'Şifreni yeniden yaz',
-                              icon: Icons.verified_user_outlined,
-                              obscureText: !_confirmVisible,
-                              textInputAction: TextInputAction.done,
-                              suffix: IconButton(
-                                onPressed: () => setState(
-                                    () => _confirmVisible = !_confirmVisible),
-                                icon: Icon(_confirmVisible
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined),
+                          const SizedBox(height: 24),
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 9,
                               ),
-                              validator: (value) =>
-                                  value != _passwordController.text
-                                      ? 'Şifreler birbiriyle aynı değil.'
-                                      : null,
-                              onSubmitted: (_) => _submit(),
-                            ),
-                          ] else
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: _forgotPassword,
-                                style: TextButton.styleFrom(
-                                  foregroundColor: isDark
-                                      ? AppColors.darkPrimaryLight
-                                      : green,
-                                  padding:
-                                      const EdgeInsets.only(top: 9, bottom: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: .84),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.large),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: .92),
                                 ),
-                                child: const Text(
-                                  'Şifremi unuttum',
-                                  style: TextStyle(
-                                      fontSize: AppFontSizes.label,
-                                      fontWeight: FontWeight.w600),
+                              ),
+                              child: Image.asset(
+                                'assets/branding/dogadayim_logo_full.png',
+                                width: 220,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 26),
+                          _buildSocialAuthRow(isDark),
+                          const SizedBox(height: 20),
+                          Row(children: [
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white.withValues(alpha: .70),
+                              ),
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                'veya e-posta ile',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: AppFontSizes.caption,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white.withValues(alpha: .88),
                                 ),
                               ),
                             ),
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(
-                                  width: 23,
-                                  height: 23,
-                                  child: Checkbox(
-                                    value: _acceptedTerms,
-                                    onChanged: (value) => setState(
-                                        () => _acceptedTerms = value ?? false),
-                                    activeColor: isDark
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white.withValues(alpha: .70),
+                              ),
+                            ),
+                          ]),
+                          const SizedBox(height: 20),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (_isSignUp) ...[
+                                _AuthField(
+                                  controller: _nameController,
+                                  label: 'Ad soyad',
+                                  hint: 'Ad Soyad',
+                                  icon: Icons.person_outline_rounded,
+                                  textInputAction: TextInputAction.next,
+                                  validator: (value) =>
+                                      (value?.trim().length ?? 0) < 3
+                                          ? 'Adını ve soyadını yaz.'
+                                          : null,
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                              _AuthField(
+                                controller: _emailController,
+                                label: 'E-posta',
+                                hint: 'ornek@eposta.com',
+                                icon: Icons.mail_outline_rounded,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                validator: (value) {
+                                  final email = value?.trim() ?? '';
+                                  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                                      .hasMatch(email)) {
+                                    return 'Geçerli bir e-posta adresi yaz.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              _AuthField(
+                                controller: _passwordController,
+                                label: 'Şifre',
+                                hint: _isSignUp
+                                    ? 'En az 8 karakter'
+                                    : 'Şifreni yaz',
+                                icon: Icons.lock_outline_rounded,
+                                obscureText: !_passwordVisible,
+                                textInputAction: _isSignUp
+                                    ? TextInputAction.next
+                                    : TextInputAction.done,
+                                suffix: IconButton(
+                                  onPressed: () => setState(() =>
+                                      _passwordVisible = !_passwordVisible),
+                                  icon: Icon(_passwordVisible
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined),
+                                ),
+                                validator: (value) => (value?.length ?? 0) < 8
+                                    ? 'Şifre en az 8 karakter olmalı.'
+                                    : null,
+                                onSubmitted: (_) {
+                                  if (!_isSignUp) _submit();
+                                },
+                              ),
+                              if (_isSignUp) ...[
+                                const SizedBox(height: 16),
+                                _AuthField(
+                                  controller: _confirmController,
+                                  label: 'Şifre tekrarı',
+                                  hint: 'Şifreni yeniden yaz',
+                                  icon: Icons.verified_user_outlined,
+                                  obscureText: !_confirmVisible,
+                                  textInputAction: TextInputAction.done,
+                                  suffix: IconButton(
+                                    onPressed: () => setState(() =>
+                                        _confirmVisible = !_confirmVisible),
+                                    icon: Icon(_confirmVisible
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined),
+                                  ),
+                                  validator: (value) =>
+                                      value != _passwordController.text
+                                          ? 'Şifreler birbiriyle aynı değil.'
+                                          : null,
+                                  onSubmitted: (_) => _submit(),
+                                ),
+                              ] else
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: _forgotPassword,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.only(
+                                          top: 9, bottom: 8),
+                                    ),
+                                    child: const Text(
+                                      'Şifremi unuttum',
+                                      style: TextStyle(
+                                          fontSize: AppFontSizes.label,
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 6),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 23,
+                                      height: 23,
+                                      child: Checkbox(
+                                        value: _acceptedTerms,
+                                        onChanged: (value) => setState(() =>
+                                            _acceptedTerms = value ?? false),
+                                        activeColor: isDark
+                                            ? AppColors.darkPrimary
+                                            : AppColors.primary,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(5)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text.rich(
+                                        TextSpan(children: [
+                                          TextSpan(
+                                            text: 'Kullanım Şartları',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              decoration:
+                                                  TextDecoration.underline,
+                                            ),
+                                            recognizer:
+                                                _termsOfServiceRecognizer,
+                                          ),
+                                          const TextSpan(text: ' ve '),
+                                          TextSpan(
+                                            text: 'Gizlilik Politikası',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              decoration:
+                                                  TextDecoration.underline,
+                                            ),
+                                            recognizer:
+                                                _privacyPolicyRecognizer,
+                                          ),
+                                          TextSpan(
+                                            text: '’nı okudum, kabul ediyorum.',
+                                            recognizer: _toggleTermsRecognizer,
+                                          ),
+                                        ]),
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: AppFontSizes.caption,
+                                          height: 1.45,
+                                          color: Colors.white
+                                              .withValues(alpha: .90),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 13),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 54,
+                                child: FilledButton(
+                                  onPressed: _loading || !_acceptedTerms
+                                      ? null
+                                      : _submit,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: isDark
                                         ? AppColors.darkPrimary
                                         : AppColors.primary,
+                                    disabledBackgroundColor: isDark
+                                        ? AppColors.darkPrimarySoft
+                                        : AppColors.disabled,
                                     shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(5)),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text.rich(
-                                    TextSpan(children: [
-                                      TextSpan(
-                                        text: 'Kullanım Şartları',
-                                        style: TextStyle(
-                                          color: isDark
-                                              ? AppColors.darkPrimaryLight
-                                              : AppColors.primary,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const TextSpan(text: ' ve '),
-                                      TextSpan(
-                                        text: 'Gizlilik Politikası',
-                                        style: TextStyle(
-                                          color: isDark
-                                              ? AppColors.darkPrimaryLight
-                                              : AppColors.primary,
-                                          fontWeight: FontWeight.w700,
-                                          decoration: TextDecoration.underline,
-                                        ),
-                                        recognizer: _privacyPolicyRecognizer,
-                                      ),
-                                      TextSpan(
-                                        text: '’nı okudum, kabul ediyorum.',
-                                        recognizer: _toggleTermsRecognizer,
-                                      ),
-                                    ]),
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: AppFontSizes.caption,
-                                      height: 1.45,
-                                      color: isDark
-                                          ? AppColors.darkTextSecondary
-                                          : AppColors.textSecondary,
+                                      borderRadius:
+                                          BorderRadius.circular(AppRadii.large),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 13),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 54,
-                            child: FilledButton(
-                              onPressed:
-                                  _loading || !_acceptedTerms ? null : _submit,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: isDark
-                                    ? AppColors.darkPrimary
-                                    : AppColors.primary,
-                                disabledBackgroundColor: isDark
-                                    ? AppColors.darkPrimarySoft
-                                    : AppColors.disabled,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.large),
+                                  child: _loading
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white),
+                                        )
+                                      : Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              _isSignUp
+                                                  ? 'Hesap oluştur'
+                                                  : 'Devam et',
+                                              style: const TextStyle(
+                                                  fontSize: AppFontSizes.title,
+                                                  fontWeight: FontWeight.w600),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                                Icons.arrow_forward_rounded,
+                                                size: 19),
+                                          ],
+                                        ),
                                 ),
                               ),
-                              child: _loading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          _isSignUp
-                                              ? 'Hesap oluştur'
-                                              : 'Devam et',
-                                          style: const TextStyle(
-                                              fontSize: AppFontSizes.title,
-                                              fontWeight: FontWeight.w600),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        const Icon(Icons.arrow_forward_rounded,
-                                            size: 19),
-                                      ],
-                                    ),
-                            ),
+                              const SizedBox(height: 10),
+                              TextButton(
+                                onPressed: () => _setMode(_isSignUp
+                                    ? AuthMode.signIn
+                                    : AuthMode.signUp),
+                                child: Text(
+                                    _isSignUp
+                                        ? 'Zaten hesabın var mı? Giriş yap'
+                                        : 'Hesabın yok mu? Hesap oluştur',
+                                    style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 10),
-                          TextButton(
-                            onPressed: () => _setMode(
-                                _isSignUp ? AuthMode.signIn : AuthMode.signUp),
-                            child: Text(
-                                _isSignUp
-                                    ? 'Zaten hesabın var mı? Giriş yap'
-                                    : 'Hesabın yok mu? Hesap oluştur',
-                                style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    color: isDark
-                                        ? AppColors.darkPrimaryLight
-                                        : AppColors.primary,
-                                    fontWeight: FontWeight.w600)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: GlassContainer(
-                        borderRadius: BorderRadius.circular(AppRadii.large),
-                        blur: 14,
-                        color: Colors.white.withValues(alpha: 0.65),
-                        darkColor: AppColors.darkGlass,
-                        borderColor: Colors.white.withValues(alpha: 0.90),
-                        darkBorderColor: Colors.white.withValues(alpha: 0.14),
-                        borderWidth: 1.2,
-                        boxShadow: [
-                          BoxShadow(
-                            color: isDark
-                                ? AppColors.shadow26
-                                : AppColors.shadow08,
-                            blurRadius: 12,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _openApp,
-                            borderRadius: BorderRadius.circular(AppRadii.large),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.explore_outlined,
-                                    size: 20,
-                                    color: isDark
-                                        ? AppColors.darkTextPrimary
-                                        : AppColors.textPrimary),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Misafir olarak devam et',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: AppFontSizes.body,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.darkTextPrimary
-                                        : AppColors.textPrimary,
-                                  ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: GlassContainer(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.large),
+                              blur: 14,
+                              color: Colors.white.withValues(alpha: 0.65),
+                              darkColor: AppColors.darkGlass,
+                              borderColor: Colors.white.withValues(alpha: 0.90),
+                              darkBorderColor:
+                                  Colors.white.withValues(alpha: 0.14),
+                              borderWidth: 1.2,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: isDark
+                                      ? AppColors.shadow26
+                                      : AppColors.shadow08,
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 3),
                                 ),
                               ],
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: _openApp,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.large),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.explore_outlined,
+                                          size: 20,
+                                          color: isDark
+                                              ? AppColors.darkTextPrimary
+                                              : AppColors.textPrimary),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Misafir olarak devam et',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: AppFontSizes.body,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? AppColors.darkTextPrimary
+                                              : AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          _buildLanguageChooser(),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -1685,16 +1799,16 @@ class _AuthField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final labelColor =
-        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    // Form artık doğrudan fotoğraf üzerinde; etiketler tema yerine bu yüzeyin
+    // kontrast ihtiyacına göre beyaz kalır.
+    final labelColor = Colors.white;
     final fieldFillColor = isDark
         ? AppColors.darkSurfaceMuted
         : Colors.white.withValues(alpha: 0.78);
     final fieldBorderColor = isDark
         ? Colors.white.withValues(alpha: 0.14)
         : Colors.white.withValues(alpha: 0.95);
-    final textColor =
-        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    final textColor = AppColors.textPrimary;
     final hintColor =
         isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
     final iconColor =
@@ -1768,7 +1882,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int index = 0;
-  final favorites = <String>{};
+  Set<String> get favorites => UserFavoritesController.favorites.value;
   late List<Widget?> _tabScreens;
   Timer? _locationReminderTimer;
   bool _locationReminderShown = false;
@@ -1785,9 +1899,6 @@ class _MainShellState extends State<MainShell> {
       const GoodnessMovementScreen(),
       null,
     ];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) offerLocationPermission();
-    });
   }
 
   @override
@@ -1862,9 +1973,7 @@ class _MainShellState extends State<MainShell> {
               'Doğru hava durumu ve yakınındaki yerler için konumunu açabilirsin.',
               style: TextStyle(
                 fontFamily: 'Outfit',
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textSecondary,
+                color: Colors.white.withValues(alpha: .92),
                 fontSize: AppFontSizes.caption,
                 height: 1.35,
               ),
@@ -2031,32 +2140,51 @@ class _MainShellState extends State<MainShell> {
         MaterialPageRoute(
           builder: (_) => DetailScreen(
             place: p,
-            favorite: favorites.contains(p.name),
+            favorite: UserFavoritesController.isFavorite(p.name),
             onOpen: open,
-            onFavorite: () => setState(() {
-              favorites.contains(p.name)
-                  ? favorites.remove(p.name)
-                  : favorites.add(p.name);
-              _tabScreens[2] = null;
-            }),
+            onShowOnMap: (targetPlace) {
+              Navigator.pop(context);
+              selectTab(1);
+              MapFocusController.focus(targetPlace);
+            },
+            onFavorite: () async {
+              await UserFavoritesController.toggle(p.name);
+              if (mounted) {
+                setState(() {
+                  _tabScreens[2] = null;
+                });
+              }
+            },
           ),
         ),
       );
 
-  void openAddPlace() => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AddPlaceScreen(
-            onOpenExisting: open,
-            onContributeToExisting: open,
-          ),
+  Future<void> openAddPlace() async {
+    final allowed = await AppAuthGuard.requireAuth(
+      context,
+      title: AppStrings.get('guest_auth_title'),
+      message: AppStrings.get('guest_add_place_prompt'),
+    );
+    if (!allowed || !mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddPlaceScreen(
+          onOpenExisting: open,
+          onContributeToExisting: open,
         ),
-      );
+      ),
+    );
+  }
 
   Widget _createTab(int tabIndex) => switch (tabIndex) {
         0 => FigmaHomeScreen(
             onOpen: open,
             onExploreMap: () => selectTab(1),
+            onExploreProvince: (region) {
+              selectTab(1);
+              MapRegionFocusController.focus(region);
+            },
             onRequestLocation: () => unawaited(offerLocationPermission()),
             onAddPlace: openAddPlace,
             onMessages: () => Navigator.push(
@@ -2077,7 +2205,15 @@ class _MainShellState extends State<MainShell> {
         _ => FigmaProfileScreen(onOpen: open),
       };
 
-  void selectTab(int value) {
+  Future<void> selectTab(int value) async {
+    if (value == 3 && AppAuthGuard.isGuest) {
+      final allowed = await AppAuthGuard.requireAuth(
+        context,
+        title: AppStrings.get('guest_auth_title'),
+        message: 'Profilini görüntülemek ve yönetmek için giriş yapmalısın.',
+      );
+      if (!allowed || !mounted) return;
+    }
     if (value == index && _tabScreens[value] != null) return;
     setState(() {
       index = value;
@@ -2095,7 +2231,11 @@ class _MainShellState extends State<MainShell> {
           _tabScreens.length,
           // A locale/theme rebuild can temporarily clear an inactive cached
           // tab. Never render a blank page for a selected navigation item.
-          (tabIndex) => _tabScreens[tabIndex] ?? _createTab(tabIndex),
+          (tabIndex) =>
+              _tabScreens[tabIndex] ??
+              (tabIndex == index
+                  ? _createTab(tabIndex)
+                  : const SizedBox.shrink()),
         ),
       ),
       bottomNavigationBar: _FigmaBottomBar(
@@ -2118,110 +2258,119 @@ class _FigmaBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
-      top: false,
-      child: SizedBox(
-        height: 76,
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
-          children: [
-            Positioned.fill(
-              top: 12,
-              child: GlassContainer(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(AppRadii.hero),
-                  topRight: Radius.circular(AppRadii.hero),
-                ),
-                blur: 10.0,
-                color: Colors.white.withValues(alpha: 0.72),
-                darkColor: AppColors.darkGlass,
-                border: Border(
-                  top: BorderSide(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.12)
-                        : Colors.white.withValues(alpha: 0.85),
-                    width: 1.2,
-                  ),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: isDark ? AppColors.shadow33 : AppColors.shadow08,
-                    blurRadius: 16,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-                child: ValueListenableBuilder<Locale>(
-                  valueListenable: AppLocaleController.current,
-                  builder: (context, _, __) => Row(children: [
-                    Expanded(
-                        child: _FigmaNavItem(
-                            index: 0,
-                            current: index,
-                            icon: Icons.home_outlined,
-                            activeIcon: Icons.home_rounded,
-                            label: AppStrings.get('tab_discover'),
-                            onTap: onChanged)),
-                    Expanded(
-                        child: _FigmaNavItem(
-                            index: 1,
-                            current: index,
-                            icon: Icons.map_outlined,
-                            activeIcon: Icons.map_rounded,
-                            label: AppStrings.get('tab_map'),
-                            onTap: onChanged)),
-                    const SizedBox(width: 64),
-                    Expanded(
-                        child: _FigmaNavItem(
-                            index: 2,
-                            current: index,
-                            icon: Icons.volunteer_activism_outlined,
-                            activeIcon: Icons.volunteer_activism_rounded,
-                            label: AppStrings.get('tab_goodness'),
-                            onTap: onChanged)),
-                    Expanded(
-                        child: _FigmaNavItem(
-                            index: 3,
-                            current: index,
-                            icon: Icons.person_outline_rounded,
-                            activeIcon: Icons.person_rounded,
-                            label: AppStrings.get('tab_profile'),
-                            onTap: onChanged)),
-                  ]),
-                ),
-              ),
-            ),
-            Positioned(
-              top: -14,
-              child: ValueListenableBuilder<Locale>(
-                valueListenable: AppLocaleController.current,
-                builder: (context, _, __) => Semantics(
-                  label: AppStrings.get('tab_add_place'),
-                  button: true,
-                  child: Tooltip(
-                    message: AppStrings.get('tab_add_place'),
-                    child: Material(
-                      color: isDark ? AppColors.darkPrimary : AppColors.primary,
-                      shape: const CircleBorder(),
-                      elevation: 3,
-                      child: InkWell(
-                        onTap: onAdd,
-                        customBorder: const CircleBorder(),
-                        child: const SizedBox(
-                          width: 56,
-                          height: 56,
-                          child: Icon(Icons.add_rounded,
-                              color: Colors.white, size: 28),
+        top: false,
+        child: SizedBox(
+            height: 76,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.topCenter,
+                  children: [
+                    Positioned.fill(
+                      top: 12,
+                      child: GlassContainer(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(AppRadii.hero),
+                          topRight: Radius.circular(AppRadii.hero),
+                        ),
+                        blur: 10.0,
+                        color: Colors.white.withValues(alpha: 0.72),
+                        darkColor: AppColors.darkGlass,
+                        border: Border(
+                          top: BorderSide(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.12)
+                                : Colors.white.withValues(alpha: 0.85),
+                            width: 1.2,
+                          ),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isDark
+                                ? AppColors.shadow33
+                                : AppColors.shadow08,
+                            blurRadius: 16,
+                            offset: const Offset(0, -2),
+                          ),
+                        ],
+                        child: ValueListenableBuilder<Locale>(
+                          valueListenable: AppLocaleController.current,
+                          builder: (context, _, __) => Row(children: [
+                            Expanded(
+                                child: _FigmaNavItem(
+                                    index: 0,
+                                    current: index,
+                                    icon: Icons.home_outlined,
+                                    activeIcon: Icons.home_rounded,
+                                    label: AppStrings.get('tab_discover'),
+                                    onTap: onChanged)),
+                            Expanded(
+                                child: _FigmaNavItem(
+                                    index: 1,
+                                    current: index,
+                                    icon: Icons.map_outlined,
+                                    activeIcon: Icons.map_rounded,
+                                    label: AppStrings.get('tab_map'),
+                                    onTap: onChanged)),
+                            const SizedBox(width: 64),
+                            Expanded(
+                                child: _FigmaNavItem(
+                                    index: 2,
+                                    current: index,
+                                    icon: Icons.volunteer_activism_outlined,
+                                    activeIcon:
+                                        Icons.volunteer_activism_rounded,
+                                    label: AppStrings.get('tab_goodness'),
+                                    onTap: onChanged)),
+                            Expanded(
+                                child: _FigmaNavItem(
+                                    index: 3,
+                                    current: index,
+                                    icon: Icons.person_outline_rounded,
+                                    activeIcon: Icons.person_rounded,
+                                    label: AppStrings.get('tab_profile'),
+                                    onTap: onChanged)),
+                          ]),
                         ),
                       ),
                     ),
-                  ),
+                    Positioned(
+                      top: -14,
+                      child: ValueListenableBuilder<Locale>(
+                        valueListenable: AppLocaleController.current,
+                        builder: (context, _, __) => Semantics(
+                          label: AppStrings.get('tab_add_place'),
+                          button: true,
+                          child: Tooltip(
+                            message: AppStrings.get('tab_add_place'),
+                            child: Material(
+                              color: isDark
+                                  ? AppColors.darkPrimary
+                                  : AppColors.primary,
+                              shape: const CircleBorder(),
+                              elevation: 3,
+                              child: InkWell(
+                                onTap: onAdd,
+                                customBorder: const CircleBorder(),
+                                child: const SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: Icon(Icons.add_rounded,
+                                      color: Colors.white, size: 28),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
+            )));
   }
 }
 

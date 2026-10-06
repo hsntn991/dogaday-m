@@ -13,12 +13,9 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
   String filter = 'Tümü';
   final recentSearches = <String>[];
 
-  static final categories = <(String, String, String)>[
+  static final categories = <(IconData, String, String)>[
     ...placeTaxonomy
-        .map((item) => (item.emoji, item.label, 'Alt türleri keşfet')),
-    ('🚻', 'WC', 'Bağımsız tuvalet noktaları'),
-    ('🚰', 'İçme Suyu', 'İçilebilir su noktaları'),
-    ('⛲', 'Çeşme', 'Kaynak bağlantısı bulunan çeşmeler'),
+        .map((item) => (item.icon, item.label, 'Alt türleri keşfet')),
   ];
 
   @override
@@ -61,21 +58,71 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
     setState(() => query = value);
   }
 
+  static String _normalize(String s) =>
+      s.trim().replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+
   @override
   Widget build(BuildContext context) {
     final realPlaces = <Place>[
       ...SupabasePlacesController.places.value,
       ...UserPlacesController.places.value,
-    ];
-    final results = realPlaces
-        .where((p) =>
-            _matchesMapFilter(p, filter, null) &&
-            '${p.name} ${p.location} ${p.kind}'
-                .toLowerCase()
-                .contains(query.toLowerCase()))
+    ]
+        .where((place) => !isNonNatureCandidateName(
+              place.name,
+              subtype: place.resolvedTaxonomy.subtype,
+              mainCategory: place.resolvedTaxonomy.mainCategory,
+            ))
+        .toList(growable: false);
+    final trimmedQuery = _normalize(query);
+
+    // Yer adı / konum / tür araması
+    final placeResults = trimmedQuery.isEmpty
+        ? <Place>[]
+        : (realPlaces.where((p) {
+            if (!_matchesMapFilter(p, filter, null)) return false;
+            final target = _normalize('${p.name} ${p.location} ${p.kind}');
+            return target.contains(trimmedQuery);
+          }).toList()
+          ..sort((a, b) {
+            final aName = _normalize(a.name);
+            final bName = _normalize(b.name);
+            final aLoc = _normalize(a.location);
+            final bLoc = _normalize(b.location);
+            int score(String name, String loc) {
+              if (name.startsWith(trimmedQuery)) return 0;
+              if (name.contains(trimmedQuery)) return 1;
+              if (loc.startsWith(trimmedQuery)) return 2;
+              if (loc.contains(trimmedQuery)) return 3;
+              return 4;
+            }
+
+            final cmp = score(aName, aLoc).compareTo(score(bName, bLoc));
+            if (cmp != 0) return cmp;
+            return a.name.compareTo(b.name);
+          }));
+
+    // Kullanıcı adı araması: contributorName içeren yerler
+    // Yer adı aramasından farklı olan kayıtları göster
+    final placeResultIds = placeResults.map((p) => p.sourceId).toSet();
+    final contributorResults = trimmedQuery.isEmpty
+        ? <Place>[]
+        : (realPlaces.where((p) {
+            final contributor = _normalize(p.contributorName ?? '');
+            return contributor.isNotEmpty &&
+                contributor.contains(trimmedQuery) &&
+                !placeResultIds.contains(p.sourceId);
+          }).toList()
+          ..sort((a, b) => a.name.compareTo(b.name)));
+
+    // contributorResults varsa hangi kullanıcı adları eşleşti
+    final matchedContributors = contributorResults
+        .map((p) => p.contributorName?.trim() ?? '')
+        .where((n) => n.isNotEmpty)
+        .toSet()
         .toList();
-    final filterItems = <(String, String)>[
-      ('✓', 'Tümü'),
+
+    final filterItems = <(IconData, String)>[
+      (Icons.explore_rounded, 'Tümü'),
       ...categories.map((category) => (category.$1, category.$2)),
     ];
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -98,9 +145,14 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                     color: isDark ? AppColors.darkTextPrimary : Colors.black87,
                   ),
                   decoration: InputDecoration(
-                    hintText: AppStrings.get('search_input_hint'),
-                    prefixIcon: const Icon(Icons.search_rounded,
-                        color: green, size: 20),
+                    hintText: filter == 'Tümü'
+                        ? AppStrings.get('search_input_hint')
+                        : '$filter kategorisinde ara...',
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: green,
+                      size: 20,
+                    ),
                     suffixIcon: query.isEmpty
                         ? null
                         : IconButton(
@@ -148,12 +200,27 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                     .map((item) => Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
-                            label: Text('${item.$1}  ${item.$2}',
-                                style: TextStyle(
-                                    fontSize: AppFontSizes.caption,
-                                    color: isDark
-                                        ? AppColors.darkTextPrimary
-                                        : Colors.black87)),
+                            label: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  item.$1,
+                                  size: 15,
+                                  color: filter == item.$2
+                                      ? AppColors.primary
+                                      : (isDark
+                                          ? AppColors.darkTextSecondary
+                                          : AppColors.textSecondary),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(item.$2,
+                                    style: TextStyle(
+                                        fontSize: AppFontSizes.caption,
+                                        color: isDark
+                                            ? AppColors.darkTextPrimary
+                                            : Colors.black87)),
+                              ],
+                            ),
                             selected: filter == item.$2,
                             onSelected: (_) => setState(() => filter = item.$2),
                             labelStyle: TextStyle(
@@ -180,44 +247,100 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
               ),
             ),
             const SizedBox(height: 22),
-            if (query.isNotEmpty || filter != 'Tümü') ...[
-              Text(
+            if (trimmedQuery.isNotEmpty) ...[
+              // Yer sonuçları
+              if (placeResults.isNotEmpty) ...[
+                Text(
                   filter == 'Tümü'
-                      ? '${results.length} sonuç "$query" için'
-                      : '${results.length} sonuç · $filter',
+                      ? '${placeResults.length} yer "${query.trim()}" için'
+                      : '${placeResults.length} yer · $filter',
                   style: TextStyle(
-                      fontSize: AppFontSizes.caption,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary)),
-              const SizedBox(height: 10),
-              if (results.isEmpty)
+                    fontSize: AppFontSizes.caption,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...placeResults.map((place) => Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: _SearchResultCard(
+                        place: place,
+                        onTap: () {
+                          addRecent(place.name);
+                          widget.onOpen(place);
+                        },
+                      ),
+                    )),
+              ],
+              // Kullanıcı sonuçları
+              if (contributorResults.isNotEmpty) ...[
+                if (placeResults.isNotEmpty) const SizedBox(height: 18),
+                Row(children: [
+                  const Icon(Icons.person_rounded, size: 15, color: green),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${matchedContributors.join(', ')} tarafından eklenenler',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: AppFontSizes.title,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            isDark ? AppColors.darkTextPrimary : Colors.black87,
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                ...contributorResults.map((place) => Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: _SearchResultCard(
+                        place: place,
+                        onTap: () {
+                          addRecent(place.contributorName ?? place.name);
+                          widget.onOpen(place);
+                        },
+                      ),
+                    )),
+              ],
+              // Hiç sonuç yok
+              if (placeResults.isEmpty && contributorResults.isEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 34),
                   alignment: Alignment.center,
-                  child: Text(AppStrings.get('search_no_results'),
-                      style: TextStyle(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.travel_explore_outlined,
+                        size: 42,
+                        color: isDark
+                            ? AppColors.darkTextSecondary.withValues(alpha: 0.4)
+                            : AppColors.textTertiary,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        AppStrings.get('search_no_results'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
                           color: isDark
                               ? AppColors.darkTextSecondary
                               : AppColors.textSecondary,
-                          fontSize: AppFontSizes.caption)),
-                )
-              else
-                ...results.map((place) => Padding(
-                      padding: const EdgeInsets.only(bottom: 9),
-                      child: _SearchResultCard(
-                          place: place,
-                          onTap: () {
-                            addRecent(place.name);
-                            widget.onOpen(place);
-                          }),
-                    )),
+                          fontSize: AppFontSizes.caption,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ] else ...[
-              Row(children: [
-                Expanded(
+              if (recentSearches.isNotEmpty) ...[
+                Row(children: [
+                  Expanded(
                     child: _SearchHeading(
-                        AppStrings.get('search_recent_searches'))),
-                if (recentSearches.isNotEmpty)
+                      AppStrings.get('search_recent_searches'),
+                    ),
+                  ),
                   TextButton(
                     onPressed: () => setState(recentSearches.clear),
                     style: TextButton.styleFrom(
@@ -225,31 +348,52 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                       padding: EdgeInsets.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: Text(AppStrings.get('search_clear'),
-                        style: const TextStyle(
-                            color: green,
-                            fontSize: AppFontSizes.caption,
-                            fontWeight: FontWeight.w600)),
-                  )
-              ]),
-              const SizedBox(height: 8),
-              if (recentSearches.isEmpty)
-                Container(
-                  height: 58,
-                  alignment: Alignment.centerLeft,
-                  child: Text(AppStrings.get('search_no_recent'),
-                      style: TextStyle(
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.textSecondary,
-                          fontSize: AppFontSizes.caption)),
-                )
-              else
+                    child: Text(
+                      AppStrings.get('search_clear'),
+                      style: const TextStyle(
+                        color: green,
+                        fontSize: AppFontSizes.caption,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 8),
                 ...recentSearches.map((text) => _RecentSearch(
                       text,
                       onTap: () => selectSearch(text),
                     )),
-              const SizedBox(height: 22),
+                const SizedBox(height: 22),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.search_rounded,
+                        size: 48,
+                        color: isDark
+                            ? AppColors.darkTextSecondary.withValues(alpha: 0.3)
+                            : AppColors.textTertiary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        filter == 'Tümü'
+                            ? 'Aramak istediğin doğa noktasını veya şehri yaz'
+                            : '$filter kategorisinde aramak istediğin yeri yaz',
+                        style: TextStyle(
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
+                          fontSize: AppFontSizes.caption,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const _HomeAdBanner(),
             ]
           ],
@@ -437,6 +581,7 @@ class _MapCategoryStyle {
 
   String get localizedLabel {
     if (key == 'all') return AppStrings.get('all');
+    if (key == 'water_amenities') return 'Su';
     if (key == 'toilet') return AppStrings.subtype('toilet');
     if (key == 'drinking_water') return AppStrings.subtype('drinking_water');
     if (key == 'water_fountain') return AppStrings.subtype('water_fountain');
@@ -455,11 +600,19 @@ final _mapCategories = <_MapCategoryStyle>[
         item.background,
       )),
   const _MapCategoryStyle(
-      'toilet', '🚻', 'WC', AppColors.categoryUtility, AppColors.primarySoft),
-  const _MapCategoryStyle('drinking_water', '🚰', 'İçme Suyu',
-      AppColors.categoryWater, AppColors.primarySoft),
-  const _MapCategoryStyle('water_fountain', '⛲', 'Çeşme',
-      AppColors.categoryWater, AppColors.primarySoft),
+    'water_amenities',
+    'Su',
+    'Su',
+    AppColors.categoryWater,
+    AppColors.primarySoft,
+  ),
+  const _MapCategoryStyle(
+    'toilet',
+    'WC',
+    'WC',
+    AppColors.categoryUtility,
+    AppColors.surfaceMuted,
+  ),
 ];
 
 bool _matchesMapFilter(Place place, String filterKey, String? subtype) {
@@ -477,7 +630,26 @@ bool _matchesMapFilter(Place place, String filterKey, String? subtype) {
   );
   if (style.key == 'all') return true;
   final taxonomy = place.resolvedTaxonomy;
+  if (style.key == 'water_amenities') {
+    return taxonomy.subtype == 'drinking_water' ||
+        taxonomy.subtype == 'water_fountain';
+  }
   if (isUtilitySubtype(style.key)) return taxonomy.subtype == style.key;
+  if (style.key == 'local_service') {
+    final matchesCategory = taxonomy.mainCategory == 'local_service' ||
+        taxonomy.subtype == 'local_service' ||
+        (taxonomy.subtype != null &&
+            taxonomy.subtype!.startsWith('service_')) ||
+        place.isMobileService ||
+        place.kind.toLowerCase().contains('servis') ||
+        place.kind.toLowerCase().contains('işletme') ||
+        place.kind.toLowerCase().contains('isletme');
+    if (!matchesCategory) return false;
+    if (subtype != null && subtype.isNotEmpty) {
+      return taxonomy.subtype == subtype;
+    }
+    return true;
+  }
   return taxonomy.mainCategory == style.key &&
       (subtype == null || taxonomy.subtype == subtype);
 }
@@ -547,25 +719,91 @@ class _MapScreenState extends State<MapScreen> {
   List<_MapCluster>? _clusterCache;
   double? _clusterZoomBucket;
   String? _clusterFilter;
+  List<Place>? _viewportPlaces;
+  bool _isViewportLoading = false;
+  bool _viewportNeedsSearch = false;
+  String? _viewportError;
+  // Bölge görünümü varsayılandır: kullanıcı bir alanı açıkça seçene kadar
+  // harita sade kalır. Tüm Türkiye görünümü ise bilinçli bir tercih olmalıdır.
+  bool _isAllRegionsMode = false;
+  bool _hasOpenedRegion = false;
 
   List<Place> buildMapPlaces() {
+    final usesRegionalExplorer =
+        MapViewportPointsService.regionalExplorerEnabled;
+    if (usesRegionalExplorer &&
+        !_isAllRegionsMode &&
+        !_hasOpenedRegion &&
+        UserPlacesController.places.value.isEmpty) {
+      return const <Place>[];
+    }
+    final useViewportPoints = usesRegionalExplorer &&
+        MapViewportPointsService.enabled &&
+        !_isAllRegionsMode &&
+        _viewportPlaces != null;
+    final remotePlaces =
+        (usesRegionalExplorer && !_isAllRegionsMode && !_hasOpenedRegion)
+            ? const <Place>[]
+            : (useViewportPoints
+                ? _viewportPlaces!
+                : SupabasePlacesController.places.value);
+    final bounds = _visibleBounds;
     final seen = <String>{};
-    return <Place>[
+    final combined = <Place>[
       ...UserPlacesController.places.value,
-      ...SupabasePlacesController.places.value,
+      ...remotePlaces,
+      if (selectedFilter == 'local_service') ...SampleMobileServices.samples,
     ].where((place) {
       final key = place.sourceId ??
           '${place.name.toLowerCase()}:${place.latitude}:${place.longitude}';
       return place.hasCoordinates &&
+          !isNonNatureCandidateName(
+            place.name,
+            subtype: place.resolvedTaxonomy.subtype,
+            mainCategory: place.resolvedTaxonomy.mainCategory,
+          ) &&
           AddPlaceQualityService.isValidCoordinate(
             place.latitude,
             place.longitude,
           ) &&
+          // Yardımcı tesisler bölge keşfinde de görünür; yakın ölçekte ise
+          // kümeden ayrılıp tekil, seçilebilir simgelere dönüşür.
+          (!place.isUtility ||
+              _mapZoom >= MapViewportPointsService.auxiliaryMinZoom) &&
+          // RPC hazır olmadan da eski veriyle ekran dışındaki binlerce nokta
+          // çizilmez. Bu, işlev kapatıldığında dahi güvenli bir yerel yedektir.
+          (_isAllRegionsMode ||
+              bounds == null ||
+              (place.latitude! >= bounds.south &&
+                  place.latitude! <= bounds.north &&
+                  place.longitude! >= bounds.west &&
+                  place.longitude! <= bounds.east)) &&
           seen.add(key);
     }).toList(growable: false);
+    if (useViewportPoints ||
+        _isAllRegionsMode ||
+        !MapViewportPointsService.enabled) {
+      return combined;
+    }
+    return combined.take(MapViewportPointsService.maxPoints).toList(
+          growable: false,
+        );
   }
 
   List<Place> get mapPlaces => _mapPlaces;
+
+  /// Kamera/veri yenilenirken önceki seçimin indeksi artık listede olmayabilir.
+  /// Bu yüzden ekran, doğrudan liste indeksi yerine bu güvenli erişimi kullanır.
+  int? get validSelectedIndex {
+    final index = selectedIndex;
+    if (index == null || index < 0 || index >= mapPlaces.length) return null;
+    return index;
+  }
+
+  Place? get selectedMapPlace {
+    final index = validSelectedIndex;
+    return index == null ? null : mapPlaces[index];
+  }
 
   List<Place> get nearbyPreviewPlaces {
     final target = HomeWeatherLocationController.current.value;
@@ -604,6 +842,31 @@ class _MapScreenState extends State<MapScreen> {
           index,
     ];
 
+    // Bölge keşfinde P4N benzeri doğrudan keşif tercih edilir: kullanıcı
+    // sayı balonları yerine, orta ölçekte dahi türünü anlatan küçük pinleri
+    // görür. Eski ekran davranışı yalnızca özellik kapatılırsa korunur.
+    final renderAsIndividualPins =
+        MapViewportPointsService.regionalExplorerEnabled &&
+            _hasOpenedRegion &&
+            !_isAllRegionsMode;
+    if (renderAsIndividualPins ||
+        _mapZoom >= MapViewportPointsService.amenityMinZoom) {
+      final individual = visibleIndexes
+          .map(
+            (index) => _MapCluster(
+              center: coordinateFor(index),
+              placeIndexes: List<int>.unmodifiable(<int>[index]),
+              dominantCategory: mapPlaces[index].resolvedTaxonomy.subtype ??
+                  mapPlaces[index].resolvedTaxonomy.mainCategory,
+            ),
+          )
+          .toList(growable: false);
+      _clusterCache = individual;
+      _clusterZoomBucket = zoomBucket;
+      _clusterFilter = '$selectedFilter:$selectedSubtype';
+      return individual;
+    }
+
     var latitudeCellSize = 180 / math.pow(2, zoomBucket);
     var longitudeCellSize = latitudeCellSize;
     final bounds = _visibleBounds;
@@ -631,8 +894,13 @@ class _MapScreenState extends State<MapScreen> {
     final grouped = <String, List<int>>{};
     for (final index in visibleIndexes) {
       final point = coordinateFor(index);
+      final taxonomy = mapPlaces[index].resolvedTaxonomy;
+      // WC, içme suyu ve ana doğa türleri aynı coğrafi kümede birbirine
+      // karışmaz. Böylece "69" yerine WC ikonu + 69 gibi anlaşılır kümeler
+      // oluşur; kullanıcı hangi türün sayıldığını doğrudan görür.
+      final layerKey = taxonomy.subtype ?? taxonomy.mainCategory ?? 'other';
       final key = '${(point.latitude / latitudeCellSize).floor()}:'
-          '${(point.longitude / longitudeCellSize).floor()}';
+          '${(point.longitude / longitudeCellSize).floor()}:$layerKey';
       grouped.putIfAbsent(key, () => <int>[]).add(index);
     }
     final clusters = grouped.values.map((indexes) {
@@ -643,7 +911,8 @@ class _MapScreenState extends State<MapScreen> {
         final point = coordinateFor(index);
         latitude += point.latitude;
         longitude += point.longitude;
-        final cat = mapPlaces[index].resolvedTaxonomy.mainCategory;
+        final taxonomy = mapPlaces[index].resolvedTaxonomy;
+        final cat = taxonomy.subtype ?? taxonomy.mainCategory;
         if (cat != null) {
           categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
         }
@@ -678,8 +947,19 @@ class _MapScreenState extends State<MapScreen> {
     UserPlacesController.places.addListener(_refreshUserPlaces);
     SupabasePlacesController.places.addListener(_refreshRemotePlaces);
     HomeWeatherLocationController.current.addListener(_refreshUserLocation);
+    MapFocusController.focusedPlace.addListener(_onMapFocusRequested);
+    MapRegionFocusController.focusedRegion
+        .addListener(_onMapRegionFocusRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_startLiveLocation());
+      if (mounted) {
+        unawaited(_startLiveLocation());
+        if (MapFocusController.focusedPlace.value != null) {
+          _onMapFocusRequested();
+        }
+        if (MapRegionFocusController.focusedRegion.value != null) {
+          _onMapRegionFocusRequested();
+        }
+      }
     });
   }
 
@@ -726,6 +1006,52 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  Future<void> _loadViewportPoints({bool userInitiated = false}) async {
+    if (!MapViewportPointsService.enabled || _visibleBounds == null) return;
+    if (_isViewportLoading) return;
+    final requestedBounds = _visibleBounds!;
+    final requestedZoom = _mapZoom;
+    final filterTypes = switch (selectedFilter) {
+      'Tümü' || 'all' || 'local_service' => null,
+      'water_amenities' => <String>['drinking_water', 'water_fountain'],
+      final key => <String>[key],
+    };
+    setState(() {
+      _hasOpenedRegion = true;
+      _isViewportLoading = true;
+      _viewportError = null;
+    });
+    try {
+      final loaded = await MapViewportPointsService.fetch(
+        bounds: requestedBounds,
+        zoom: requestedZoom,
+        filterTypes: filterTypes,
+      );
+      if (!mounted) return;
+      setState(() {
+        _viewportPlaces = loaded;
+        _viewportNeedsSearch = false;
+        _isViewportLoading = false;
+        _mapPlaces = buildMapPlaces();
+        selectedIndex = null;
+        _selectionHistory.clear();
+        _clusterCache = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isViewportLoading = false;
+        _viewportError = 'Bu alan için yerler şu an yüklenemedi.';
+      });
+      if (userInitiated) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text('Bu alan yüklenemedi. Bağlantını kontrol edip tekrar dene.'),
+        ));
+      }
+    }
+  }
+
   void _refreshUserLocation() {
     if (mounted) setState(() {});
   }
@@ -737,8 +1063,68 @@ class _MapScreenState extends State<MapScreen> {
     UserPlacesController.places.removeListener(_refreshUserPlaces);
     SupabasePlacesController.places.removeListener(_refreshRemotePlaces);
     HomeWeatherLocationController.current.removeListener(_refreshUserLocation);
+    MapFocusController.focusedPlace.removeListener(_onMapFocusRequested);
+    MapRegionFocusController.focusedRegion
+        .removeListener(_onMapRegionFocusRequested);
     mapController.dispose();
     super.dispose();
+  }
+
+  void _onMapFocusRequested() {
+    final target = MapFocusController.focusedPlace.value;
+    if (target == null || !mounted) return;
+    MapFocusController.clear();
+    if (!target.hasCoordinates) return;
+
+    _mapPlaces = buildMapPlaces();
+    final idx = _mapPlaces.indexWhere((p) =>
+        (p.sourceId != null && p.sourceId == target.sourceId) ||
+        (p.name == target.name &&
+            p.latitude == target.latitude &&
+            p.longitude == target.longitude));
+    if (idx >= 0) {
+      selectPlace(_mapPlaces[idx]);
+    } else {
+      mapController.move(
+        LatLng(target.latitude!, target.longitude!),
+        math.max(mapController.camera.zoom, 13.0),
+        offset: const Offset(0, -90),
+      );
+    }
+  }
+
+  void _onMapRegionFocusRequested() {
+    final region = MapRegionFocusController.focusedRegion.value;
+    if (region == null || !mounted) return;
+    MapRegionFocusController.clear();
+
+    // Bir il seçildiğinde önce eski alanın verisini ve seçimini temizleriz.
+    // Böylece Konya'dan Antalya'ya geçen kullanıcı, önceki bölgenin
+    // marker'larını yeni bölgede görmez.
+    setState(() {
+      _isAllRegionsMode = false;
+      _hasOpenedRegion = false;
+      _viewportPlaces = null;
+      _viewportNeedsSearch = false;
+      _viewportError = null;
+      selectedFilter = 'Tümü';
+      selectedSubtype = null;
+      selectedIndex = null;
+      _selectionHistory.clear();
+      _clusterCache = null;
+      _mapPlaces = buildMapPlaces();
+    });
+    mapController.move(region.center, region.zoom);
+
+    // MapController yeni görünür sınırları bir sonraki frame'de hesaplar.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _visibleBounds = mapController.camera.visibleBounds;
+        _mapZoom = mapController.camera.zoom;
+      });
+      unawaited(_loadViewportPoints(userInitiated: true));
+    });
   }
 
   bool isVisible(Place place) {
@@ -748,12 +1134,17 @@ class _MapScreenState extends State<MapScreen> {
   final List<int> _selectionHistory = [];
 
   void previousPlace() {
-    if (_selectionHistory.isEmpty) return;
-    selectPlace(mapPlaces[_selectionHistory.removeLast()], keepHistory: true);
+    while (_selectionHistory.isNotEmpty) {
+      final index = _selectionHistory.removeLast();
+      if (index >= 0 && index < mapPlaces.length) {
+        selectPlace(mapPlaces[index], keepHistory: true);
+        return;
+      }
+    }
   }
 
   void nextPlace() {
-    final current = selectedIndex;
+    final current = validSelectedIndex;
     if (current == null) return;
     final candidates = [
       for (var i = 0; i < mapPlaces.length; i++)
@@ -774,9 +1165,9 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   bool get hasNextPlace =>
-      selectedIndex != null &&
+      validSelectedIndex != null &&
       mapPlaces.asMap().entries.any((entry) =>
-          entry.key != selectedIndex &&
+          entry.key != validSelectedIndex &&
           !_selectionHistory.contains(entry.key) &&
           isVisible(entry.value));
 
@@ -797,7 +1188,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void handleMapPositionChanged(MapCamera camera, bool hasGesture) {
-    final currentSelection = selectedIndex;
+    final currentSelection = validSelectedIndex;
     final nextZoomBucket = (camera.zoom * 2).round() / 2;
     final currentZoomBucket = (_mapZoom * 2).round() / 2;
     final shouldClearSelection = hasGesture &&
@@ -822,11 +1213,23 @@ class _MapScreenState extends State<MapScreen> {
     _cameraUpdateTimer?.cancel();
     _cameraUpdateTimer = Timer(const Duration(milliseconds: 120), () {
       if (!mounted) return;
+      final shouldLoadInitial = MapViewportPointsService.enabled &&
+          !MapViewportPointsService.regionalExplorerEnabled &&
+          _viewportPlaces == null &&
+          !hasGesture;
       setState(() {
         _mapZoom = camera.zoom;
         _visibleBounds = _pendingVisibleBounds;
+        if (hasGesture &&
+            MapViewportPointsService.enabled &&
+            (!_isAllRegionsMode ||
+                !MapViewportPointsService.regionalExplorerEnabled)) {
+          _viewportNeedsSearch = true;
+        }
         _clusterCache = null;
+        _mapPlaces = buildMapPlaces();
       });
+      if (shouldLoadInitial) unawaited(_loadViewportPoints());
     });
   }
 
@@ -849,6 +1252,52 @@ class _MapScreenState extends State<MapScreen> {
       ),
     );
     if (result != null && mounted) selectPlace(result);
+  }
+
+  void _selectMapFilter(String filterKey) {
+    setState(() {
+      selectedFilter = filterKey;
+      selectedSubtype = null;
+      selectedIndex = null;
+      _selectionHistory.clear();
+      _clusterCache = null;
+      _viewportNeedsSearch = true;
+      _mapPlaces = buildMapPlaces();
+    });
+    if (!MapViewportPointsService.regionalExplorerEnabled || _hasOpenedRegion) {
+      unawaited(_loadViewportPoints(userInitiated: true));
+    }
+  }
+
+  void _toggleAllRegionsMode() {
+    final enableAllRegions = !_isAllRegionsMode;
+    setState(() {
+      _isAllRegionsMode = enableAllRegions;
+      _hasOpenedRegion = false;
+      _viewportPlaces = null;
+      _viewportNeedsSearch = false;
+      _viewportError = null;
+      selectedFilter = 'Tümü';
+      selectedSubtype = null;
+      selectedIndex = null;
+      _selectionHistory.clear();
+      _clusterCache = null;
+      _mapPlaces = buildMapPlaces();
+    });
+    if (enableAllRegions) {
+      // Genel görünüm eski bölgenin sınırını kullanmaz; ülke çerçevesine
+      // dönerek kümelerin tek bir yerde toplanmasını engeller.
+      mapController.move(initialCenter, initialZoom);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_isAllRegionsMode) return;
+        setState(() {
+          _visibleBounds = mapController.camera.visibleBounds;
+          _mapZoom = mapController.camera.zoom;
+          _clusterCache = null;
+          _mapPlaces = buildMapPlaces();
+        });
+      });
+    }
   }
 
   void zoom(double factor) {
@@ -1134,489 +1583,968 @@ class _MapScreenState extends State<MapScreen> {
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final selectedPlace =
-              selectedIndex == null ? null : mapPlaces[selectedIndex!];
-          final sheetHeight = selectedPlace == null ? 0.0 : 204.0;
-          return Stack(
+          final isLandscapeTablet =
+              constraints.maxWidth >= AppBreakpoints.tabletLandscapeMin;
+          final isPortraitTablet = !isLandscapeTablet &&
+              constraints.maxWidth >= AppBreakpoints.tabletPortraitMin;
+
+          if (isLandscapeTablet) {
+            return _buildLandscapeLayout(context, constraints, isDark);
+          }
+          return _buildStandardMapLayout(
+            context,
+            constraints,
+            isDark,
+            isTablet: isPortraitTablet,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFlutterMap(bool isDark) {
+    final selectedPlace = selectedMapPlace;
+    // Bölgesel keşifte her nokta kendi tür ikonu ile görünür; sayılı küme
+    // marker'ları yalnızca eski, bayrakla kapatılabilir deneyimde kalır.
+    final renderAsIndividualPins =
+        MapViewportPointsService.regionalExplorerEnabled &&
+            _hasOpenedRegion &&
+            !_isAllRegionsMode;
+    final useClusterMarkers = !renderAsIndividualPins &&
+        _mapZoom < MapViewportPointsService.amenityMinZoom;
+    return RepaintBoundary(
+      child: FlutterMap(
+        mapController: mapController,
+        options: MapOptions(
+          initialCenter: initialCenter,
+          initialZoom: initialZoom,
+          minZoom: 4,
+          maxZoom: 18,
+          cameraConstraint: CameraConstraint.containLatitude(),
+          onPositionChanged: handleMapPositionChanged,
+          onTap: (_, __) {
+            if (selectedIndex != null) {
+              setState(() {
+                selectedIndex = null;
+                _selectionHistory.clear();
+                _clusterCache = null;
+              });
+            }
+          },
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: switch (_mapStyle) {
+              _MapStyle.standart =>
+                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              _MapStyle.uydu =>
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              _MapStyle.topo =>
+                'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+            },
+            subdomains: _mapStyle == _MapStyle.topo
+                ? const ['a', 'b', 'c']
+                : const ['a'],
+            userAgentPackageName: 'com.dogadagezi.dogada_gezi',
+            maxNativeZoom: _mapStyle == _MapStyle.topo ? 17 : 19,
+            panBuffer: 2,
+            tileProvider: tileProvider,
+          ),
+          MarkerLayer(
+            markers: [
+              if (userCoordinate != null)
+                Marker(
+                  point: userCoordinate!,
+                  width: 54,
+                  height: 54,
+                  child: const _UserLocationMarker(),
+                ),
+            ],
+          ),
+          MarkerLayer(
+            markers: markerClusters.map((cluster) {
+              if (useClusterMarkers && cluster.placeIndexes.length > 1) {
+                final count = cluster.placeIndexes.length;
+                final markerWidth =
+                    count >= 1000 ? 76.0 : (count >= 100 ? 68.0 : 60.0);
+                return Marker(
+                  point: cluster.center,
+                  width: markerWidth,
+                  height: AppControlSizes.minimumTouchTarget,
+                  alignment: Alignment.center,
+                  child: _MapClusterMarker(
+                    cluster: cluster,
+                    showCount: !_isAllRegionsMode,
+                    onTap: () => openCluster(cluster),
+                  ),
+                );
+              }
+              final index = cluster.placeIndexes.single;
+              final selected = selectedIndex == index;
+              final showLabel = _mapZoom >= 11.5;
+              return Marker(
+                point: cluster.center,
+                width: selected ? 130 : (showLabel ? 96 : 52),
+                height: selected ? 74 : (showLabel ? 52 : 46),
+                alignment: Alignment.bottomCenter,
+                child: _MapMarker(
+                  place: mapPlaces[index],
+                  selected: selected,
+                  showLabel: showLabel,
+                  sizeScale: _markerScaleForZoom(_mapZoom),
+                  onTap: () => selectPlace(mapPlaces[index]),
+                ),
+              );
+            }).toList(growable: false),
+          ),
+          if (selectedPlace != null)
+            MarkerLayer(markers: [
+              Marker(
+                point: coordinateFor(validSelectedIndex!),
+                width: 130,
+                height: 74,
+                alignment: Alignment.bottomCenter,
+                child: _MapMarker(
+                  place: selectedPlace,
+                  selected: true,
+                  showLabel: true,
+                  sizeScale: _markerScaleForZoom(_mapZoom),
+                  onTap: () => selectPlace(selectedPlace),
+                ),
+              )
+            ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttribution(bool isDark) {
+    return GlassContainer(
+      borderRadius: BorderRadius.circular(AppRadii.medium),
+      blur: 10,
+      color: Colors.white.withValues(alpha: 0.75),
+      borderColor: Colors.white.withValues(alpha: 0.65),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      child: Text(
+        switch (_mapStyle) {
+          _MapStyle.standart => '© OpenStreetMap contributors',
+          _MapStyle.uydu => '© Esri, Maxar, Earthstar',
+          _MapStyle.topo => '© OpenTopoMap, OSM contributors',
+        },
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          fontSize: AppFontSizes.caption,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(bool isDark) {
+    return GlassContainer(
+      borderRadius: BorderRadius.circular(AppRadii.large),
+      blur: 8,
+      color: Colors.white.withValues(alpha: 0.72),
+      darkColor: AppColors.darkGlass,
+      borderColor: Colors.white.withValues(alpha: 0.85),
+      darkBorderColor: Colors.white.withValues(alpha: 0.14),
+      borderWidth: 1.2,
+      boxShadow: [
+        BoxShadow(
+          color: isDark ? AppColors.shadow33 : AppColors.shadow08,
+          blurRadius: 18,
+          offset: const Offset(0, 4),
+        ),
+      ],
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: searchPlace,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          child: SizedBox(
+            height: 52,
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                Icon(
+                  Icons.search_rounded,
+                  color: isDark ? AppColors.darkPrimaryLight : green,
+                  size: 21,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    selectedFilter == 'Tümü' || selectedFilter == 'all'
+                        ? AppStrings.get('map_search_places')
+                        : ' ',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textSecondary,
+                      fontSize: AppFontSizes.label,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Semantics(
+                  label: 'Harita filtreleri',
+                  child: Icon(
+                    Icons.tune_rounded,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryRow(bool isDark) {
+    return SizedBox(
+      height: 44,
+      child: ScrollConfiguration(
+        behavior: const _MapCategoryScrollBehavior(),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          itemCount: _mapCategories.length + 1,
+          separatorBuilder: (_, __) => const SizedBox(width: 7),
+          itemBuilder: (_, index) {
+            if (index == 0) {
+              return _MapLocationChip(
+                label: HomeWeatherLocationController.current.value.label,
+                onTap: centerOnUserLocation,
+              );
+            }
+            final category = _mapCategories[index - 1];
+            final selected = selectedFilter == category.label ||
+                selectedFilter == category.key;
+            final chipContent = Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(
+                  color:
+                      selected ? green : Colors.white.withValues(alpha: 0.70),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _mapIconForCategory(category.key),
+                    size: 16,
+                    color: selected
+                        ? Colors.white
+                        : (isDark
+                            ? AppColors.darkPrimaryLight
+                            : AppColors.primary),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    category.localizedLabel,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      color: selected
+                          ? Colors.white
+                          : (isDark ? AppColors.darkTextPrimary : ink),
+                      fontSize: AppFontSizes.caption,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+
+            if (selected) {
+              return GlassContainer(
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                blur: 0,
+                color: green.withValues(alpha: 0.92),
+                darkColor: AppColors.darkPrimary.withValues(alpha: 0.95),
+                borderColor: Colors.white.withValues(alpha: 0.50),
+                borderWidth: 1.2,
+                boxShadow: const [
+                  BoxShadow(
+                    color: AppColors.shadow26,
+                    blurRadius: 10,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _selectMapFilter(category.key),
+                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                    child: chipContent,
+                  ),
+                ),
+              );
+            }
+
+            return GlassContainer(
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+              blur: 0,
+              color: Colors.white.withValues(alpha: 0.82),
+              borderColor: Colors.white.withValues(alpha: 0.85),
+              borderWidth: 1.2,
+              boxShadow: AppShadows.soft,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _selectMapFilter(category.key),
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                  child: chipContent,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget? _buildSubtypeRow(bool isDark) {
+    final cat = placeCategoryByKey(
+      _mapCategories
+          .firstWhere(
+            (item) =>
+                item.key == selectedFilter || item.label == selectedFilter,
+            orElse: () => _mapCategories.first,
+          )
+          .key,
+    );
+    if (cat == null || cat.subtypes.length <= 1) return null;
+
+    return SizedBox(
+      height: 36,
+      child: ScrollConfiguration(
+        behavior: const _MapCategoryScrollBehavior(),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          itemCount: cat.subtypes.length + 1,
+          separatorBuilder: (_, __) => const SizedBox(width: 7),
+          itemBuilder: (_, index) {
+            final subtype = index == 0 ? null : cat.subtypes[index - 1];
+            final isSelected = selectedSubtype == subtype?.key;
+            return GlassContainer(
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+              blur: 0,
+              color: isSelected
+                  ? green.withValues(alpha: 0.92)
+                  : Colors.white.withValues(alpha: 0.82),
+              darkColor: isSelected
+                  ? AppColors.darkPrimary.withValues(alpha: 0.95)
+                  : AppColors.darkSurfaceMuted.withValues(alpha: 0.90),
+              borderColor: isSelected
+                  ? Colors.white.withValues(alpha: 0.50)
+                  : Colors.white.withValues(alpha: 0.70),
+              darkBorderColor: isSelected
+                  ? Colors.white.withValues(alpha: 0.30)
+                  : Colors.white.withValues(alpha: 0.14),
+              borderWidth: 1.2,
+              boxShadow: AppShadows.soft,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => setState(() {
+                    selectedSubtype = isSelected ? null : subtype?.key;
+                    selectedIndex = null;
+                    _selectionHistory.clear();
+                    _clusterCache = null;
+                  }),
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      subtype?.localizedLabel ?? AppStrings.get('all'),
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: AppFontSizes.caption,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? AppColors.darkTextPrimary : ink),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapControls(BuildContext context, bool isDark) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        mapControl(
+          icon: Icons.my_location_rounded,
+          tooltip: 'Konumum',
+          onTap: centerOnUserLocation,
+        ),
+        const SizedBox(height: 8),
+        mapControl(
+          icon: Icons.layers_rounded,
+          tooltip: 'Harita Stili',
+          onTap: _showLayerPicker,
+        ),
+        const SizedBox(height: 8),
+        GlassIconButton(
+          icon: Icons.warning_amber_rounded,
+          tooltip: 'Yardım çağrıları',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const EmergencyHelpMapScreen(),
+            ),
+          ),
+          size: 43,
+          iconSize: 20,
+          iconColor: AppColors.error,
+          blur: 0,
+          color: Colors.white.withValues(alpha: 0.82),
+          borderColor: AppColors.error.withValues(alpha: 0.35),
+          borderWidth: 1.2,
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.shadow08,
+              blurRadius: 12,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        mapControl(
+          icon: Icons.offline_pin_outlined,
+          tooltip: 'Çevrimdışı harita',
+          onTap: showOfflineMapInfo,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildServiceFloatingButton(BuildContext context, bool isDark) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () async {
+          final selected = await Navigator.push<String?>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MobileServiceHubScreen(),
+            ),
+          );
+          if (selected != null && mounted) {
+            setState(() {
+              selectedFilter = 'local_service';
+              selectedSubtype = selected;
+              _mapPlaces = buildMapPlaces();
+              selectedIndex = null;
+              _selectionHistory.clear();
+              _clusterCache = null;
+            });
+            final matching = mapPlaces
+                .where(
+                  (p) =>
+                      p.isMobileService &&
+                      (selected == 'service_roadside' ||
+                          p.resolvedTaxonomy.subtype == selected),
+                )
+                .toList();
+            if (matching.isNotEmpty && matching.first.hasCoordinates) {
+              mapController.move(
+                LatLng(matching.first.latitude!, matching.first.longitude!),
+                13,
+              );
+            }
+          }
+        },
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 7, 8, 7),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: const Color(0xFFE89F2A),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFD97706).withValues(alpha: 0.22),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Servis',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? const Color(0xFFFDE68A)
+                      : const Color(0xFF8B4D08),
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFEF3C7),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.handyman_rounded,
+                  color: Color(0xFFD97706),
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiscoverySheet(Place selectedPlace, double sheetHeight) {
+    return _MapDiscoverySheet(
+      place: selectedPlace,
+      onClose: () => setState(() {
+        selectedIndex = null;
+        _clusterCache = null;
+        _selectionHistory.clear();
+      }),
+      onPrevious: _selectionHistory.isEmpty ? null : previousPlace,
+      onNext: hasNextPlace ? nextPlace : null,
+      onOpen: widget.onOpen,
+    );
+  }
+
+  Widget _buildLandscapeLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+    bool isDark,
+  ) {
+    final selectedPlace = selectedMapPlace;
+    final visiblePlaces = mapPlaces.where(isVisible).toList(growable: false);
+
+    return Row(
+      children: [
+        // Sol %68: Harita
+        Expanded(
+          flex: 68,
+          child: Stack(
             children: [
               Positioned.fill(
                 child: ClipRect(
                   child: ColoredBox(
                     color:
                         isDark ? AppColors.darkSurface : AppColors.surfaceMuted,
-                    child: RepaintBoundary(
-                      child: FlutterMap(
-                        mapController: mapController,
-                        options: MapOptions(
-                          initialCenter: initialCenter,
-                          initialZoom: initialZoom,
-                          minZoom: 4,
-                          maxZoom: 18,
-                          cameraConstraint: CameraConstraint.containLatitude(),
-                          onPositionChanged: handleMapPositionChanged,
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate: switch (_mapStyle) {
-                              _MapStyle.standart =>
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              _MapStyle.uydu =>
-                                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                              _MapStyle.topo =>
-                                'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-                            },
-                            subdomains: _mapStyle == _MapStyle.topo
-                                ? const ['a', 'b', 'c']
-                                : const ['a'],
-                            userAgentPackageName: 'com.dogadagezi.dogada_gezi',
-                            maxNativeZoom:
-                                _mapStyle == _MapStyle.topo ? 17 : 19,
-                            panBuffer: 2,
-                            tileProvider: tileProvider,
-                          ),
-                          MarkerLayer(
-                            markers: [
-                              if (userCoordinate != null)
-                                Marker(
-                                  point: userCoordinate!,
-                                  width: 54,
-                                  height: 54,
-                                  child: const _UserLocationMarker(),
-                                ),
-                            ],
-                          ),
-                          MarkerLayer(
-                            markers: markerClusters.map((cluster) {
-                              if (cluster.placeIndexes.length > 1) {
-                                return Marker(
-                                  point: cluster.center,
-                                  width: 36,
-                                  height: 36,
-                                  alignment: Alignment.center,
-                                  child: _MapClusterMarker(
-                                    cluster: cluster,
-                                    onTap: () => openCluster(cluster),
-                                  ),
-                                );
-                              }
-                              final index = cluster.placeIndexes.single;
-                              final selected = selectedIndex == index;
-                              final showLabel = _mapZoom >= 13.0;
-                              return Marker(
-                                point: cluster.center,
-                                width: selected ? 130 : 110,
-                                height: selected ? 74 : (showLabel ? 58 : 46),
-                                alignment: Alignment.bottomCenter,
-                                child: _MapMarker(
-                                  place: mapPlaces[index],
-                                  selected: selected,
-                                  showLabel: showLabel,
-                                  onTap: () => selectPlace(mapPlaces[index]),
-                                ),
-                              );
-                            }).toList(growable: false),
-                          ),
-                          if (selectedPlace != null)
-                            MarkerLayer(markers: [
-                              Marker(
-                                point: coordinateFor(selectedIndex!),
-                                width: 130,
-                                height: 74,
-                                alignment: Alignment.bottomCenter,
-                                child: _MapMarker(
-                                    place: selectedPlace,
-                                    selected: true,
-                                    showLabel: true,
-                                    onTap: () => selectPlace(selectedPlace)),
-                              )
-                            ]),
-                        ],
-                      ),
-                    ),
+                    child: _buildFlutterMap(isDark),
                   ),
                 ),
               ),
-              Positioned(
-                left: 8,
-                bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
-                child: GlassContainer(
-                  borderRadius: BorderRadius.circular(AppRadii.medium),
-                  blur: 10,
-                  color: Colors.white.withValues(alpha: 0.75),
-                  borderColor: Colors.white.withValues(alpha: 0.65),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                  child: Text(
-                    switch (_mapStyle) {
-                      _MapStyle.standart => '© OpenStreetMap contributors',
-                      _MapStyle.uydu => '© Esri, Maxar, Earthstar',
-                      _MapStyle.topo => '© OpenTopoMap, OSM contributors',
-                    },
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary,
-                      fontSize: AppFontSizes.caption,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                top: 12,
-                child: GlassContainer(
-                  borderRadius: BorderRadius.circular(AppRadii.large),
-                  blur: 8,
-                  color: Colors.white.withValues(alpha: 0.72),
-                  darkColor: AppColors.darkGlass,
-                  borderColor: Colors.white.withValues(alpha: 0.85),
-                  darkBorderColor: Colors.white.withValues(alpha: 0.14),
-                  borderWidth: 1.2,
-                  boxShadow: [
-                    BoxShadow(
-                      color: isDark ? AppColors.shadow33 : AppColors.shadow08,
-                      blurRadius: 18,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: searchPlace,
-                      borderRadius: BorderRadius.circular(AppRadii.large),
-                      child: SizedBox(
-                        height: 52,
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 16),
-                            Icon(Icons.search_rounded,
-                                color:
-                                    isDark ? AppColors.darkPrimaryLight : green,
-                                size: 21),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                selectedFilter == 'Tümü' ||
-                                        selectedFilter == 'all'
-                                    ? AppStrings.get('map_search_places')
-                                    : '${_mapCategories.firstWhere((item) => item.key == selectedFilter || item.label == selectedFilter, orElse: () => _mapCategories.first).localizedLabel} ${AppStrings.get('map_search_in')}',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  color: isDark
-                                      ? AppColors.darkTextPrimary
-                                      : AppColors.textSecondary,
-                                  fontSize: AppFontSizes.label,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            Semantics(
-                              label: 'Harita filtreleri',
-                              child: Icon(Icons.tune_rounded,
-                                  color: isDark
-                                      ? AppColors.darkTextSecondary
-                                      : AppColors.textSecondary,
-                                  size: 20),
-                            ),
-                            const SizedBox(width: 16),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 12,
-                right: 12,
-                top: 72,
-                child: SizedBox(
-                  height: 44,
-                  child: ScrollConfiguration(
-                    behavior: const _MapCategoryScrollBehavior(),
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      itemCount: _mapCategories.length + 1,
-                      separatorBuilder: (_, __) => const SizedBox(width: 7),
-                      itemBuilder: (_, index) {
-                        if (index == 0) {
-                          return _MapLocationChip(
-                            label: HomeWeatherLocationController
-                                .current.value.label,
-                            onTap: centerOnUserLocation,
-                          );
-                        }
-                        final category = _mapCategories[index - 1];
-                        final selected = selectedFilter == category.label ||
-                            selectedFilter == category.key;
-                        final chipContent = Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 11, vertical: 7),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                            border: Border.all(
-                              color: selected
-                                  ? green
-                                  : Colors.white.withValues(alpha: 0.70),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                _mapIconForCategory(category.key),
-                                size: 16,
-                                color: selected
-                                    ? Colors.white
-                                    : (isDark
-                                        ? AppColors.darkPrimaryLight
-                                        : AppColors.primary),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                category.localizedLabel,
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  color: selected
-                                      ? Colors.white
-                                      : (isDark
-                                          ? AppColors.darkTextPrimary
-                                          : ink),
-                                  fontSize: AppFontSizes.caption,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (selected) {
-                          return GlassContainer(
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                            blur: 0,
-                            color: green.withValues(alpha: 0.92),
-                            darkColor:
-                                AppColors.darkPrimary.withValues(alpha: 0.95),
-                            borderColor: Colors.white.withValues(alpha: 0.50),
-                            borderWidth: 1.2,
-                            boxShadow: const [
-                              BoxShadow(
-                                color: AppColors.shadow26,
-                                blurRadius: 10,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => setState(() {
-                                  selectedFilter = category.key;
-                                  selectedSubtype = null;
-                                  selectedIndex = null;
-                                  _selectionHistory.clear();
-                                  _clusterCache = null;
-                                }),
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.pill),
-                                child: chipContent,
-                              ),
-                            ),
-                          );
-                        }
-
-                        return GlassContainer(
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                          blur: 0,
-                          color: Colors.white.withValues(alpha: 0.82),
-                          borderColor: Colors.white.withValues(alpha: 0.85),
-                          borderWidth: 1.2,
-                          boxShadow: AppShadows.soft,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => setState(() {
-                                selectedFilter = category.key;
-                                selectedSubtype = null;
-                                selectedIndex = null;
-                                _selectionHistory.clear();
-                                _clusterCache = null;
-                              }),
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.pill),
-                              child: chipContent,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-              if (placeCategoryByKey(
-                _mapCategories
-                    .firstWhere(
-                        (item) =>
-                            item.key == selectedFilter ||
-                            item.label == selectedFilter,
-                        orElse: () => _mapCategories.first)
-                    .key,
-              )
-                  case final category?)
+              if (MapViewportPointsService.enabled)
                 Positioned(
-                  left: 12,
-                  right: 12,
-                  top: 119,
-                  child: SizedBox(
-                    height: 36,
-                    child: ScrollConfiguration(
-                      behavior: const _MapCategoryScrollBehavior(),
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(
-                          parent: AlwaysScrollableScrollPhysics(),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        itemCount: category.subtypes.length + 1,
-                        separatorBuilder: (_, __) => const SizedBox(width: 7),
-                        itemBuilder: (_, index) {
-                          final subtype =
-                              index == 0 ? null : category.subtypes[index - 1];
-                          final isSelected = selectedSubtype == subtype?.key;
-                          return GlassContainer(
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                            blur: 0,
-                            color: isSelected
-                                ? green.withValues(alpha: 0.92)
-                                : Colors.white.withValues(alpha: 0.82),
-                            darkColor: isSelected
-                                ? AppColors.darkPrimary.withValues(alpha: 0.95)
-                                : AppColors.darkSurfaceMuted
-                                    .withValues(alpha: 0.90),
-                            borderColor: isSelected
-                                ? Colors.white.withValues(alpha: 0.50)
-                                : Colors.white.withValues(alpha: 0.70),
-                            darkBorderColor: isSelected
-                                ? Colors.white.withValues(alpha: 0.30)
-                                : Colors.white.withValues(alpha: 0.14),
-                            borderWidth: 1.2,
-                            boxShadow: AppShadows.soft,
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => setState(() {
-                                  selectedSubtype =
-                                      isSelected ? null : subtype?.key;
-                                  selectedIndex = null;
-                                  _selectionHistory.clear();
-                                  _clusterCache = null;
-                                }),
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.pill),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
-                                  child: Text(
-                                    subtype?.localizedLabel ??
-                                        AppStrings.get('all'),
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: AppFontSizes.caption,
-                                      fontWeight: FontWeight.w600,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : (isDark
-                                              ? AppColors.darkTextPrimary
-                                              : ink),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              Positioned(
-                right: 14,
-                bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
-                child: Column(
-                  children: [
-                    mapControl(
-                      icon: Icons.my_location_rounded,
-                      tooltip: 'Konumum',
-                      onTap: centerOnUserLocation,
-                    ),
-                    const SizedBox(height: 8),
-                    mapControl(
-                      icon: Icons.layers_rounded,
-                      tooltip: 'Harita Stili',
-                      onTap: _showLayerPicker,
-                    ),
-                    const SizedBox(height: 8),
-                    GlassIconButton(
-                      icon: Icons.warning_amber_rounded,
-                      tooltip: 'Yardım çağrıları',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => const EmergencyHelpMapScreen(),
-                        ),
-                      ),
-                      size: 43,
-                      iconSize: 20,
-                      iconColor: AppColors.error,
-                      blur: 0,
-                      color: Colors.white.withValues(alpha: 0.82),
-                      borderColor: AppColors.error.withValues(alpha: 0.35),
-                      borderWidth: 1.2,
-                      borderRadius: BorderRadius.circular(AppRadii.medium),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: AppColors.shadow08,
-                          blurRadius: 12,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    mapControl(
-                      icon: Icons.offline_pin_outlined,
-                      tooltip: 'Çevrimdışı harita',
-                      onTap: showOfflineMapInfo,
-                    ),
-                  ],
-                ),
-              ),
-              if (selectedPlace != null)
-                Positioned(
+                  top: MapViewportPointsService.regionalExplorerEnabled
+                      ? 12
+                      : 124,
                   left: 0,
                   right: 0,
-                  bottom: 0,
-                  height: sheetHeight,
-                  child: _MapDiscoverySheet(
-                    place: selectedPlace,
-                    onClose: () => setState(() {
-                      selectedIndex = null;
-                      _clusterCache = null;
-                      _selectionHistory.clear();
-                    }),
-                    onPrevious:
-                        _selectionHistory.isEmpty ? null : previousPlace,
-                    onNext: hasNextPlace ? nextPlace : null,
-                    onOpen: widget.onOpen,
+                  child: Center(child: _buildSearchThisAreaButton(isDark)),
+                ),
+              Positioned(
+                left: 12,
+                bottom: 18,
+                child: _buildAttribution(isDark),
+              ),
+              Positioned(
+                right: 14,
+                bottom: 18,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _buildMapControls(context, isDark),
+                    const SizedBox(height: 10),
+                    _buildServiceFloatingButton(context, isDark),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Ayrım çizgisi
+        VerticalDivider(
+          width: 1,
+          thickness: 1,
+          color: isDark ? AppColors.darkBorder : AppColors.border,
+        ),
+        // Sağ %32: Arama, filtreler, seçili yer kartı ve yakın yer listesi
+        Expanded(
+          flex: 32,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : Colors.white,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                  child: _buildSearchBar(isDark),
+                ),
+                if (!MapViewportPointsService.regionalExplorerEnabled) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: _buildCategoryRow(isDark),
+                  ),
+                  if (_buildSubtypeRow(isDark) case final subtypeWidget?)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+                      child: subtypeWidget,
+                    ),
+                ] else ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                    child: _buildMapModeControl(isDark),
+                  ),
+                  if (_hasOpenedRegion && !_isAllRegionsMode) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: _buildCategoryRow(isDark),
+                    ),
+                    if (_buildSubtypeRow(isDark) case final subtypeWidget?)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+                        child: subtypeWidget,
+                      ),
+                  ],
+                ],
+                const SizedBox(height: 8),
+                if (selectedPlace != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SizedBox(
+                      height: 224,
+                      child: _buildDiscoverySheet(selectedPlace, 224),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.explore_outlined,
+                        size: 16,
+                        color: isDark
+                            ? AppColors.darkPrimaryLight
+                            : AppColors.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Keşif Noktaları ()',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: AppFontSizes.caption,
+                          fontWeight: FontWeight.w700,
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-            ],
-          );
-        },
+                Expanded(
+                  child: visiblePlaces.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Bu filtreye uygun yer bulunamadı.',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: AppFontSizes.label,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                          itemCount: visiblePlaces.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final place = visiblePlaces[index];
+                            final isCardSelected = selectedPlace == place;
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              decoration: BoxDecoration(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.large),
+                                border: isCardSelected
+                                    ? Border.all(
+                                        color:
+                                            AppColors.accentOrangeOf(context),
+                                        width: 1.8,
+                                      )
+                                    : null,
+                              ),
+                              child: AppCompactPlaceCard(
+                                place: place,
+                                onTap: () => selectPlace(place),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchThisAreaButton(bool isDark) {
+    final usesRegionalExplorer =
+        MapViewportPointsService.regionalExplorerEnabled;
+    final isOpeningFirstRegion = usesRegionalExplorer && !_hasOpenedRegion;
+    final shouldShow = MapViewportPointsService.enabled &&
+        !_isAllRegionsMode &&
+        (isOpeningFirstRegion ||
+            _viewportNeedsSearch ||
+            _isViewportLoading ||
+            _viewportError != null);
+    if (!shouldShow) return const SizedBox.shrink();
+    final retry = _viewportError != null;
+    final label = retry
+        ? 'Bu alanı tekrar yükle'
+        : isOpeningFirstRegion
+            ? 'Bu bölgeyi aç'
+            : 'Bu alanda ara';
+    return Semantics(
+      button: true,
+      label: label,
+      child: FilledButton.icon(
+        onPressed: _isViewportLoading
+            ? null
+            : () => unawaited(_loadViewportPoints(userInitiated: true)),
+        icon: _isViewportLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(retry ? Icons.refresh_rounded : Icons.search_rounded),
+        label: Text(retry
+            ? 'Tekrar dene'
+            : isOpeningFirstRegion
+                ? 'Bu bölgeyi aç'
+                : 'Bu alanda ara'),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(164, AppControlSizes.minimumTouchTarget),
+          backgroundColor: isDark ? AppColors.darkPrimary : AppColors.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          elevation: 3,
+          shadowColor: AppColors.shadow33,
+          shape: const StadiumBorder(),
+        ),
       ),
+    );
+  }
+
+  Widget _buildMapModeControl(bool isDark) {
+    final allRegions = _isAllRegionsMode;
+    final label = allRegions ? 'Bölge görünümüne dön' : 'Tüm bölgeleri aç';
+    return Semantics(
+      button: true,
+      label: label,
+      child: OutlinedButton.icon(
+        onPressed: _toggleAllRegionsMode,
+        icon: Icon(
+          allRegions ? Icons.map_outlined : Icons.public_rounded,
+          size: 18,
+        ),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, AppControlSizes.minimumTouchTarget),
+          foregroundColor:
+              isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+          backgroundColor: isDark ? AppColors.darkSurface : AppColors.surface,
+          side: BorderSide(
+            color: isDark ? AppColors.darkBorder : AppColors.border,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          elevation: 2,
+          shadowColor: AppColors.shadow33,
+          shape: const StadiumBorder(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStandardMapLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+    bool isDark, {
+    required bool isTablet,
+  }) {
+    final selectedPlace = selectedMapPlace;
+    final sheetHeight = selectedPlace == null ? 0.0 : 224.0;
+    final showRegionalFilters =
+        MapViewportPointsService.regionalExplorerEnabled &&
+            _hasOpenedRegion &&
+            !_isAllRegionsMode;
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ClipRect(
+            child: ColoredBox(
+              color: isDark ? AppColors.darkSurface : AppColors.surfaceMuted,
+              child: _buildFlutterMap(isDark),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 8,
+          bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
+          child: _buildAttribution(isDark),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          top: 12,
+          child: isTablet
+              ? Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 620),
+                    child: _buildSearchBar(isDark),
+                  ),
+                )
+              : _buildSearchBar(isDark),
+        ),
+        Positioned(
+          left: 12,
+          right: 12,
+          top: 72,
+          child: MapViewportPointsService.regionalExplorerEnabled
+              ? Center(child: _buildMapModeControl(isDark))
+              : (isTablet
+                  ? Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 620),
+                        child: _buildCategoryRow(isDark),
+                      ),
+                    )
+                  : _buildCategoryRow(isDark)),
+        ),
+        if (showRegionalFilters)
+          Positioned(
+            left: 12,
+            right: 12,
+            top: 124,
+            child: isTablet
+                ? Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 620),
+                      child: _buildCategoryRow(isDark),
+                    ),
+                  )
+                : _buildCategoryRow(isDark),
+          ),
+        if (!MapViewportPointsService.regionalExplorerEnabled ||
+            showRegionalFilters)
+          if (_buildSubtypeRow(isDark) case final subtypeWidget?)
+            Positioned(
+              left: 12,
+              right: 12,
+              top: showRegionalFilters ? 171 : 119,
+              child: isTablet
+                  ? Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 620),
+                        child: subtypeWidget,
+                      ),
+                    )
+                  : subtypeWidget,
+            ),
+        if (MapViewportPointsService.enabled)
+          Positioned(
+            top: MapViewportPointsService.regionalExplorerEnabled
+                ? (showRegionalFilters
+                    ? (_buildSubtypeRow(isDark) == null ? 172 : 216)
+                    : 124)
+                : (_buildSubtypeRow(isDark) == null ? 124 : 168),
+            left: 0,
+            right: 0,
+            child: Center(child: _buildSearchThisAreaButton(isDark)),
+          ),
+        Positioned(
+          right: 14,
+          bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildMapControls(context, isDark),
+              const SizedBox(height: 10),
+              _buildServiceFloatingButton(context, isDark),
+            ],
+          ),
+        ),
+        if (selectedPlace != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: sheetHeight,
+            child: isTablet
+                ? Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 620),
+                      child: _buildDiscoverySheet(selectedPlace, sheetHeight),
+                    ),
+                  )
+                : _buildDiscoverySheet(selectedPlace, sheetHeight),
+          ),
+      ],
     );
   }
 }
@@ -1706,7 +2634,7 @@ class _MapDiscoverySheet extends StatelessWidget {
     return GlassContainer(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       blur: 16,
-      color: Colors.white.withValues(alpha: 0.82),
+      color: Colors.white.withValues(alpha: 0.88),
       darkColor: AppColors.darkGlass,
       border: Border(
         top: BorderSide(
@@ -1723,30 +2651,63 @@ class _MapDiscoverySheet extends StatelessWidget {
           offset: const Offset(0, -4),
         ),
       ],
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      child: Column(children: [
-        Row(children: [
-          IconButton(
-              tooltip: AppStrings.get('map_prev_place'),
-              onPressed: onPrevious,
-              icon: const Icon(Icons.chevron_left_rounded)),
-          Expanded(
-              child: Text(AppStrings.get('map_selected_place'),
-                  style: TextStyle(
-                      color: AppColors.accentOrangeOf(context),
-                      fontWeight: FontWeight.w600))),
-          IconButton(
-              tooltip: AppStrings.get('map_next_place'),
-              onPressed: onNext,
-              icon: const Icon(Icons.chevron_right_rounded)),
-          IconButton(
-              tooltip: AppStrings.get('map_close_card'),
-              onPressed: onClose,
-              icon: const Icon(Icons.close_rounded)),
-        ]),
-        AppMapPreviewCard(
-            place: place, onTap: () => onOpen(place), prominent: true),
-      ]),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: [
+            IconButton(
+                tooltip: AppStrings.get('map_prev_place'),
+                onPressed: onPrevious,
+                icon: const Icon(Icons.chevron_left_rounded)),
+            Expanded(
+                child: Text(AppStrings.get('map_selected_place'),
+                    style: TextStyle(
+                        color: AppColors.accentOrangeOf(context),
+                        fontWeight: FontWeight.w600))),
+            IconButton(
+                tooltip: AppStrings.get('map_next_place'),
+                onPressed: onNext,
+                icon: const Icon(Icons.chevron_right_rounded)),
+            IconButton(
+                tooltip: AppStrings.get('map_close_card'),
+                onPressed: onClose,
+                icon: const Icon(Icons.close_rounded)),
+          ]),
+          AppMapPreviewCard(
+            place: place,
+            onTap: () => onOpen(place),
+            prominent: false,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 40,
+            child: FilledButton.icon(
+              onPressed: () => onOpen(place),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              label: Text(
+                AppStrings.get('map_view_details'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize: AppFontSizes.caption,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                backgroundColor:
+                    isDark ? AppColors.darkPrimary : AppColors.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1786,44 +2747,100 @@ class _MapClusterMarker extends StatelessWidget {
   const _MapClusterMarker({
     required this.cluster,
     required this.onTap,
+    this.showCount = true,
   });
 
   final _MapCluster cluster;
   final VoidCallback onTap;
+  final bool showCount;
 
   @override
   Widget build(BuildContext context) {
     final count = cluster.placeIndexes.length;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppColors.clusterMarker,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: const [
-            BoxShadow(
-              color: AppColors.clusterMarkerShadow,
-              blurRadius: 6,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          '$count',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: AppFontSizes.label,
-            fontWeight: FontWeight.w700,
-            height: 1.0,
+    final category = cluster.dominantCategory;
+    // Uzakta karma noktalar sade bir küme olarak kalır. Aynı kategori baskınsa
+    // kümenin rengi de simgesiyle eşleşir; yaklaştıkça tekil ikonlara geçilir.
+    final markerColor = category == null
+        ? AppColors.clusterMarker
+        : _markerColorForCategory(
+            category,
+            category,
+            isUtility: isUtilitySubtype(category),
+          );
+    final semanticLabel = category == null
+        ? '$count doğa noktası'
+        : '$count ${_mapCategoryLabel(category)} noktası';
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      container: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: markerColor,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: const [
+              BoxShadow(
+                color: AppColors.clusterMarkerShadow,
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
+          alignment: Alignment.center,
+          child: !showCount
+              ? Icon(
+                  category == null
+                      ? Icons.explore_rounded
+                      : _mapIconForCategory(category),
+                  size: 17,
+                  color: Colors.white,
+                )
+              : category == null
+                  ? Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: AppFontSizes.label,
+                        fontWeight: FontWeight.w700,
+                        height: 1.0,
+                      ),
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _mapIconForCategory(category),
+                          size: 15,
+                          color: Colors.white,
+                        ),
+                        Text(
+                          '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            height: 1.0,
+                          ),
+                        ),
+                      ],
+                    ),
         ),
       ),
     );
   }
+}
+
+String _mapCategoryLabel(String key) {
+  if (isUtilitySubtype(key)) return AppStrings.subtype(key);
+  for (final category in _mapCategories) {
+    if (category.key == key) return category.localizedLabel;
+  }
+  return AppStrings.get('all');
 }
 
 // A consistent rounded-stroke pictogram family for landforms absent from
@@ -1972,18 +2989,30 @@ class _LandmarkPainter extends CustomPainter {
       oldDelegate.kind != kind || oldDelegate.color != color;
 }
 
+/// Uzakta noktalar fark edilsin; yaklaştıkça daha çok nokta üst üste
+/// binmeden seçilebilsin. Ölçek ekran pikselinde kasıtlı olarak ters yönde
+/// değişir; P4N'deki keşif davranışını takip eder.
+double _markerScaleForZoom(double zoom) {
+  if (zoom <= 7) return 1.10;
+  if (zoom <= 9) return .93;
+  if (zoom <= 11) return .82;
+  return .70;
+}
+
 class _MapMarker extends StatelessWidget {
   const _MapMarker({
     required this.place,
     required this.selected,
     required this.onTap,
     this.showLabel = false,
+    this.sizeScale = 1,
   });
 
   final Place place;
   final bool selected;
   final VoidCallback onTap;
   final bool showLabel;
+  final double sizeScale;
 
   @override
   Widget build(BuildContext context) {
@@ -1995,6 +3024,8 @@ class _MapMarker extends StatelessWidget {
       taxonomy.subtype,
       isUtility: isUtility,
     );
+    final markerSize = (isUtility ? 20.0 : 27.0) * sizeScale;
+    final symbolSize = (isUtility ? 10.0 : 13.0) * sizeScale;
 
     return Semantics(
       label: 'Haritada ${place.name}',
@@ -2071,8 +3102,8 @@ class _MapMarker extends StatelessWidget {
                       ],
                     )
                   : Container(
-                      width: 30,
-                      height: 30,
+                      width: markerSize,
+                      height: markerSize,
                       decoration: BoxDecoration(
                         color: isUtility ? Colors.white : catColor,
                         shape: BoxShape.circle,
@@ -2092,7 +3123,7 @@ class _MapMarker extends StatelessWidget {
                       child: _MapPlaceSymbol(
                         place: place,
                         color: isUtility ? catColor : Colors.white,
-                        size: 15,
+                        size: symbolSize,
                       ),
                     ),
             ),
@@ -2109,37 +3140,46 @@ Color _markerColorForCategory(
   bool isUtility = false,
 }) {
   if (isUtility) return AppColors.categoryUtility;
+  if (mainCategory == 'local_service') return const Color(0xFFD97706);
   return switch (mainCategory) {
-    'water' => AppColors.categoryWater,
-    'mountain_terrain' => AppColors.categoryMountain,
-    'natural_formation' => AppColors.categoryFormation,
-    'nature_area' => AppColors.categoryNature,
-    'camp_caravan' => AppColors.categoryCamp,
-    'route_activity' => AppColors.categoryRoute,
-    'discovery_point' => AppColors.categoryDiscovery,
-    'wildlife' => AppColors.categoryWildlife,
+    'lake' || 'waterfall' => AppColors.categoryWater,
+    'canyon_valley' || 'cave' => AppColors.categoryFormation,
+    'national_park' => AppColors.categoryNature,
+    'camp' || 'caravan' => AppColors.categoryCamp,
     _ => AppColors.clusterMarker,
   };
 }
 
 IconData _mapIconForCategory(String key) => switch (key) {
       'all' => Icons.explore_rounded,
-      'water' => Icons.water_drop_outlined,
-      'mountain_terrain' => Icons.terrain_rounded,
-      'natural_formation' => Icons.landscape_rounded,
-      'nature_area' => Icons.park_outlined,
-      'camp_caravan' => Icons.cabin_outlined,
-      'route_activity' => Icons.directions_walk_rounded,
-      'discovery_point' => Icons.visibility_outlined,
-      'wildlife' => Icons.pets_outlined,
+      'camp' => Icons.cabin_rounded,
+      'caravan' => Icons.rv_hookup_rounded,
+      'lake' => Icons.water_rounded,
+      'waterfall' => Icons.waterfall_chart_rounded,
+      'canyon_valley' => Icons.terrain_rounded,
+      'cave' => Icons.landscape_rounded,
+      'national_park' => Icons.forest_rounded,
       'toilet' => Icons.wc_outlined,
       'drinking_water' => Icons.water_drop_outlined,
       'water_fountain' => Icons.water_rounded,
+      'water_amenities' => Icons.water_drop_outlined,
+      'local_service' => Icons.handyman_rounded,
       _ => Icons.place_outlined,
     };
 
 IconData _mapIconForPlace(Place place) {
   final taxonomy = place.resolvedTaxonomy;
+  if (taxonomy.mainCategory == 'local_service' ||
+      taxonomy.subtype == 'local_service' ||
+      place.isMobileService ||
+      place.kind.toLowerCase().contains('servis') ||
+      place.kind.toLowerCase().contains('işletme') ||
+      place.kind.toLowerCase().contains('isletme')) {
+    if (taxonomy.subtype != null && taxonomy.subtype != 'local_service') {
+      return iconForCategoryKey(taxonomy.subtype);
+    }
+    return Icons.handyman_rounded;
+  }
   return switch (taxonomy.subtype ?? taxonomy.mainCategory) {
     'waterfall' => Icons.waterfall_chart_rounded,
     'lake' ||
@@ -2200,34 +3240,116 @@ class _MapPlaceSearchDelegate extends SearchDelegate<Place?> {
   final String? subtype;
 
   List<Place> matches() {
-    final normalized = query.trim().toLowerCase();
+    final normalized =
+        query.trim().replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+    if (normalized.isEmpty) return const <Place>[];
+
     final searchPlaces = <Place>[
       ...SupabasePlacesController.places.value,
       ...UserPlacesController.places.value,
     ].where((place) {
       return _matchesMapFilter(place, category, subtype);
     });
-    if (normalized.isEmpty) return searchPlaces.toList(growable: false);
-    return searchPlaces
-        .where((place) => '${place.name} ${place.location} ${place.kind}'
-            .toLowerCase()
-            .contains(normalized))
-        .toList(growable: false);
+
+    final filtered = searchPlaces.where((place) {
+      final target = '${place.name} ${place.location} ${place.kind}'
+          .replaceAll('İ', 'i')
+          .replaceAll('I', 'ı')
+          .toLowerCase();
+      return target.contains(normalized);
+    }).toList();
+
+    filtered.sort((a, b) {
+      final aName =
+          a.name.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+      final bName =
+          b.name.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+      final aLoc =
+          a.location.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+      final bLoc =
+          b.location.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+
+      int score(String name, String loc) {
+        if (name.startsWith(normalized)) return 0;
+        if (name.contains(normalized)) return 1;
+        if (loc.startsWith(normalized)) return 2;
+        if (loc.contains(normalized)) return 3;
+        return 4;
+      }
+
+      final cmp = score(aName, aLoc).compareTo(score(bName, bLoc));
+      if (cmp != 0) return cmp;
+      return a.name.compareTo(b.name);
+    });
+
+    return filtered;
   }
 
   Widget results(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final normalized = query.trim();
+    if (normalized.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.search_rounded,
+                size: 52,
+                color: isDark
+                    ? AppColors.darkTextSecondary.withValues(alpha: 0.35)
+                    : AppColors.textTertiary,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                category == 'Tümü'
+                    ? 'Aramak istediğin doğa noktasını veya şehri yaz'
+                    : '$category kategorisinde aramak istediğin yeri yaz',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                  fontSize: AppFontSizes.body,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final found = matches();
     if (found.isEmpty) {
       return Center(
-        child: Text(
-          category == 'Tümü'
-              ? 'Aramana uygun bir yer bulunamadı.'
-              : '$category kategorisinde gösterilecek yer bulunamadı.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color:
-                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.travel_explore_outlined,
+                size: 48,
+                color: isDark
+                    ? AppColors.darkTextSecondary.withValues(alpha: 0.35)
+                    : AppColors.textTertiary,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                category == 'Tümü'
+                    ? '"$normalized" ile eşleşen bir yer bulunamadı.'
+                    : '$category kategorisinde "$normalized" ile eşleşen yer bulunamadı.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                  fontSize: AppFontSizes.body,
+                ),
+              ),
+            ],
           ),
         ),
       );

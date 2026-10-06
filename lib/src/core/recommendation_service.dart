@@ -16,6 +16,12 @@ class PlaceRecommendation {
     if (score >= 65) return 'İyi seçenek';
     return 'Keşfetmeye değer';
   }
+
+  /// The ranking service orders reasons from strongest to weakest, so the
+  /// first one is the clearest explanation to show on a compact card.
+  String get primaryReason => reasons.isEmpty
+      ? 'Keşfetmeye değer bir doğa noktası'
+      : reasons.first;
 }
 
 class RecommendationService {
@@ -27,6 +33,7 @@ class RecommendationService {
   static const double trustWeight = 10;
   static const double ratingWeight = 10;
   static const double categoryWeight = 10;
+  static const double photoWeight = 15;
 
   static List<PlaceRecommendation> rank({
     required Iterable<Place> places,
@@ -120,6 +127,16 @@ class RecommendationService {
       if (categoryMatch) {
         reasonCandidates.add((strength: 1, text: 'Seçtiğin kategoriye uygun'));
       }
+    }
+
+    final hasPhoto = (place.image?.trim().isNotEmpty ?? false) ||
+        (PlaceEnrichmentService.findSync(place)?.primaryPhoto != null);
+    if (hasPhoto) {
+      weightedScore += 1.0 * photoWeight;
+      usedWeight += photoWeight;
+      reasonCandidates.add((strength: 0.85, text: 'Fotoğraflı ve detaylı'));
+    } else {
+      usedWeight += photoWeight;
     }
 
     final normalized =

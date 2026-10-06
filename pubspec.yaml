@@ -1,7 +1,7 @@
 name: dogada_gezi
 description: Doğa keşifleri için sade Flutter mobil uygulaması.
 publish_to: none
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.6.0 <4.0.0'
@@ -32,6 +32,15 @@ flutter:
   assets:
     - assets/branding/dogadayim_logo_full.png
     - assets/branding/dogadayim_logo_mark.png
+    - assets/images/auth_misty_forest.jpg
+    - assets/photos/ekotaban_optimized/012f751248c32853523e.jpg
+    - assets/photos/ekotaban_optimized/6163f613af33596c7c1a.jpg
+    - assets/photos/ekotaban_optimized/bd65c7c5d50856793c17.jpg
+    - assets/photos/ekotaban_optimized/7aa43047063126595c33.jpg
+    - assets/photos/ekotaban_optimized/530c804189b8a718fda7.jpg
+    - assets/photos/ekotaban_optimized/6bd6868d93af4cf609d5.jpg
+    - assets/photos/ekotaban_optimized/2de1507c506dcbc463ec.jpg
+    - assets/photos/ekotaban_optimized/191144a986a7537f8510.jpg
     - assets/maps/turkiye_provinces_paintmaps.png
     - assets/maps/turkiye_il_haritasi.svg
     - assets/data/marmara_place_enrichment.json
@@ -39,6 +48,7 @@ flutter:
     - assets/data/turkiye_research_places.json
     - assets/data/research_photos.json
     - assets/data/research_photo_places.json
+    - assets/data/ekotaban_photo_assets.json
   fonts:
     - family: Fraunces
       fonts:

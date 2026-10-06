@@ -6,6 +6,32 @@ enum EmergencyContactPreference { locationOnly, contactDetails }
 
 enum EmergencyHelpStatus { active, resolved }
 
+enum EmergencyHelpReportReason {
+  spam,
+  falseAlarm,
+  inappropriate,
+  resolvedAlready,
+  other,
+}
+
+extension EmergencyHelpReportReasonDetails on EmergencyHelpReportReason {
+  String get databaseValue => switch (this) {
+        EmergencyHelpReportReason.spam => 'spam',
+        EmergencyHelpReportReason.falseAlarm => 'false_alarm',
+        EmergencyHelpReportReason.inappropriate => 'inappropriate',
+        EmergencyHelpReportReason.resolvedAlready => 'resolved_already',
+        EmergencyHelpReportReason.other => 'other',
+      };
+
+  String get label => switch (this) {
+        EmergencyHelpReportReason.spam => 'Spam veya kötüye kullanım',
+        EmergencyHelpReportReason.falseAlarm => 'Yanlış çağrı',
+        EmergencyHelpReportReason.inappropriate => 'Uygunsuz içerik',
+        EmergencyHelpReportReason.resolvedAlready => 'Yardım ulaştı / çağrı kapanmalı',
+        EmergencyHelpReportReason.other => 'Diğer',
+      };
+}
+
 extension EmergencyHelpTypeDetails on EmergencyHelpType {
   String get databaseValue => switch (this) {
         EmergencyHelpType.lost => 'lost',
@@ -99,6 +125,7 @@ class EmergencyHelpRequest {
     required this.createdAt,
     required this.expiresAt,
     this.resolvedAt,
+    this.isUnlocked = false,
   });
 
   final String id;
@@ -112,6 +139,7 @@ class EmergencyHelpRequest {
   final DateTime createdAt;
   final DateTime expiresAt;
   final DateTime? resolvedAt;
+  final bool isUnlocked;
 
   bool isVisibleAt(DateTime instant) =>
       status == EmergencyHelpStatus.active && expiresAt.isAfter(instant);
@@ -125,8 +153,16 @@ class EmergencyHelpRequest {
 
   LatLng get coordinate => LatLng(latitude, longitude);
 
+  LatLng get approximateCoordinate {
+    final hash = id.hashCode;
+    final latOffset = ((hash % 100) - 50) * 0.00006;
+    final lngOffset = (((hash ~/ 100) % 100) - 50) * 0.00006;
+    return LatLng(latitude + latOffset, longitude + lngOffset);
+  }
+
   static EmergencyHelpRequest fromJson(Map<String, dynamic> row) {
     final status = row['status']?.toString();
+    final unlocked = row['is_accepted'] == true || row['is_unlocked'] == true;
     return EmergencyHelpRequest(
       id: row['id'].toString(),
       requesterId: row['requester_id'].toString(),
@@ -145,6 +181,7 @@ class EmergencyHelpRequest {
       resolvedAt: row['resolved_at'] == null
           ? null
           : DateTime.parse(row['resolved_at'].toString()).toLocal(),
+      isUnlocked: unlocked,
     );
   }
 }
@@ -157,6 +194,86 @@ class EmergencyHelpController {
   );
   static final isLoading = ValueNotifier<bool>(false);
   static final isAvailable = ValueNotifier<bool>(true);
+  static final acceptedRequestIds = ValueNotifier<Set<String>>(<String>{});
+
+  static bool isAccepted(String id) =>
+      acceptedRequestIds.value.contains(id) ||
+      requests.value.any((r) => r.id == id && r.isUnlocked);
+
+  /// Only a successful response from the server may unlock private details.
+  static bool shouldUnlockFromAcceptanceResponse(Object? response) =>
+      response is Map && response['success'] == true;
+
+  static Future<bool> acceptRequest(String id) async {
+    try {
+      final client = Supabase.instance.client;
+      final res = await client.rpc(
+        'accept_help_request',
+        params: {'p_request_id': id},
+      );
+      if (!shouldUnlockFromAcceptanceResponse(res)) return false;
+      acceptedRequestIds.value = {...acceptedRequestIds.value, id};
+      if (res is Map) {
+        final lat = (res['latitude'] as num?)?.toDouble();
+        final lon = (res['longitude'] as num?)?.toDouble();
+        final contact = res['contact_value']?.toString();
+        requests.value = requests.value.map((r) {
+          if (r.id == id) {
+            return EmergencyHelpRequest(
+              id: r.id,
+              requesterId: r.requesterId,
+              type: r.type,
+              contactPreference: r.contactPreference,
+              contactValue: contact ?? r.contactValue,
+              latitude: lat ?? r.latitude,
+              longitude: lon ?? r.longitude,
+              status: r.status,
+              createdAt: r.createdAt,
+              expiresAt: r.expiresAt,
+              resolvedAt: r.resolvedAt,
+              isUnlocked: true,
+            );
+          }
+          return r;
+        }).toList();
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> reportRequest(
+    String requestId,
+    EmergencyHelpReportReason reason,
+  ) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw StateError('Şikâyet göndermek için önce hesabına giriş yapmalısın.');
+    }
+    await Supabase.instance.client.from('help_request_reports').insert({
+      'request_id': requestId,
+      'reporter_id': userId,
+      'reason': reason.databaseValue,
+    });
+  }
+
+  static Future<void> cancelAcceptance(String id) async {
+    try {
+      final client = Supabase.instance.client;
+      await client.rpc(
+        'cancel_help_request_acceptance',
+        params: {'p_request_id': id},
+      );
+    } catch (_) {}
+    acceptedRequestIds.value =
+        acceptedRequestIds.value.where((x) => x != id).toSet();
+    await load();
+  }
+
+  static void clearLocalData() {
+    acceptedRequestIds.value = const <String>{};
+  }
 
   static String? get currentUserId {
     try {
@@ -217,13 +334,36 @@ class EmergencyHelpController {
     final userId = currentUserId;
     isLoading.value = true;
     try {
+      if (userId != null) {
+        try {
+          final acceptances = await client
+              .from('help_request_acceptances')
+              .select('request_id')
+              .eq('helper_id', userId)
+              .eq('status', 'active');
+          acceptedRequestIds.value = (acceptances as List)
+              .map((r) => r['request_id']?.toString() ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet();
+        } catch (_) {}
+      }
+
       final now = DateTime.now().toUtc().toIso8601String();
-      final visible = await client
-          .from('help_requests')
-          .select()
-          .eq('status', 'active')
-          .gt('expires_at', now)
-          .order('created_at', ascending: false);
+      dynamic visible;
+      try {
+        visible = await client
+            .from('help_requests_feed')
+            .select()
+            .order('created_at', ascending: false);
+      } catch (_) {
+        visible = await client
+            .from('help_requests')
+            .select()
+            .eq('status', 'active')
+            .gt('expires_at', now)
+            .order('created_at', ascending: false);
+      }
+
       final own = userId == null
           ? const <dynamic>[]
           : await client
@@ -334,7 +474,14 @@ class EmergencyManualLocation {
 class EmergencyHelpRequestSheet extends StatefulWidget {
   const EmergencyHelpRequestSheet({super.key});
 
-  static Future<EmergencyHelpRequest?> show(BuildContext context) {
+  static Future<EmergencyHelpRequest?> show(BuildContext context) async {
+    final allowed = await AppAuthGuard.requireAuth(
+      context,
+      title: AppStrings.get('guest_auth_title'),
+      message: AppStrings.get('guest_emergency_request_prompt'),
+    );
+    if (!allowed || !context.mounted) return null;
+
     return showModalBottomSheet<EmergencyHelpRequest>(
       context: context,
       isScrollControlled: true,
@@ -879,10 +1026,11 @@ class _EmergencyHelpMapScreenState extends State<EmergencyHelpMapScreen> {
 
   void _showRequest(EmergencyHelpRequest request) {
     final isMine = request.requesterId == EmergencyHelpController.currentUserId;
+    final isAccepted = isMine || EmergencyHelpController.isAccepted(request.id);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
           child: Column(
@@ -901,28 +1049,73 @@ class _EmergencyHelpMapScreenState extends State<EmergencyHelpMapScreen> {
               ]),
               const SizedBox(height: 16),
               _EmergencyInfoRow(
-                  icon: Icons.location_on_outlined,
-                  text:
-                      '${request.latitude.toStringAsFixed(5)}, ${request.longitude.toStringAsFixed(5)}'),
+                icon: Icons.location_on_outlined,
+                text: isAccepted
+                    ? '${request.latitude.toStringAsFixed(5)}, ${request.longitude.toStringAsFixed(5)}'
+                    : 'Yaklaşık bölge (~300-500 m çevre)',
+              ),
               const SizedBox(height: 10),
               _EmergencyInfoRow(
                 icon: request.sharesContact
                     ? Icons.phone_outlined
                     : Icons.location_searching_rounded,
-                text: request.sharesContact
-                    ? request.contactValue!.trim()
-                    : 'Yalnız konum paylaşımı seçildi',
+                text: isAccepted
+                    ? (request.sharesContact
+                        ? request.contactValue!.trim()
+                        : 'Yalnız konum paylaşımı seçildi')
+                    : (request.sharesContact
+                        ? 'İletişim gizli (Yardım kabul edilince açılır)'
+                        : 'Yalnız konum paylaşımı seçildi'),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  border: Border.all(
+                    color: AppColors.error.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.emergency_rounded,
+                        color: AppColors.error, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Hayati tehlikede öncelikle 112 Acil Çağrı Merkezi aranmalıdır.',
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontSize: AppFontSizes.caption,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
               Text(
                 isMine
                     ? 'Çağrın aktif. Yardım ulaştığında aşağıdan sonlandır.'
-                    : 'Bu çağrı uygulama içi bir yardım duyurusudur. Hayati tehlikede 112 aranmalıdır.',
+                    : 'Bu çağrı uygulama içi bir yardım duyurusudur.',
                 style: TextStyle(
-                    color: AppColors.textSecondaryOf(context),
+                    color: AppColors.textSecondaryOf(sheetContext),
                     fontSize: AppFontSizes.caption,
                     height: 1.35),
               ),
+              if (!isMine) ...[
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _showReportOptions(request),
+                    icon: const Icon(Icons.flag_outlined, size: 17),
+                    label: const Text('Şüpheli çağrıyı bildir'),
+                  ),
+                ),
+              ],
               if (isMine) ...[
                 const SizedBox(height: 16),
                 SizedBox(
@@ -930,7 +1123,7 @@ class _EmergencyHelpMapScreenState extends State<EmergencyHelpMapScreen> {
                   height: 48,
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      Navigator.pop(context);
+                      Navigator.pop(sheetContext);
                       _confirmResolve(request);
                     },
                     icon: const Icon(Icons.check_circle_outline_rounded),
@@ -940,12 +1133,131 @@ class _EmergencyHelpMapScreenState extends State<EmergencyHelpMapScreen> {
                         side: const BorderSide(color: AppColors.error)),
                   ),
                 ),
+              ] else if (!isAccepted) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final allowed = await AppAuthGuard.requireAuth(
+                        sheetContext,
+                        title: AppStrings.get('guest_auth_title'),
+                        message: AppStrings.get('guest_emergency_accept_prompt'),
+                      );
+                      if (!allowed) return;
+                      final accepted =
+                          await EmergencyHelpController.acceptRequest(request.id);
+                      if (!sheetContext.mounted) return;
+                      if (!accepted) {
+                        ScaffoldMessenger.of(sheetContext).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Çağrı kabul edilemedi. Bağlantını kontrol edip tekrar dene.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(sheetContext);
+                      final updated = EmergencyHelpController.requests.value
+                          .firstWhere((r) => r.id == request.id,
+                              orElse: () => request);
+                      _showRequest(updated);
+                    },
+                    icon: const Icon(Icons.volunteer_activism_rounded),
+                    label: const Text('Yardım Etmek İstiyorum (İletişimi Aç)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ] else if (isAccepted && request.sharesContact) ...[
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => _handleContactAction(
+                      sheetContext,
+                      request.contactValue!.trim(),
+                    ),
+                    icon: const Icon(Icons.phone_in_talk_rounded),
+                    label: Text('İletişim: ${request.contactValue!.trim()}'),
+                  ),
+                ),
               ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _showReportOptions(EmergencyHelpRequest request) async {
+    final reason = await showModalBottomSheet<EmergencyHelpReportReason>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Çağrıyı neden bildiriyorsun?',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: AppFontSizes.title,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...EmergencyHelpReportReason.values.map(
+                (item) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(item.label),
+                  onTap: () => Navigator.pop(sheetContext, item),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (reason == null || !mounted) return;
+    try {
+      await EmergencyHelpController.reportRequest(request.id, reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bildirim alındı. İncelemeye alınacak.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bildirim gönderilemedi. Lütfen tekrar dene.')),
+      );
+    }
+  }
+
+  void _handleContactAction(BuildContext ctx, String raw) async {
+    final cleaned = raw.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    final isPhone = RegExp(r'^\+?[0-9]{7,15}$').hasMatch(cleaned);
+    if (isPhone) {
+      final uri = Uri(scheme: 'tel', path: cleaned);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+        return;
+      }
+    }
+    await Clipboard.setData(ClipboardData(text: raw));
+    if (ctx.mounted) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(content: Text('İletişim bilgisi panoya kopyalandı.')),
+      );
+    }
   }
 
   @override
@@ -984,14 +1296,20 @@ class _EmergencyHelpMapScreenState extends State<EmergencyHelpMapScreen> {
                     ),
                     MarkerLayer(
                       markers: visible
-                          .map((request) => Marker(
-                                point: request.coordinate,
-                                width: 64,
-                                height: 72,
-                                alignment: Alignment.bottomCenter,
-                                child: _EmergencyMapMarker(
-                                    onTap: () => _showRequest(request)),
-                              ))
+                          .map((request) {
+                            final isOwner = request.requesterId ==
+                                EmergencyHelpController.currentUserId;
+                            return Marker(
+                              point: isOwner
+                                  ? request.coordinate
+                                  : request.approximateCoordinate,
+                              width: 64,
+                              height: 72,
+                              alignment: Alignment.bottomCenter,
+                              child: _EmergencyMapMarker(
+                                  onTap: () => _showRequest(request)),
+                            );
+                          })
                           .toList(growable: false),
                     ),
                   ],
