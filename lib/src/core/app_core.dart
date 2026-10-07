@@ -737,6 +737,54 @@ class Place {
   final String? googlePhotoSearchUrl;
   final String? contributorName;
 
+  Place copyWith({
+    String? name,
+    String? location,
+    String? kind,
+    double? rating,
+    IconData? icon,
+    List<Color>? colors,
+    String? image,
+    String? description,
+    double? latitude,
+    double? longitude,
+    double? distanceKm,
+    String? sourceId,
+    DateTime? updatedAt,
+    PlaceSource? source,
+    VerificationStatus? verificationStatus,
+    List<String>? features,
+    String? mainCategory,
+    String? subtype,
+    PlaceFacilities? facilities,
+    String? googlePhotoSearchUrl,
+    String? contributorName,
+  }) {
+    return Place(
+      name ?? this.name,
+      location ?? this.location,
+      kind ?? _legacyKind,
+      rating ?? this.rating,
+      icon ?? this.icon,
+      colors ?? this.colors,
+      image ?? this.image,
+      description: description ?? this.description,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      distanceKm: distanceKm ?? this.distanceKm,
+      sourceId: sourceId ?? this.sourceId,
+      updatedAt: updatedAt ?? this.updatedAt,
+      source: source ?? this.source,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      features: features ?? this.features,
+      mainCategory: mainCategory ?? this.mainCategory,
+      subtype: subtype ?? this.subtype,
+      facilities: facilities ?? this.facilities,
+      googlePhotoSearchUrl: googlePhotoSearchUrl ?? this.googlePhotoSearchUrl,
+      contributorName: contributorName ?? this.contributorName,
+    );
+  }
+
   ({String? mainCategory, String? subtype}) get resolvedTaxonomy {
     final cleaned = cleanDiscoveryTaxonomy(
       mainCategory: mainCategory,
@@ -1835,6 +1883,125 @@ abstract final class MapViewportPointsService {
   }
 }
 
+class ProvinceExplorerSnapshot {
+  const ProvinceExplorerSnapshot({
+    required this.city,
+    required this.places,
+    required this.counts,
+    required this.districtCount,
+  });
+
+  final String city;
+  final List<Place> places;
+  final Map<String, int> counts;
+  final int districtCount;
+
+  int get totalCount => counts.values.fold(0, (sum, count) => sum + count);
+  int countFor(String category) => counts[category] ?? 0;
+
+  List<Place> placesFor(String category) => places
+      .where((place) => provinceExplorerCategoryFor(place) == category)
+      .toList(growable: false);
+}
+
+String provinceExplorerCategoryFor(Place place) {
+  final taxonomy = place.resolvedTaxonomy;
+  final subtype = taxonomy.subtype;
+  if (subtype == 'drinking_water' || subtype == 'water_fountain') {
+    return 'water_amenities';
+  }
+  return taxonomy.mainCategory ?? subtype ?? 'other';
+}
+
+/// Seçili ilin gerçek, yayınlanmış harita verisini ve toplamlarını tek yerde
+/// toplar. RPC canlıya uygulanmadan önce uygulama boş/muğlak sayı göstermek
+/// yerine açık hata durumu döndürür.
+abstract final class ProvinceExplorerDataService {
+  static Future<ProvinceExplorerSnapshot> fetch(String city) async {
+    final results = await Future.wait<Object?>([
+      Supabase.instance.client.rpc(
+        'province_explorer_points',
+        params: <String, dynamic>{'p_city': city, 'p_limit': 500},
+      ),
+      Supabase.instance.client.rpc(
+        'province_explorer_summary',
+        params: <String, dynamic>{'p_city': city},
+      ),
+    ]);
+    final places = _decodePoints(results.first);
+    final counts = <String, int>{};
+    var districtCount = 0;
+    final rawSummary = results.last;
+    if (rawSummary is List) {
+      for (final raw in rawSummary) {
+        if (raw is! Map) continue;
+        final row = Map<String, dynamic>.from(raw);
+        final key = row['category_key']?.toString();
+        if (key == null || key.isEmpty) continue;
+        counts[key] = (row['point_count'] as num?)?.toInt() ?? 0;
+        districtCount = math.max(
+          districtCount,
+          (row['district_count'] as num?)?.toInt() ?? 0,
+        );
+      }
+    }
+    return ProvinceExplorerSnapshot(
+      city: city,
+      places: places,
+      counts: counts,
+      districtCount: districtCount,
+    );
+  }
+
+  static List<Place> _decodePoints(Object? response) {
+    if (response is! List) return const <Place>[];
+    final seen = <String>{};
+    return response
+        .whereType<Map>()
+        .map((raw) {
+          final row = Map<String, dynamic>.from(raw);
+          final sourceKind = row['source_kind']?.toString() ?? 'place';
+          final id = row['id']?.toString() ?? '';
+          final subtype = row['subtype']?.toString();
+          final mainCategory = row['main_category']?.toString();
+          final latitude = (row['latitude'] as num?)?.toDouble();
+          final longitude = (row['longitude'] as num?)?.toDouble();
+          final name = row['name']?.toString().trim() ?? '';
+          if (name.isEmpty ||
+              !AddPlaceQualityService.isValidCoordinate(latitude, longitude) ||
+              !seen.add('$sourceKind:$id')) {
+            return null;
+          }
+          final locality = <String>[
+            row['district']?.toString().trim() ?? '',
+            row['city']?.toString().trim() ?? '',
+          ].where((value) => value.isNotEmpty).join(', ');
+          final category = mainCategory ?? subtype;
+          return Place(
+            name,
+            locality,
+            canonicalPlaceCategory(category ?? 'Doğa Noktası'),
+            0,
+            iconForCategoryKey(category),
+            MapViewportPointsService._paletteFor(
+              category,
+              isAmenity: row['is_amenity'] == true,
+            ),
+            null,
+            latitude: latitude,
+            longitude: longitude,
+            sourceId: '$sourceKind:$id',
+            source: PlaceSource.curated,
+            verificationStatus: VerificationStatus.verified,
+            mainCategory: mainCategory,
+            subtype: subtype,
+          );
+        })
+        .whereType<Place>()
+        .toList(growable: false);
+  }
+}
+
 class SupabasePlacesController {
   SupabasePlacesController._();
 
@@ -2114,6 +2281,8 @@ class ReviewEntry {
     required this.content,
     required this.rating,
     required this.helpfulCount,
+    this.socialHandle,
+    this.socialPlatform,
   });
 
   final String id;
@@ -2125,6 +2294,8 @@ class ReviewEntry {
   final String content;
   final int rating;
   final int helpfulCount;
+  final String? socialHandle;
+  final String? socialPlatform;
 }
 
 class UserReviewRecord {
@@ -2138,6 +2309,8 @@ class UserReviewRecord {
     required this.createdAt,
     this.recommended,
     this.recommendationReasons = const <String>[],
+    this.socialHandle,
+    this.socialPlatform,
   });
 
   final String id;
@@ -2149,6 +2322,8 @@ class UserReviewRecord {
   final DateTime createdAt;
   final bool? recommended;
   final List<String> recommendationReasons;
+  final String? socialHandle;
+  final String? socialPlatform;
 
   ReviewEntry toEntry() {
     final cleanName = userName.trim().isNotEmpty ? userName.trim() : 'Sen';
@@ -2163,6 +2338,8 @@ class UserReviewRecord {
       content: content,
       rating: rating,
       helpfulCount: 0,
+      socialHandle: socialHandle,
+      socialPlatform: socialPlatform,
     );
   }
 
@@ -2187,6 +2364,8 @@ class UserReviewRecord {
         'createdAt': createdAt.toIso8601String(),
         'recommended': recommended,
         'recommendationReasons': recommendationReasons,
+        'socialHandle': socialHandle,
+        'socialPlatform': socialPlatform,
       };
 
   factory UserReviewRecord.fromJson(Map<String, dynamic> json) {
@@ -2204,6 +2383,8 @@ class UserReviewRecord {
               ?.map((e) => e.toString())
               .toList(growable: false) ??
           const <String>[],
+      socialHandle: json['socialHandle']?.toString(),
+      socialPlatform: json['socialPlatform']?.toString(),
     );
   }
 }
@@ -2281,6 +2462,8 @@ class UserReviewsController {
     required String content,
     bool? recommended,
     List<String> reasons = const <String>[],
+    String? socialHandle,
+    String? socialPlatform,
   }) async {
     final pKey = placeKey(place);
     User? user;
@@ -2298,6 +2481,7 @@ class UserReviewsController {
         ? fullName
         : (email.isNotEmpty ? email.split('@').first : 'Sen');
 
+    final cleanHandle = socialHandle?.trim();
     final record = UserReviewRecord(
       id: 'rev-${DateTime.now().microsecondsSinceEpoch}',
       placeKey: pKey,
@@ -2308,6 +2492,13 @@ class UserReviewsController {
       createdAt: DateTime.now(),
       recommended: recommended,
       recommendationReasons: reasons,
+      socialHandle:
+          cleanHandle != null && cleanHandle.isNotEmpty ? cleanHandle : null,
+      socialPlatform: cleanHandle != null && cleanHandle.isNotEmpty
+          ? (socialPlatform?.trim().isNotEmpty == true
+              ? socialPlatform!.trim()
+              : 'instagram')
+          : null,
     );
 
     final updated =
@@ -2338,6 +2529,76 @@ class UserReviewsController {
           .map((item) => jsonEncode(item.toJson()))
           .toList(growable: false),
     );
+  }
+}
+
+class PlaceViewStats {
+  const PlaceViewStats({
+    required this.placeId,
+    required this.viewsToday,
+    required this.views24h,
+    required this.views7d,
+    required this.viewsTotal,
+  });
+
+  final String placeId;
+  final int viewsToday;
+  final int views24h;
+  final int views7d;
+  final int viewsTotal;
+
+  factory PlaceViewStats.fromJson(Map<String, dynamic> json) {
+    return PlaceViewStats(
+      placeId: json['place_id']?.toString() ?? '',
+      viewsToday: (json['views_today'] as num?)?.toInt() ?? 0,
+      views24h: (json['views_24h'] as num?)?.toInt() ?? 0,
+      views7d: (json['views_7d'] as num?)?.toInt() ?? 0,
+      viewsTotal: (json['views_total'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  static const empty = PlaceViewStats(
+    placeId: '',
+    viewsToday: 0,
+    views24h: 0,
+    views7d: 0,
+    viewsTotal: 0,
+  );
+}
+
+class PlaceViewService {
+  PlaceViewService._();
+
+  static Future<PlaceViewStats?> fetchPlaceViews(String placeId) async {
+    try {
+      final res = await Supabase.instance.client.rpc(
+        'get_place_views',
+        params: {'p_place_id': placeId},
+      );
+      if (res is Map<String, dynamic>) {
+        return PlaceViewStats.fromJson(res);
+      }
+      if (res is Map) {
+        return PlaceViewStats.fromJson(Map<String, dynamic>.from(res));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<PlaceViewStats?> recordView(String placeId) async {
+    try {
+      final res = await Supabase.instance.client.rpc(
+        'record_place_view',
+        params: {'p_place_id': placeId},
+      );
+      if (res is Map<String, dynamic>) {
+        return PlaceViewStats.fromJson(res);
+      }
+      if (res is Map) {
+        return PlaceViewStats.fromJson(Map<String, dynamic>.from(res));
+      }
+    } catch (_) {}
+    return null;
   }
 }
 

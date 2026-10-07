@@ -1,7 +1,7 @@
 # Doğadayım — Kalıcı Hafıza
 
 Son güncelleme: 2026-10-07
-Son doğrulanan commit: `18a565c`
+Son doğrulanan commit: `37afbfa`
 
 ## Ürün amacı
 
@@ -31,6 +31,13 @@ Türkiye için toplum destekli doğa haritası. Gerçek konum, kaynak ve kullan�
 - Gereksiz proje taraması, aynı dosyayı tekrar okuma, geniş refactor ve gereksiz test komutları token maliyeti artırdığı için kaçınılmalıdır.
 
 ## Tamamlanan ana fazlar
+
+- İl Keşfi, Görüntülenme Sayacı, Sosyal Medya Rozetleri & Mesafe Sıralaması:
+  - İl keşif sayfası (`ProvinceExplorerScreen`): İl kapak görseli, ilçe sayısı, su, WC, kamp, karavan, göl, şelale, kanyon/vadi, mağara vb. canlı sayıları ve il içi OSM haritası.
+  - İl kategori listesi (`ProvinceCategoryListScreen`): Seçilen kategorideki noktaların kullanıcı GPS konumuna göre anlık Haversine mesafe hesabı ve yakından uzağa sıralanması (`900 m` / `1,5 km` formatı).
+  - Canlı izlenme ve trend rozeti: `place_view_stats` tablosu, `record_place_view` RPC, 3 sn debounce tekil sayaç, detay ekranı toplam ve son 24 saat trend göstergesi.
+  - Yorumlarda sosyal medya bağlantısı: `UserReviewRecord` ve `ReviewEntry` içinde Instagram bağlantısı, yorumlarda profil rozeti ve doğrudan sosyal hesaba yönlendirme.
+  - Canlı Supabase migration'ları uygulandı (`202610070001`, `202610070002`, `202610070003`). Test paketi (225 assertion) ve analiz hatasız geçti.
 
 - Üretime Hazırlık, Yerel Kalıcılık & Fotoğraf Zenginleştirmesi (P0/P1/P2):
   - Yerel favori kalıcılığı: `UserFavoritesController` SharedPreferences (`user_favorites_v1`) ile cihazda kalıcı kılındı; hesap silme akışında temizlenmesi doğrulandı.

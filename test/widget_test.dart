@@ -1266,6 +1266,21 @@ void main() {
       expect(result, hasLength(2));
       expect(result.first.place.name, 'Popüler keşif');
     });
+
+    test('saved places teach the recommender a preferred category', () {
+      final ranked = RecommendationService.rank(
+        places: [
+          recommendationPlace(name: 'Kaydedilen kamp', kind: 'Kamp'),
+          recommendationPlace(name: 'Yeni kamp', kind: 'Kamp'),
+          recommendationPlace(name: 'Göl keşfi', kind: 'Göl'),
+        ],
+        favoritePlaceNames: const {'Kaydedilen kamp'},
+      );
+
+      expect(ranked.first.place.name, 'Kaydedilen kamp');
+      expect(ranked[1].place.name, 'Yeni kamp');
+      expect(ranked[1].reasons, contains('Kaydettiklerine benzer'));
+    });
   });
 
   group('persistent user place photos', () {
@@ -2634,5 +2649,80 @@ void main() {
       expect(UserSocialAccounts.resolveUri('youtube', '@husnutuna')?.toString(),
           equals('https://youtube.com/@husnutuna'));
     });
+
+    test('PlaceViewStats parses json correctly and provides valid empty defaults', () {
+      final stats = PlaceViewStats.fromJson({
+        'place_id': 'beysehir_golu',
+        'views_today': 12,
+        'views_24h': 35,
+        'views_7d': 120,
+        'views_total': 480,
+      });
+
+      expect(stats.placeId, equals('beysehir_golu'));
+      expect(stats.viewsToday, equals(12));
+      expect(stats.views24h, equals(35));
+      expect(stats.views7d, equals(120));
+      expect(stats.viewsTotal, equals(480));
+
+      expect(PlaceViewStats.empty.viewsTotal, equals(0));
+      expect(PlaceViewStats.empty.views24h, equals(0));
+    });
+
+    test('UserReviewRecord serializes and deserializes social handle and platform', () async {
+      final record = UserReviewRecord(
+        id: 'rev-test-123',
+        placeKey: 'test_place',
+        userId: 'usr_1',
+        userName: 'Gezgin',
+        rating: 5,
+        content: 'Harika bir yer, su kenarında kamp yapılabilir.',
+        createdAt: DateTime(2026, 10, 7),
+        socialHandle: 'gezgin_doga',
+        socialPlatform: 'instagram',
+      );
+
+      final json = record.toJson();
+      expect(json['socialHandle'], equals('gezgin_doga'));
+      expect(json['socialPlatform'], equals('instagram'));
+
+      final restored = UserReviewRecord.fromJson(json);
+      expect(restored.socialHandle, equals('gezgin_doga'));
+      expect(restored.socialPlatform, equals('instagram'));
+
+      final entry = restored.toEntry();
+      expect(entry.socialHandle, equals('gezgin_doga'));
+      expect(entry.socialPlatform, equals('instagram'));
+    });
+
+    test('UserReviewsController saves and retrieves reviews with social handles', () async {
+      const place = Place(
+        'Sosyal Rozet Test Yeri',
+        'Antalya',
+        'Göl',
+        4.8,
+        Icons.place_rounded,
+        [Color(0xFF2E7D32), Color(0xFF81C784)],
+        null,
+        sourceId: 'sosyal-rozet-test-1',
+      );
+
+      await UserReviewsController.saveReview(
+        place: place,
+        rating: 5,
+        content: 'Fotoğraf çekmek için muhteşem!',
+        socialHandle: 'doga_fotografcisi',
+        socialPlatform: 'instagram',
+      );
+
+      final saved = UserReviewsController.userReviewForPlace(place);
+      expect(saved, isNotNull);
+      expect(saved!.socialHandle, equals('doga_fotografcisi'));
+      expect(saved.socialPlatform, equals('instagram'));
+
+      await UserReviewsController.deleteReview(place);
+      expect(UserReviewsController.userReviewForPlace(place), isNull);
+    });
   });
 }
+

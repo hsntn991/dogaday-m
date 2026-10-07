@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:dogada_gezi/main.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -96,5 +98,65 @@ void main() {
     expect(map, contains('!_isAllRegionsMode'));
     expect(map, contains('showCount: !_isAllRegionsMode'));
     expect(map, contains('mapController.move(initialCenter, initialZoom)'));
+  });
+
+  test('province explorer has a city-scoped points endpoint and drilldown UI',
+      () {
+    final migration = File(
+      'supabase/migrations/202610070001_province_explorer.sql',
+    ).readAsStringSync();
+    final core = File('lib/src/core/app_core.dart').readAsStringSync();
+    final home = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(migration, contains('province_explorer_points'));
+    expect(migration, contains('province_explorer_summary'));
+    expect(migration, contains('from public.amenities'));
+    expect(migration, contains('false as is_amenity'));
+    expect(core, contains('class ProvinceExplorerDataService'));
+    expect(home, contains('class ProvinceExplorerScreen'));
+    expect(home, contains('class ProvinceCategoryListScreen'));
+    expect(
+        home, contains('tileProvider: OfflineMapTiles.createTileProvider()'));
+    expect(home, contains('height: isSelected ? 82 : 54'));
+  });
+
+  test('province explorer keeps water amenities distinct from primary places',
+      () {
+    final water = Place(
+      'Çeşme',
+      'Antalya',
+      'Su',
+      0,
+      Icons.water_drop_rounded,
+      AppColors.defaultGradient,
+      null,
+      latitude: 36.9,
+      longitude: 30.7,
+      subtype: 'drinking_water',
+    );
+    final camp = Place(
+      'Kamp',
+      'Antalya',
+      'Kamp',
+      0,
+      Icons.cabin_rounded,
+      AppColors.campGradient,
+      null,
+      latitude: 36.91,
+      longitude: 30.71,
+      mainCategory: 'camp',
+      subtype: 'camp',
+    );
+    final snapshot = ProvinceExplorerSnapshot(
+      city: 'Antalya',
+      places: [water, camp],
+      counts: const {'water_amenities': 50, 'camp': 10},
+      districtCount: 2,
+    );
+
+    expect(provinceExplorerCategoryFor(water), 'water_amenities');
+    expect(snapshot.countFor('camp'), 10);
+    expect(snapshot.placesFor('water_amenities'), [water]);
+    expect(snapshot.totalCount, 60);
   });
 }

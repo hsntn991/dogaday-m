@@ -1,4 +1,15 @@
-# Güncel Görev — Üretime Hazırlık & Yayın Öncesi Doğrulama (P0/P1/P2)
+# Güncel Görev — İl Keşif Akışı, Görüntülenme İstatistikleri, Sosyal Medya Rozeti & Yakından Uzağa Sıralama
+
+> **✅ TAMAMLANDI — İl keşfi, canlı sayaçlar, izlenme metrikleri, sosyal rozetler ve konum bazlı sıralama başarıyla tamamlandı:**
+> 1. **İl Keşif Akışı & Canlı Kategori Sayaçları:** Ana sayfadaki il kartına dokunulduğunda açılan `ProvinceExplorerScreen`, il kapak fotoğrafı, ilçe sayısı, su, WC, kamp, karavan, göl, şelale, kanyon/vadi, mağara, milli park vb. canlı sayıları gösterir. İl içi OSM haritası ve nokta seçiminde önizleme kartı entegre edildi. Kategoriye dokunulduğunda ilgili ildeki noktalar listelenir.
+> 2. **Kullanıcı Mesafesi & Yakından Uzağa Sıralama:** İl keşif listesinde kullanıcının anlık konumuna göre Haversine formülüyle dinamik mesafe hesaplandı. Noktalar yakından uzağa doğru artan sıralandı. 1 km altı metre (`900 m`), 1 km ve üzeri kilometre (`1,5 km`) formatında gösterildi.
+> 3. **Görüntülenme Sayacı & 24 Saat Trend Rozeti:** Canlı Supabase `place_view_stats` tablosu ve `record_place_view` RPC fonksiyonu oluşturuldu. Dwell debounce (3 sn) ile tekil artış, detay ekranında toplam izlenme ve son 24 saat trend rozeti bağlandı.
+> 4. **Yorumlarda Sosyal Medya (Instagram) Rozeti:** `UserReviewRecord` ve `ReviewEntry` içinde sosyal hesap bilgisi saklandı. Kullanıcı profilinde bağlı Instagram hesabı varsa yorum yaparken otomatik eklendi ve yorum üzerinde tıklanabilir Instagram çipi gösterildi.
+> 5. **Kalite & Testler:** `flutter analyze` 0 hata; 121/121 test grubu ve 225 assertion başarıyla geçti. Canlı veritabanı migration'ları uygulandı.
+
+---
+
+# Önceki Görev — Üretime Hazırlık & Yayın Öncesi Doğrulama (P0/P1/P2)
 
 > **✅ TAMAMLANDI — Üretim-hazır duruma getirme yol haritası başarıyla yürütüldü:**
 > 1. **Yönetici Paneli & MFA (P1 #5 & #6):** Duplicate kontrolü (`_DuplicateCheck`), değiştirilemeyen moderasyon geçmişi (`_AuditLogSection`), canlı sayaç rozetleri (`_statusCounts`) ve Supabase TOTP MFA iki aşamalı kimlik doğrulama (`AAL2` kontrolü, doğrulama ekranı ve ayarlar diyaloğu) eksiksiz tamamlandı.

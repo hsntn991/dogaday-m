@@ -81,12 +81,16 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
   String? userReview;
   int userRating = 0;
   DateTime? userReviewCreatedAt;
+  String? userReviewSocialHandle;
+  String? userReviewSocialPlatform;
   bool? userRecommendation;
   List<String> userRecommendationReasons = const [];
   PlaceEnrichment? enrichment;
   List<NearbyAmenity>? nearbyAmenities;
   bool nearbyAmenitiesLoading = false;
   String? nearbyAmenitiesError;
+  PlaceViewStats? placeViews;
+  Timer? _dwellTimer;
 
   Place placeWithImage(String image) => Place(
         widget.place.name,
@@ -172,6 +176,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         content: userReview!,
         rating: userRating,
         helpfulCount: 0,
+        socialHandle: userReviewSocialHandle,
+        socialPlatform: userReviewSocialPlatform,
       ),
     ];
   }
@@ -583,6 +589,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
   void initState() {
     super.initState();
     _loadSavedReview();
+    _initPlaceViews();
     UserReviewsController.reviews.addListener(_onReviewsChanged);
     weatherFuture = widget.place.showsWeather
         ? WeatherService.fetchTarget(widget.place.weatherTarget)
@@ -599,6 +606,34 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     });
   }
 
+  void _initPlaceViews() {
+    final pKey = UserReviewsController.placeKey(widget.place);
+    PlaceViewService.fetchPlaceViews(pKey).then((stats) {
+      if (mounted && stats != null) {
+        setState(() => placeViews = stats);
+      }
+    });
+
+    _dwellTimer = Timer(const Duration(seconds: 3), () async {
+      if (!mounted) return;
+      try {
+        final now = DateTime.now();
+        final dayKey =
+            '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+        final storageKey = 'view_counted_${pKey}_$dayKey';
+        final prefs = await SharedPreferences.getInstance();
+        final alreadyViewed = prefs.getBool(storageKey) ?? false;
+        if (!alreadyViewed) {
+          final updated = await PlaceViewService.recordView(pKey);
+          await prefs.setBool(storageKey, true);
+          if (mounted && updated != null) {
+            setState(() => placeViews = updated);
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
   void _onReviewsChanged() {
     if (!mounted) return;
     _loadSavedReview();
@@ -612,6 +647,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         userReview = saved.content;
         userRating = saved.rating;
         userReviewCreatedAt = saved.createdAt;
+        userReviewSocialHandle = saved.socialHandle;
+        userReviewSocialPlatform = saved.socialPlatform;
       }
       if (saved.recommended != null) {
         userRecommendation = saved.recommended;
@@ -652,6 +689,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
 
   @override
   void dispose() {
+    _dwellTimer?.cancel();
     UserReviewsController.reviews.removeListener(_onReviewsChanged);
     HomeWeatherLocationController.current.removeListener(refreshUserDistance);
     NearbyPlacesService.revision.removeListener(refreshNearbyPlaces);
@@ -886,6 +924,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         initialTab: initialTab,
         initialRating: userRating,
         initialReview: userReview ?? '',
+        initialSocialHandle: userReviewSocialHandle,
+        initialSocialPlatform: userReviewSocialPlatform,
       ),
     );
     if (!mounted || result == null) return;
@@ -898,6 +938,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         userReview = null;
         userRating = 0;
         userReviewCreatedAt = null;
+        userReviewSocialHandle = null;
+        userReviewSocialPlatform = null;
       });
       await UserReviewsController.deleteReview(widget.place);
       message('Değerlendirmeniz silindi.');
@@ -912,6 +954,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         userReview = result.reviewText;
         userRating = result.rating;
         userReviewCreatedAt = DateTime.now();
+        userReviewSocialHandle = result.socialHandle;
+        userReviewSocialPlatform = result.socialPlatform;
       }
       if (hasRec) {
         userRecommendation = result.recommended;
@@ -925,6 +969,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       content: hasReview ? result.reviewText : (userReview ?? ''),
       recommended: hasRec ? result.recommended : userRecommendation,
       reasons: hasRec ? result.reasons : userRecommendationReasons,
+      socialHandle: result.socialHandle,
+      socialPlatform: result.socialPlatform,
     );
 
     message(hasReview
@@ -1250,6 +1296,132 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
         ),
       );
 
+  Widget _buildSummaryAndViewsRow(bool isDark) {
+    final badge = _buildViewsBadge(isDark);
+    if (badge == null) {
+      return _buildReviewSummary(isDark);
+    }
+    return Row(
+      children: [
+        Flexible(child: _buildReviewSummary(isDark)),
+        const SizedBox(width: 8),
+        badge,
+      ],
+    );
+  }
+
+  Widget? _buildViewsBadge(bool isDark) {
+    if (placeViews == null) return null;
+    final stats = placeViews!;
+    if (stats.viewsTotal <= 0 && stats.views24h <= 0) return null;
+
+    final isHot = stats.views24h >= 2;
+
+    return Semantics(
+      button: true,
+      label: isHot
+          ? 'Son 24 saatte ${stats.views24h} kişi inceledi'
+          : '${stats.viewsTotal} görüntülenme',
+      child: InkWell(
+        onTap: () => _openViewsInfoSheet(context, stats),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: isHot
+                ? (isDark
+                    ? const Color(0xFF4C0519).withValues(alpha: 0.6)
+                    : const Color(0xFFFFF1F2))
+                : (isDark
+                    ? AppColors.darkSurfaceMuted
+                    : AppColors.surfaceMuted),
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(
+              color: isHot
+                  ? (isDark
+                      ? const Color(0xFF9F1239)
+                      : const Color(0xFFFECDD3))
+                  : (isDark
+                      ? AppColors.darkBorder
+                      : AppColors.border),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isHot) ...[
+                const Text('🔥', style: TextStyle(fontSize: 12)),
+                const SizedBox(width: 4),
+                Text(
+                  'Son 24s: ${stats.views24h}',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.caption - 1,
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? const Color(0xFFFDA4AF)
+                        : const Color(0xFFBE123C),
+                  ),
+                ),
+                if (stats.viewsTotal > stats.views24h) ...[
+                  Text(
+                    ' · ${stats.viewsTotal}',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.caption - 1.5,
+                      fontWeight: FontWeight.w600,
+                      color: (isDark
+                              ? const Color(0xFFFDA4AF)
+                              : const Color(0xFFBE123C))
+                          .withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ] else ...[
+                Icon(
+                  Icons.visibility_outlined,
+                  size: 13,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${stats.viewsTotal} görüntülenme',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.caption - 1,
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openViewsInfoSheet(BuildContext context, PlaceViewStats stats) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadii.large)),
+      ),
+      builder: (ctx) => _PlaceViewsInfoSheet(
+        placeName: widget.place.name,
+        stats: stats,
+      ),
+    );
+  }
+
   Widget _buildPhotoGallerySection(bool isDark) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1546,7 +1718,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _buildReviewSummary(isDark),
+                    _buildSummaryAndViewsRow(isDark),
                     const SizedBox(height: 16),
                     // Hızlı Aksiyon & Navigasyon
                     Row(
@@ -1756,7 +1928,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildContactServiceCard(isDark),
-        _buildReviewSummary(isDark),
+        _buildSummaryAndViewsRow(isDark),
         const SizedBox(height: 18),
         journeyStats(),
         const SizedBox(height: 16),
@@ -2273,14 +2445,29 @@ class _ReviewCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      review.name,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: AppFontSizes.caption,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.darkTextPrimary : null,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            review.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: AppFontSizes.caption,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? AppColors.darkTextPrimary : null,
+                            ),
+                          ),
+                        ),
+                        if (review.socialHandle != null &&
+                            review.socialHandle!.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          _ReviewSocialBadge(
+                            platform: review.socialPlatform ?? 'instagram',
+                            handle: review.socialHandle!,
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -2380,6 +2567,246 @@ class _ReviewCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReviewSocialBadge extends StatelessWidget {
+  const _ReviewSocialBadge({
+    required this.platform,
+    required this.handle,
+  });
+
+  final String platform;
+  final String handle;
+
+  @override
+  Widget build(BuildContext context) {
+    final clean = handle.replaceAll('@', '').trim();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InkWell(
+      onTap: () {
+        final uri = UserSocialAccounts.resolveUri(platform, clean);
+        if (uri != null) {
+          launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      },
+      borderRadius: BorderRadius.circular(AppRadii.pill),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: isDark
+              ? const Color(0xFF831843).withValues(alpha: 0.35)
+              : const Color(0xFFFDF2F8),
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          border: Border.all(
+            color: isDark ? const Color(0xFFBE185D) : const Color(0xFFF472B6),
+            width: 0.8,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.camera_alt_outlined,
+              size: 11,
+              color: Color(0xFFE1306C),
+            ),
+            const SizedBox(width: 3),
+            Text(
+              '@$clean',
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE1306C),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaceViewsInfoSheet extends StatelessWidget {
+  const _PlaceViewsInfoSheet({
+    required this.placeName,
+    required this.stats,
+  });
+
+  final String placeName;
+  final PlaceViewStats stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkBorder : AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const Text('🔥', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'İlgi & Görüntülenme',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: AppFontSizes.title,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppColors.darkTextPrimary : ink,
+                        ),
+                      ),
+                      Text(
+                        placeName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: AppFontSizes.caption,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                _buildStatTile(
+                  context,
+                  title: 'Son 24 Saat',
+                  value: '${stats.views24h}',
+                  subtitle: 'doğasever',
+                  isDark: isDark,
+                  isHighlight: stats.views24h >= 2,
+                ),
+                const SizedBox(width: 10),
+                _buildStatTile(
+                  context,
+                  title: 'Son 7 Gün',
+                  value: '${stats.views7d}',
+                  subtitle: 'inceleme',
+                  isDark: isDark,
+                  isHighlight: false,
+                ),
+                const SizedBox(width: 10),
+                _buildStatTile(
+                  context,
+                  title: 'Toplam',
+                  value: '${stats.viewsTotal}',
+                  subtitle: 'görüntülenme',
+                  isDark: isDark,
+                  isHighlight: false,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Bu sayaç, doğaseverlerin bu noktayı uygulama içinde ne sıklıkla incelediğini gösterir. Keşif trendlerini takip etmene yardımcı olur.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption,
+                height: 1.4,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatTile(
+    BuildContext context, {
+    required String title,
+    required String value,
+    required String subtitle,
+    required bool isDark,
+    required bool isHighlight,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isHighlight
+              ? (isDark
+                  ? const Color(0xFF4C0519).withValues(alpha: 0.5)
+                  : const Color(0xFFFFF1F2))
+              : (isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          border: Border.all(
+            color: isHighlight
+                ? (isDark ? const Color(0xFF9F1239) : const Color(0xFFFECDD3))
+                : (isDark ? AppColors.darkBorder : AppColors.border),
+          ),
+        ),
+        child: Column(
+          children: [
+            Text(
+              title,
+              maxLines: 1,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption - 2,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: isHighlight
+                    ? (isDark
+                        ? const Color(0xFFFDA4AF)
+                        : const Color(0xFFBE123C))
+                    : (isDark ? AppColors.darkTextPrimary : ink),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: AppFontSizes.caption - 2.5,
+                color: isDark
+                    ? AppColors.darkTextTertiary
+                    : AppColors.textTertiary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2534,6 +2961,8 @@ class _ContributionResult {
     required this.recommended,
     required this.reasons,
     this.isDelete = false,
+    this.socialHandle,
+    this.socialPlatform,
   });
 
   final String reviewText;
@@ -2541,6 +2970,8 @@ class _ContributionResult {
   final bool recommended;
   final List<String> reasons;
   final bool isDelete;
+  final String? socialHandle;
+  final String? socialPlatform;
 }
 
 class _ReviewRecommendSheet extends StatefulWidget {
@@ -2549,12 +2980,16 @@ class _ReviewRecommendSheet extends StatefulWidget {
     required this.initialTab,
     this.initialRating = 0,
     this.initialReview = '',
+    this.initialSocialHandle,
+    this.initialSocialPlatform,
   });
 
   final String placeName;
   final int initialTab;
   final int initialRating;
   final String initialReview;
+  final String? initialSocialHandle;
+  final String? initialSocialPlatform;
 
   @override
   State<_ReviewRecommendSheet> createState() => _ReviewRecommendSheetState();
@@ -2562,9 +2997,11 @@ class _ReviewRecommendSheet extends StatefulWidget {
 
 class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
   final reviewController = TextEditingController();
+  late final TextEditingController instagramController;
   late int tab;
   int rating = 0;
   bool recommended = true;
+  bool attachSocialBadge = true;
   final selectedReasons = <String>{};
 
   static const positiveReasons = [
@@ -2600,16 +3037,36 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
     if (widget.initialReview.isNotEmpty) {
       reviewController.text = widget.initialReview;
     }
+    final existingHandle = widget.initialSocialHandle?.trim() ?? '';
+    final profileHandle =
+        UserSocialAccountsController.accounts.value.instagram.trim();
+    final effectiveHandle =
+        existingHandle.isNotEmpty ? existingHandle : profileHandle;
+    instagramController = TextEditingController(
+      text: effectiveHandle.replaceAll('@', ''),
+    );
+    attachSocialBadge = effectiveHandle.isNotEmpty;
   }
 
   @override
   void dispose() {
     reviewController.dispose();
+    instagramController.dispose();
     super.dispose();
   }
 
   void submit() {
     if (!canSubmit) return;
+    final handleText = instagramController.text.trim().replaceAll('@', '');
+    final handle =
+        (attachSocialBadge && handleText.isNotEmpty) ? handleText : null;
+    if (handle != null) {
+      UserSocialAccountsController.save(
+        instagram: handle,
+        facebook: UserSocialAccountsController.accounts.value.facebook,
+        youtube: UserSocialAccountsController.accounts.value.youtube,
+      );
+    }
     Navigator.pop(
       context,
       _ContributionResult(
@@ -2617,6 +3074,8 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
         rating: tab == 0 ? rating : 0,
         recommended: recommended,
         reasons: selectedReasons.toList(),
+        socialHandle: handle,
+        socialPlatform: handle != null ? 'instagram' : null,
       ),
     );
   }
@@ -2920,6 +3379,151 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
               borderRadius: BorderRadius.circular(AppRadii.large),
               borderSide: const BorderSide(color: green, width: 1.4),
             ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkSurfaceMuted
+                : const Color(0xFFFDF2F8),
+            borderRadius: BorderRadius.circular(AppRadii.large),
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF831843).withValues(alpha: 0.5)
+                  : const Color(0xFFFBCFE8),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF833AB4),
+                          Color(0xFFFD1D1D),
+                          Color(0xFFFCB045),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_outlined,
+                      size: 17,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Instagram Rozeti',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w700,
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : ink,
+                          ),
+                        ),
+                        Text(
+                          'Yorumunda profilini göster, doğaseverler seni keşfetsin',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: AppFontSizes.caption - 1.5,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: attachSocialBadge,
+                    activeTrackColor: const Color(0xFFE1306C),
+                    onChanged: (val) {
+                      setState(() => attachSocialBadge = val);
+                    },
+                  ),
+                ],
+              ),
+              if (attachSocialBadge) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: instagramController,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: isDark ? AppColors.darkTextPrimary : ink,
+                  ),
+                  decoration: InputDecoration(
+                    prefixText: '@',
+                    prefixStyle: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : const Color(0xFFE1306C),
+                    ),
+                    hintText: 'kullanici_adi',
+                    hintStyle: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: AppFontSizes.caption,
+                      color: isDark
+                          ? AppColors.darkTextTertiary
+                          : AppColors.textTertiary,
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    filled: true,
+                    fillColor: isDark
+                        ? AppColors.darkSurfaceDeep
+                        : Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppRadii.medium),
+                      borderSide: BorderSide(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.border,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppRadii.medium),
+                      borderSide: BorderSide(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.border,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppRadii.medium),
+                      borderSide: const BorderSide(
+                        color: Color(0xFFE1306C),
+                        width: 1.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],

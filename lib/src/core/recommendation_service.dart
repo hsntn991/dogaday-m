@@ -19,9 +19,8 @@ class PlaceRecommendation {
 
   /// The ranking service orders reasons from strongest to weakest, so the
   /// first one is the clearest explanation to show on a compact card.
-  String get primaryReason => reasons.isEmpty
-      ? 'Keşfetmeye değer bir doğa noktası'
-      : reasons.first;
+  String get primaryReason =>
+      reasons.isEmpty ? 'Keşfetmeye değer bir doğa noktası' : reasons.first;
 }
 
 class RecommendationService {
@@ -34,14 +33,20 @@ class RecommendationService {
   static const double ratingWeight = 10;
   static const double categoryWeight = 10;
   static const double photoWeight = 15;
+  static const double personalizationWeight = 25;
 
   static List<PlaceRecommendation> rank({
     required Iterable<Place> places,
     WeatherSnapshot? weather,
     bool hasUserLocation = true,
     String? preferredCategory,
+    Set<String> favoritePlaceNames = const <String>{},
     int limit = 5,
   }) {
+    final learnedCategoryKeys = _learnedCategoryKeys(
+      places,
+      favoritePlaceNames,
+    );
     final ranked = places
         .map(
           (place) => score(
@@ -49,6 +54,8 @@ class RecommendationService {
             weather: weather,
             hasUserLocation: hasUserLocation,
             preferredCategory: preferredCategory,
+            favoritePlaceNames: favoritePlaceNames,
+            learnedCategoryKeys: learnedCategoryKeys,
           ),
         )
         .toList(growable: false);
@@ -68,6 +75,8 @@ class RecommendationService {
     WeatherSnapshot? weather,
     bool hasUserLocation = true,
     String? preferredCategory,
+    Set<String> favoritePlaceNames = const <String>{},
+    Set<String> learnedCategoryKeys = const <String>{},
   }) {
     var weightedScore = 0.0;
     var usedWeight = 0.0;
@@ -127,6 +136,23 @@ class RecommendationService {
       if (categoryMatch) {
         reasonCandidates.add((strength: 1, text: 'Seçtiğin kategoriye uygun'));
       }
+    }
+
+    final normalizedFavoriteNames = favoritePlaceNames
+        .map(_normalizePlaceName)
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    final isSaved =
+        normalizedFavoriteNames.contains(_normalizePlaceName(place.name));
+    final isSimilarToSaved = learnedCategoryKeys.contains(_categoryKey(place));
+    if (isSaved || isSimilarToSaved) {
+      final value = isSaved ? 1.0 : .75;
+      weightedScore += value * personalizationWeight;
+      usedWeight += personalizationWeight;
+      reasonCandidates.add((
+        strength: value,
+        text: isSaved ? 'Kaydettiğin bir yer' : 'Kaydettiklerine benzer',
+      ));
     }
 
     final hasPhoto = (place.image?.trim().isNotEmpty ?? false) ||
@@ -216,6 +242,34 @@ class RecommendationService {
         taxonomy.subtype == requested ||
         place.displayKind.toLowerCase() == requested.toLowerCase();
   }
+
+  /// Saved places are the explicit preference signal in the first
+  /// personalization version. No data is sent to a third-party service.
+  static Set<String> _learnedCategoryKeys(
+    Iterable<Place> places,
+    Set<String> favoritePlaceNames,
+  ) {
+    if (favoritePlaceNames.isEmpty) return const <String>{};
+    final normalizedNames = favoritePlaceNames
+        .map(_normalizePlaceName)
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    return places
+        .where((place) =>
+            normalizedNames.contains(_normalizePlaceName(place.name)))
+        .map(_categoryKey)
+        .where((key) => key.isNotEmpty)
+        .toSet();
+  }
+
+  static String _categoryKey(Place place) {
+    final taxonomy = place.resolvedTaxonomy;
+    return (taxonomy.subtype ?? taxonomy.mainCategory ?? place.displayKind)
+        .trim()
+        .toLowerCase();
+  }
+
+  static String _normalizePlaceName(String value) => value.trim().toLowerCase();
 
   static String _distanceLabel(double distance) => distance < 1
       ? '${(distance * 1000).round()} m'

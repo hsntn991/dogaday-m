@@ -316,7 +316,15 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
   }
 
   void _openProvinceOnMap(MapRegionFocus region) {
-    widget.onExploreProvince?.call(region);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProvinceExplorerScreen(
+          region: region,
+          onOpen: widget.onOpen,
+          onOpenFullMap: widget.onExploreProvince,
+        ),
+      ),
+    );
   }
 
   Widget _buildPhoneLayout(BuildContext context) => ListView(
@@ -624,6 +632,586 @@ class _ProvincePhotoCard extends StatelessWidget {
             ),
           ],
         ),
+      );
+}
+
+class ProvinceExplorerCategory {
+  const ProvinceExplorerCategory(this.key, this.label, this.icon);
+
+  final String key;
+  final String label;
+  final IconData icon;
+}
+
+const _provinceExplorerCategories = <ProvinceExplorerCategory>[
+  ProvinceExplorerCategory('water_amenities', 'Su', Icons.water_drop_rounded),
+  ProvinceExplorerCategory('toilet', 'WC', Icons.wc_rounded),
+  ProvinceExplorerCategory('camp', 'Kamp', Icons.cabin_rounded),
+  ProvinceExplorerCategory('caravan', 'Karavan', Icons.rv_hookup_rounded),
+  ProvinceExplorerCategory('lake', 'Göl', Icons.water_rounded),
+  ProvinceExplorerCategory(
+      'waterfall', 'Şelale', Icons.waterfall_chart_rounded),
+  ProvinceExplorerCategory(
+      'canyon_valley', 'Kanyon & Vadi', Icons.terrain_rounded),
+  ProvinceExplorerCategory('cave', 'Mağara', Icons.landscape_rounded),
+  ProvinceExplorerCategory('national_park', 'Milli Park', Icons.forest_rounded),
+  ProvinceExplorerCategory(
+      'local_service', 'İşletme', Icons.storefront_rounded),
+];
+
+class ProvinceExplorerScreen extends StatefulWidget {
+  const ProvinceExplorerScreen({
+    super.key,
+    required this.region,
+    required this.onOpen,
+    this.onOpenFullMap,
+  });
+
+  final MapRegionFocus region;
+  final ValueChanged<Place> onOpen;
+  final ValueChanged<MapRegionFocus>? onOpenFullMap;
+
+  @override
+  State<ProvinceExplorerScreen> createState() => _ProvinceExplorerScreenState();
+}
+
+class _ProvinceExplorerScreenState extends State<ProvinceExplorerScreen> {
+  late Future<ProvinceExplorerSnapshot> _future;
+  Place? _selectedPlace;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ProvinceExplorerDataService.fetch(widget.region.label);
+  }
+
+  void _reload() => setState(() {
+        _selectedPlace = null;
+        _future = ProvinceExplorerDataService.fetch(widget.region.label);
+      });
+
+  Place _placeWithUserDistance(Place place) {
+    final target = HomeWeatherLocationController.current.value;
+    if (target.usesCoordinates &&
+        target.latitude != null &&
+        target.longitude != null &&
+        place.hasCoordinates) {
+      final d = NearbyPlacesService.calculateDistanceKm(
+        target.latitude!,
+        target.longitude!,
+        place.latitude!,
+        place.longitude!,
+      );
+      return place.copyWith(distanceKm: d);
+    }
+    return place;
+  }
+
+  void _openCategory(
+      ProvinceExplorerCategory category, ProvinceExplorerSnapshot data) {
+    final places = data.placesFor(category.key);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProvinceCategoryListScreen(
+          city: widget.region.label,
+          category: category,
+          places: places,
+          onOpen: widget.onOpen,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      body: SafeArea(
+        child: FutureBuilder<ProvinceExplorerSnapshot>(
+          future: _future,
+          builder: (context, snapshot) {
+            final data = snapshot.data;
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'İllere geri dön',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(widget.region.label,
+                              style: AppTypography.display.copyWith(
+                                color: textPrimary,
+                                fontSize: 28,
+                              )),
+                        ),
+                        IconButton(
+                          tooltip: 'Yenile',
+                          onPressed: snapshot.connectionState ==
+                                  ConnectionState.waiting
+                              ? null
+                              : _reload,
+                          icon: const Icon(Icons.refresh_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: _ProvinceExplorerHero(
+                      city: widget.region.label,
+                      totalCount: data?.totalCount,
+                      districtCount: data?.districtCount,
+                    ),
+                  ),
+                ),
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (snapshot.hasError)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _ProvinceExplorerError(onRetry: _reload),
+                  )
+                else if (data != null) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+                      child: Text('Bu ilde neler var?',
+                          style:
+                              AppTypography.title.copyWith(color: textPrimary)),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final category in _provinceExplorerCategories)
+                            _ProvinceCountChip(
+                              category: category,
+                              count: data.countFor(category.key),
+                              onTap: () => _openCategory(category, data),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 26, 20, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text('Haritada ${widget.region.label}',
+                                style: AppTypography.title
+                                    .copyWith(color: textPrimary)),
+                          ),
+                          TextButton.icon(
+                            onPressed: widget.onOpenFullMap == null
+                                ? null
+                                : () {
+                                    widget.onOpenFullMap!(widget.region);
+                                    Navigator.of(context).pop();
+                                  },
+                            icon: const Icon(Icons.open_in_full_rounded,
+                                size: 18),
+                            label: const Text('Tam harita'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _ProvinceOsmMap(
+                        region: widget.region,
+                        places: data.places,
+                        selectedPlace: _selectedPlace,
+                        onSelect: (place) =>
+                            setState(() => _selectedPlace = _placeWithUserDistance(place)),
+                      ),
+                    ),
+                  ),
+                  if (_selectedPlace != null)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                        child: AppCompactPlaceCard(
+                          place: _selectedPlace!,
+                          onTap: () => widget.onOpen(_selectedPlace!),
+                        ),
+                      ),
+                    ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 110),
+                      child: Text(
+                        'Haritadaki bir işarete dokunarak yer detayını açabilirsin.',
+                        style: AppTypography.metadataOf(context)
+                            .copyWith(color: textSecondary),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class ProvinceCategoryListScreen extends StatefulWidget {
+  const ProvinceCategoryListScreen({
+    super.key,
+    required this.city,
+    required this.category,
+    required this.places,
+    required this.onOpen,
+  });
+
+  final String city;
+  final ProvinceExplorerCategory category;
+  final List<Place> places;
+  final ValueChanged<Place> onOpen;
+
+  @override
+  State<ProvinceCategoryListScreen> createState() =>
+      _ProvinceCategoryListScreenState();
+}
+
+class _ProvinceCategoryListScreenState
+    extends State<ProvinceCategoryListScreen> {
+  DeviceCoordinates? _deviceCoordinates;
+
+  @override
+  void initState() {
+    super.initState();
+    HomeWeatherLocationController.current.addListener(_onLocationChanged);
+    _resolveUserLocation();
+  }
+
+  @override
+  void dispose() {
+    HomeWeatherLocationController.current.removeListener(_onLocationChanged);
+    super.dispose();
+  }
+
+  void _onLocationChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _resolveUserLocation() async {
+    final target = HomeWeatherLocationController.current.value;
+    if (target.usesCoordinates &&
+        target.latitude != null &&
+        target.longitude != null) {
+      if (mounted) {
+        setState(() {
+          _deviceCoordinates = DeviceCoordinates(
+            latitude: target.latitude!,
+            longitude: target.longitude!,
+            label: target.label,
+          );
+        });
+      }
+      return;
+    }
+    try {
+      final pos = await DeviceLocationService.requestCurrentPosition();
+      if (mounted) {
+        setState(() {
+          _deviceCoordinates = pos;
+        });
+      }
+    } catch (_) {}
+  }
+
+  List<Place> _sortedPlaces() {
+    final target = HomeWeatherLocationController.current.value;
+    double? uLat;
+    double? uLon;
+
+    if (_deviceCoordinates != null) {
+      uLat = _deviceCoordinates!.latitude;
+      uLon = _deviceCoordinates!.longitude;
+    } else if (target.usesCoordinates &&
+        target.latitude != null &&
+        target.longitude != null) {
+      uLat = target.latitude;
+      uLon = target.longitude;
+    }
+
+    final resolved = widget.places.map((place) {
+      if (uLat != null && uLon != null && place.hasCoordinates) {
+        final d = NearbyPlacesService.calculateDistanceKm(
+          uLat,
+          uLon,
+          place.latitude!,
+          place.longitude!,
+        );
+        return place.copyWith(distanceKm: d);
+      }
+      return place;
+    }).toList(growable: false);
+
+    if (uLat != null && uLon != null) {
+      final sorted = List<Place>.from(resolved);
+      sorted.sort((a, b) {
+        final da = a.distanceKm ?? double.infinity;
+        final db = b.distanceKm ?? double.infinity;
+        return da.compareTo(db);
+      });
+      return sorted;
+    }
+
+    return resolved;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textSecondary = AppColors.textSecondaryOf(context);
+    final sorted = _sortedPlaces();
+    final hasDistance = sorted.isNotEmpty && sorted.first.distanceKm != null;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${widget.city} · ${widget.category.label}'),
+            if (hasDistance)
+              Text(
+                '${sorted.length} nokta · Yakından uzağa',
+                style: AppTypography.metadataOf(context).copyWith(
+                  fontSize: AppFontSizes.caption - 1.5,
+                  color: textSecondary,
+                ),
+              ),
+          ],
+        ),
+      ),
+      body: sorted.isEmpty
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  '${widget.city} için yayınlanmış ${widget.category.label.toLowerCase()} kaydı bulunmuyor.',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.body.copyWith(color: textSecondary),
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              itemCount: sorted.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (_, index) => AppCompactPlaceCard(
+                place: sorted[index],
+                onTap: () => widget.onOpen(sorted[index]),
+              ),
+            ),
+    );
+  }
+}
+
+class _ProvinceExplorerHero extends StatelessWidget {
+  const _ProvinceExplorerHero({
+    required this.city,
+    required this.totalCount,
+    required this.districtCount,
+  });
+  final String city;
+  final int? totalCount;
+  final int? districtCount;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.hero),
+        child: SizedBox(
+          height: 174,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(_provincePhotoAsset(city), fit: BoxFit.cover),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x11000000), Color(0xD9002315)],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Text(
+                    totalCount == null
+                        ? '$city keşfe hazırlanıyor'
+                        : '$city genelinde $totalCount nokta${(districtCount ?? 0) > 0 ? ' · $districtCount ilçe' : ''}',
+                    style: AppTypography.body.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      shadows: const [
+                        Shadow(color: Color(0x99000000), blurRadius: 4)
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _ProvinceCountChip extends StatelessWidget {
+  const _ProvinceCountChip({
+    required this.category,
+    required this.count,
+    required this.onTap,
+  });
+  final ProvinceExplorerCategory category;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    return Semantics(
+      button: true,
+      label: '${category.label}, $count yer',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        child: Ink(
+          height: AppControlSizes.minimumTouchTarget,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurfaceMuted : AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(
+              color: isDark ? AppColors.darkBorder : AppColors.border,
+            ),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(category.icon,
+                size: 18,
+                color: isDark ? AppColors.darkPrimaryLight : AppColors.primary),
+            const SizedBox(width: 7),
+            Text('${category.label} $count',
+                style: AppTypography.labelOf(context).copyWith(
+                  color: AppColors.textPrimaryOf(context),
+                  fontWeight: FontWeight.w700,
+                )),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProvinceOsmMap extends StatelessWidget {
+  const _ProvinceOsmMap({
+    required this.region,
+    required this.places,
+    required this.selectedPlace,
+    required this.onSelect,
+  });
+  final MapRegionFocus region;
+  final List<Place> places;
+  final Place? selectedPlace;
+  final ValueChanged<Place> onSelect;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.hero),
+        child: SizedBox(
+          height: 290,
+          child: FlutterMap(
+            options: MapOptions(
+              initialCenter: region.center,
+              initialZoom: region.zoom,
+              minZoom: 5,
+              maxZoom: 18,
+              cameraConstraint: CameraConstraint.containLatitude(),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.dogadagezi.dogada_gezi',
+                maxNativeZoom: 19,
+                panBuffer: 2,
+                tileProvider: OfflineMapTiles.createTileProvider(),
+              ),
+              MarkerLayer(
+                markers: places.take(250).map((place) {
+                  final isSelected = selectedPlace?.sourceId == place.sourceId;
+                  return Marker(
+                    point: LatLng(place.latitude!, place.longitude!),
+                    width: isSelected ? 120 : 54,
+                    height: isSelected ? 82 : 54,
+                    alignment: Alignment.bottomCenter,
+                    child: _MapMarker(
+                      place: place,
+                      selected: isSelected,
+                      showLabel: false,
+                      sizeScale: .82,
+                      onTap: () => onSelect(place),
+                    ),
+                  );
+                }).toList(growable: false),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _ProvinceExplorerError extends StatelessWidget {
+  const _ProvinceExplorerError({required this.onRetry});
+  final VoidCallback onRetry;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.cloud_off_rounded, size: 44),
+          const SizedBox(height: 12),
+          Text('İl verileri şu an yüklenemedi.',
+              style: AppTypography.title
+                  .copyWith(color: AppColors.textPrimaryOf(context))),
+          const SizedBox(height: 8),
+          Text('Bağlantını kontrol edip yeniden deneyebilirsin.',
+              textAlign: TextAlign.center,
+              style: AppTypography.body
+                  .copyWith(color: AppColors.textSecondaryOf(context))),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Tekrar dene')),
+        ]),
       );
 }
 
@@ -1245,6 +1833,7 @@ class _TodayRecommendationsSectionState
     SupabasePlacesController.places.addListener(_handleUpdate);
     NearbyPlacesService.revision.addListener(_handleUpdate);
     WeatherService.revision.addListener(_handleUpdate);
+    UserFavoritesController.favorites.addListener(_handleUpdate);
   }
 
   @override
@@ -1263,6 +1852,7 @@ class _TodayRecommendationsSectionState
     SupabasePlacesController.places.removeListener(_handleUpdate);
     NearbyPlacesService.revision.removeListener(_handleUpdate);
     WeatherService.revision.removeListener(_handleUpdate);
+    UserFavoritesController.favorites.removeListener(_handleUpdate);
     super.dispose();
   }
 
@@ -1285,6 +1875,7 @@ class _TodayRecommendationsSectionState
       weather: WeatherService.availableNow(widget.target),
       hasUserLocation: hasLocation,
       preferredCategory: widget.preferredCategory,
+      favoritePlaceNames: UserFavoritesController.favorites.value,
     ).take(2).toList(growable: false);
   }
 

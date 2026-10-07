@@ -357,8 +357,9 @@ class AppPlaceMetadataRow extends StatelessWidget {
           if (showDistance && place.distanceKm != null)
             _PlaceMeta(
               icon: Icons.location_on_outlined,
-              label:
-                  '${place.distanceKm!.toStringAsFixed(1).replaceAll('.', ',')} km',
+              label: place.distanceKm! < 1.0
+                  ? '${(place.distanceKm! * 1000).round()} m'
+                  : '${place.distanceKm!.toStringAsFixed(1).replaceAll('.', ',')} km',
               compact: compact,
             ),
           if (place.rating > 0)
