@@ -83,6 +83,29 @@ class AppSecondaryButton extends StatelessWidget {
   }
 }
 
+/// İnce bölüm ve liste ayırıcıları için tek, tema uyumlu kaynak.
+class AppSectionDivider extends StatelessWidget {
+  const AppSectionDivider({
+    super.key,
+    this.indent = 0,
+    this.endIndent = 0,
+    this.height = 1,
+  });
+
+  final double indent;
+  final double endIndent;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Divider(
+        height: height,
+        thickness: 1,
+        indent: indent,
+        endIndent: endIndent,
+        color: AppColors.borderOf(context),
+      );
+}
+
 class AppTextField extends StatelessWidget {
   const AppTextField({
     super.key,
@@ -305,22 +328,20 @@ class AppBookmarkButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: isSaved ? 'Kaydedildi' : 'Kaydet',
+        label: isSaved ? 'Favorilerden çıkar' : 'Favorilere ekle',
         button: onPressed != null,
         child: SizedBox(
           width: AppControlSizes.minimumTouchTarget,
           height: AppControlSizes.minimumTouchTarget,
           child: IconButton(
-            tooltip: isSaved ? 'Kaydedildi' : 'Kaydet',
+            tooltip: isSaved ? 'Favorilerden çıkar' : 'Favorilere ekle',
             onPressed: onPressed,
             icon: Icon(
-              isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
               color: onImage
-                  ? Colors.white
+                  ? (isSaved ? AppColors.error : Colors.white)
                   : isSaved
-                      ? (AppColors.isDark(context)
-                          ? AppColors.darkPrimaryLight
-                          : AppColors.primary)
+                      ? AppColors.error
                       : AppColors.textSecondaryOf(context),
             ),
             style: onImage
@@ -381,6 +402,7 @@ class AppPlaceHeroCard extends StatelessWidget {
     this.onSave,
     this.isSaved = false,
     this.showDistance = true,
+    this.showDescription = true,
     this.decisionLabel,
     this.decisionReason,
   });
@@ -390,6 +412,7 @@ class AppPlaceHeroCard extends StatelessWidget {
   final VoidCallback? onSave;
   final bool isSaved;
   final bool showDistance;
+  final bool showDescription;
   final String? decisionLabel;
   final String? decisionReason;
 
@@ -443,10 +466,20 @@ class AppPlaceHeroCard extends StatelessWidget {
                         Positioned(
                           right: 6,
                           top: 6,
-                          child: AppBookmarkButton(
-                            onPressed: onSave,
-                            isSaved: isSaved,
-                            onImage: true,
+                          child: ValueListenableBuilder<Set<String>>(
+                            valueListenable: UserFavoritesController.favorites,
+                            builder: (context, favorites, _) {
+                              final saved = isSaved ||
+                                  favorites.contains(place.name.trim());
+                              return AppBookmarkButton(
+                                onPressed: onSave ??
+                                    () => unawaited(
+                                        UserFavoritesController.toggle(
+                                            place.name)),
+                                isSaved: saved,
+                                onImage: true,
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -510,18 +543,21 @@ class AppPlaceHeroCard extends StatelessWidget {
                                 ],
                               ),
                             ),
-                          ] else
+                          ] else if (showDescription)
                             Expanded(
                               child: Text(
                                 description,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: AppTypography.metadataOf(context).copyWith(
+                                style:
+                                    AppTypography.metadataOf(context).copyWith(
                                   fontSize: AppFontSizes.caption,
                                   height: 1.2,
                                 ),
                               ),
-                            ),
+                            )
+                          else
+                            const Spacer(),
                           AppPlaceMetadataRow(
                             place: place,
                             showDistance: showDistance,
@@ -590,8 +626,7 @@ class AppMapPreviewCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     AppPlaceThumbnail(place: place, cacheWidth: 200),
-                    if (place.verificationStatus ==
-                        VerificationStatus.verified)
+                    if (place.verificationStatus == VerificationStatus.verified)
                       Positioned(
                         left: 4,
                         top: 4,
@@ -646,7 +681,19 @@ class AppMapPreviewCard extends StatelessWidget {
                   ],
                 ),
               ),
-              AppBookmarkButton(onPressed: onSave, isSaved: isSaved),
+              ValueListenableBuilder<Set<String>>(
+                valueListenable: UserFavoritesController.favorites,
+                builder: (context, favorites, _) {
+                  final saved =
+                      isSaved || favorites.contains(place.name.trim());
+                  return AppBookmarkButton(
+                    onPressed: onSave ??
+                        () => unawaited(
+                            UserFavoritesController.toggle(place.name)),
+                    isSaved: saved,
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -752,8 +799,7 @@ class AppPlaceTrustBadge extends StatelessWidget {
     final (String label, IconData icon, Color color, Color bg) =
         switch (status) {
       VerificationStatus.verified => (
-          AppStrings.get(
-              compact ? 'trust_verified_compact' : 'trust_verified'),
+          AppStrings.get(compact ? 'trust_verified_compact' : 'trust_verified'),
           Icons.verified_rounded,
           isDark ? AppColors.darkPrimaryLight : AppColors.primary,
           isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
@@ -763,9 +809,7 @@ class AppPlaceTrustBadge extends StatelessWidget {
               compact ? 'trust_community_compact' : 'trust_community'),
           Icons.people_outline_rounded,
           AppColors.communityWarm,
-          isDark
-              ? AppColors.darkSurfaceMuted
-              : AppColors.communityWarmSoft,
+          isDark ? AppColors.darkSurfaceMuted : AppColors.communityWarmSoft,
         ),
       VerificationStatus.unverified => (
           AppStrings.get(
@@ -1234,9 +1278,7 @@ class _GuestAuthWallSheet extends StatelessWidget {
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.darkPrimarySoft
-                  : AppColors.primarySoft,
+              color: isDark ? AppColors.darkPrimarySoft : AppColors.primarySoft,
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1328,4 +1370,3 @@ class _GuestAuthWallSheet extends StatelessWidget {
     );
   }
 }
-

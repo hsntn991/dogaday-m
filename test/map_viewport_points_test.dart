@@ -70,11 +70,33 @@ void main() {
     expect(map, contains('MapRegionFocusController.focusedRegion'));
   });
 
-  test('regional map uses compact category pins instead of numeric clusters',
+  test('Gümüşhane always resolves to its own map centre', () {
+    final region = MapRegionFocus.forProvince('Gümüşhane');
+
+    expect(region.label, 'Gümüşhane');
+    expect(region.center.latitude, closeTo(40.46, .001));
+    expect(region.center.longitude, closeTo(39.48, .001));
+    expect(region.zoom, greaterThanOrEqualTo(8.6));
+  });
+
+  test('a province request waits for the map surface before moving the camera',
       () {
     final map = File('lib/src/features/search_map.dart').readAsStringSync();
 
+    expect(map, contains('MapRegionFocus? _pendingRegionFocus'));
+    expect(map, contains('onMapReady: _applyPendingRegionFocus'));
+    expect(map, contains('_applyRegionFocus(region)'));
+  });
+
+  test('regional map uses compact category pins instead of numeric clusters',
+      () {
+    final core = File('lib/src/core/app_core.dart').readAsStringSync();
+    final map = File('lib/src/features/search_map.dart').readAsStringSync();
+
     expect(map, contains('renderAsIndividualPins'));
+    expect(core, contains('static const compactPinsMinZoom = 10.5'));
+    expect(map,
+        contains('_mapZoom >= MapViewportPointsService.compactPinsMinZoom'));
     expect(map, contains('final useClusterMarkers = !renderAsIndividualPins'));
     expect(map,
         contains('final markerSize = (isUtility ? 20.0 : 27.0) * sizeScale'));
@@ -96,7 +118,7 @@ void main() {
     final map = File('lib/src/features/search_map.dart').readAsStringSync();
 
     expect(map, contains('!_isAllRegionsMode'));
-    expect(map, contains('showCount: !_isAllRegionsMode'));
+    expect(map, contains('showCount: false'));
     expect(map, contains('mapController.move(initialCenter, initialZoom)'));
   });
 
@@ -158,5 +180,46 @@ void main() {
     expect(snapshot.countFor('camp'), 10);
     expect(snapshot.placesFor('water_amenities'), [water]);
     expect(snapshot.totalCount, 60);
+  });
+
+  test('province explorer rejects points returned from another province', () {
+    final points = ProvinceExplorerDataService.decodePointsForCity(
+      <Map<String, dynamic>>[
+        <String, dynamic>{
+          'source_kind': 'place',
+          'id': 1,
+          'name': 'Aydın Şelalesi',
+          'latitude': 37.84,
+          'longitude': 27.84,
+          'city': 'Aydın',
+          'district': 'Köşk',
+          'main_category': 'waterfall',
+          'subtype': 'waterfall',
+        },
+        <String, dynamic>{
+          'source_kind': 'place',
+          'id': 2,
+          'name': 'Balıkesir Kampı',
+          'latitude': 39.64,
+          'longitude': 27.88,
+          'city': 'Balıkesir',
+          'district': 'Edremit',
+          'main_category': 'camp',
+          'subtype': 'camp',
+        },
+      ],
+      'Aydın',
+    );
+
+    expect(points, hasLength(1));
+    expect(points.single.name, 'Aydın Şelalesi');
+    expect(points.single.location, contains('Aydın'));
+  });
+
+  test('province explorer does not offer a route into the global map mode', () {
+    final home = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(home, isNot(contains('this.onOpenFullMap')));
+    expect(home, isNot(contains("label: const Text('Tam harita')")));
   });
 }

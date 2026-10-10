@@ -4,14 +4,14 @@ abstract final class AppColors {
   // ── Light palette ──────────────────────────────────────────────────────────
   static const background = Color(0xFFFFFFFF);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFF7F8F6);
-  static const border = Color(0xFFE1E5E1);
-  static const primary = Color(0xFF0F5A35);
-  static const primaryPressed = Color(0xFF0B482A);
-  static const primarySoft = Color(0xFFEAF3ED);
-  static const textPrimary = Color(0xFF151515);
-  static const textSecondary = Color(0xFF68706A);
-  static const textTertiary = Color(0xFF8A928C);
+  static const surfaceMuted = Color(0xFFF5F6F4);
+  static const border = Color(0xFFE5E7E5);
+  static const primary = Color(0xFF173F32);
+  static const primaryPressed = Color(0xFF123329);
+  static const primarySoft = Color(0xFFEAF1ED);
+  static const textPrimary = Color(0xFF202420);
+  static const textSecondary = Color(0xFF747A75);
+  static const textTertiary = Color(0xFF929892);
   static const onPrimary = Color(0xFFFFFFFF);
   static const error = Color(0xFFB42318);
   static const errorSoft = Color(0xFFFFF1EF);
@@ -1162,6 +1162,86 @@ abstract final class ContentSafetyService {
   }
 }
 
+class CommunityChatMessage {
+  const CommunityChatMessage({
+    required this.id,
+    required this.authorId,
+    required this.authorName,
+    required this.body,
+    required this.createdAt,
+    required this.isStaff,
+  });
+
+  final String id;
+  final String authorId;
+  final String authorName;
+  final String body;
+  final DateTime createdAt;
+  final bool isStaff;
+
+  factory CommunityChatMessage.fromMap(Map<String, dynamic> data) =>
+      CommunityChatMessage(
+        id: data['id'].toString(),
+        authorId: data['author_id'].toString(),
+        authorName: data['author_name']?.toString() ?? 'Doğa Kaşifi',
+        body: data['body']?.toString() ?? '',
+        createdAt: DateTime.tryParse(data['created_at']?.toString() ?? '') ??
+            DateTime.now(),
+        isStaff: data['is_staff'] == true,
+      );
+}
+
+abstract final class CommunityChatService {
+  static Future<List<CommunityChatMessage>> loadMessages(
+    String categoryKey,
+  ) async {
+    final response = await Supabase.instance.client.rpc(
+      'get_community_chat_messages',
+      params: {'p_category_key': categoryKey.trim()},
+    );
+    return (response as List)
+        .map((row) => CommunityChatMessage.fromMap(
+              Map<String, dynamic>.from(row as Map),
+            ))
+        .toList(growable: false);
+  }
+
+  static Future<CommunityChatMessage> sendMessage({
+    required String categoryKey,
+    required String body,
+  }) async {
+    final response = await Supabase.instance.client.rpc(
+      'send_community_chat_message',
+      params: {'p_category_key': categoryKey.trim(), 'p_body': body.trim()},
+    );
+    final message = CommunityChatMessage.fromMap(
+      Map<String, dynamic>.from(response as Map),
+    );
+    return CommunityChatMessage(
+      id: message.id,
+      authorId: message.authorId,
+      authorName: message.authorName,
+      body: message.body,
+      createdAt: message.createdAt,
+      isStaff: false,
+    );
+  }
+
+  static Future<void> reportMessage({
+    required String messageId,
+    required String reason,
+    String? note,
+  }) =>
+      Supabase.instance.client.rpc(
+        'report_community_chat_message',
+        params: {
+          'p_message_id': messageId,
+          'p_reason': reason,
+          'p_note': note?.trim(),
+        },
+      );
+}
+
 class MapFocusController {
   MapFocusController._();
 
@@ -1185,6 +1265,34 @@ class MapRegionFocus {
     required this.center,
     this.zoom = 8.6,
   });
+
+  /// İl kartı ya da il detay ekranı hangi akıştan açılırsa açılsın aynı,
+  /// doğrulanmış kamera merkezini kullanır. Böylece önceki harita kamerası
+  /// yanlışlıkla yeni ilin yerine taşınamaz.
+  factory MapRegionFocus.forProvince(String province, {double zoom = 8.8}) {
+    final requested = province.trim();
+    final normalized = _normalizeProvinceName(requested);
+    final canonicalName = _provinceCenters.keys.firstWhere(
+      (candidate) => _normalizeProvinceName(candidate) == normalized,
+      orElse: () => '',
+    );
+    final center = _provinceCenters[canonicalName];
+    if (center == null) {
+      throw ArgumentError.value(province, 'province', 'Bilinmeyen il');
+    }
+    return MapRegionFocus(label: canonicalName, center: center, zoom: zoom);
+  }
+
+  static String _normalizeProvinceName(String value) => value
+      .trim()
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('İ', 'i')
+      .replaceAll('ş', 's')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c');
 
   final String label;
   final LatLng center;
@@ -1325,9 +1433,11 @@ class SubmissionFeedback {
     required this.title,
     required this.body,
     required this.createdAt,
+    this.id,
     this.placeName,
   });
 
+  final String? id;
   final String status;
   final String title;
   final String body;
@@ -1335,6 +1445,8 @@ class SubmissionFeedback {
   final String? placeName;
 
   bool get isActionRequired => status == 'changes_requested';
+  bool get isRejected =>
+      status == 'rejected' || status == 'submission_rejected';
 
   factory SubmissionFeedback.fromModeration({
     required String status,
@@ -1381,6 +1493,7 @@ class SubmissionFeedback {
 
   factory SubmissionFeedback.fromNotification(Map<String, dynamic> row) {
     return SubmissionFeedback(
+      id: row['id']?.toString(),
       status: row['type']?.toString() ?? '',
       title: row['title']?.toString() ?? 'Katkı durumun güncellendi',
       body: row['body']?.toString() ?? '',
@@ -1407,11 +1520,12 @@ class SubmissionFeedbackController {
       }
       final rows = await client
           .from('user_notifications')
-          .select('type, title, body, created_at')
+          .select('id, type, title, body, created_at, read_at')
           .eq('user_id', user.id)
           .order('created_at', ascending: false)
           .limit(20);
       items.value = rows
+          .where((row) => row['read_at'] == null)
           .map((row) => SubmissionFeedback.fromNotification(
                 Map<String, dynamic>.from(row),
               ))
@@ -1420,6 +1534,17 @@ class SubmissionFeedbackController {
       // The app remains compatible until the feedback migration is deployed.
       items.value = const <SubmissionFeedback>[];
     }
+  }
+
+  static Future<void> markRead(SubmissionFeedback feedback) async {
+    final id = feedback.id;
+    if (id == null || id.isEmpty) return;
+    await Supabase.instance.client.rpc(
+      'mark_notification_as_read',
+      params: {'p_notification_id': id},
+    );
+    items.value =
+        items.value.where((item) => item.id != id).toList(growable: false);
   }
 }
 
@@ -1790,6 +1915,9 @@ abstract final class MapViewportPointsService {
   // Yardımcı noktalar, kullanıcı bir bölgeyi keşfederken de görünür olmalı;
   // yalnızca yakına gelindiğinde beliren bir "yakınımda" özelliği değildir.
   static const auxiliaryMinZoom = 9.0;
+  // İl ölçeğinde önce türü anlatan, sayısız küçük küme ikonları kullanılır.
+  // Kullanıcı biraz yaklaştığında tekil işaretlere geçilir.
+  static const compactPinsMinZoom = 10.5;
   static const amenityMinZoom = 13.0;
   static const maxPoints = 300;
 
@@ -1928,7 +2056,7 @@ abstract final class ProvinceExplorerDataService {
         params: <String, dynamic>{'p_city': city},
       ),
     ]);
-    final places = _decodePoints(results.first);
+    final places = _decodePoints(results.first, city);
     final counts = <String, int>{};
     var districtCount = 0;
     final rawSummary = results.last;
@@ -1953,8 +2081,17 @@ abstract final class ProvinceExplorerDataService {
     );
   }
 
-  static List<Place> _decodePoints(Object? response) {
+  /// Veritabanı sorgusu şehirle sınırlıdır; istemci tarafındaki bu ikinci
+  /// kontrol, hatalı ya da eski bir RPC yanıtının başka il işaretlerini
+  /// seçili ilin haritasına taşımasını engeller.
+  @visibleForTesting
+  static List<Place> decodePointsForCity(Object? response, String city) =>
+      _decodePoints(response, city);
+
+  static List<Place> _decodePoints(Object? response, String city) {
     if (response is! List) return const <Place>[];
+    final expectedCity = _normalizedProvince(city);
+    if (expectedCity.isEmpty) return const <Place>[];
     final seen = <String>{};
     return response
         .whereType<Map>()
@@ -1967,7 +2104,9 @@ abstract final class ProvinceExplorerDataService {
           final latitude = (row['latitude'] as num?)?.toDouble();
           final longitude = (row['longitude'] as num?)?.toDouble();
           final name = row['name']?.toString().trim() ?? '';
+          final pointCity = row['city']?.toString().trim() ?? '';
           if (name.isEmpty ||
+              _normalizedProvince(pointCity) != expectedCity ||
               !AddPlaceQualityService.isValidCoordinate(latitude, longitude) ||
               !seen.add('$sourceKind:$id')) {
             return null;
@@ -2000,6 +2139,16 @@ abstract final class ProvinceExplorerDataService {
         .whereType<Place>()
         .toList(growable: false);
   }
+
+  static String _normalizedProvince(String value) => value
+      .trim()
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('ş', 's')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c');
 }
 
 class SupabasePlacesController {

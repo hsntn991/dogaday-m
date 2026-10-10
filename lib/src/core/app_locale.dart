@@ -987,9 +987,9 @@ class AppStrings {
       'ar': 'مساهمة المجتمع',
     },
     'source_supabase': {
-      'tr': 'Supabase kaydı',
-      'en': 'Supabase record',
-      'ar': 'سجل Supabase',
+      'tr': 'Doğadayım kaydı',
+      'en': 'Doğadayım record',
+      'ar': 'سجل Doğadayım',
     },
     'trust_verified': {
       'tr': 'Doğrulanmış',

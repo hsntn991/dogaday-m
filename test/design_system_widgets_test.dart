@@ -5,6 +5,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+      'web bootstrap removes browser margins so Flutter owns the full viewport',
+      () {
+    final index = File('web/index.html').readAsStringSync();
+
+    expect(index, contains('html, body {'));
+    expect(index, contains('margin: 0;'));
+    expect(index, contains('width: 100%;'));
+    expect(index, contains('height: 100%;'));
+  });
+
+  test('province photos are bundled as an asset directory', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+
+    expect(
+      pubspec,
+      matches(
+          RegExp(r'- assets/photos/ekotaban_optimized/\s*$', multiLine: true)),
+    );
+  });
+
+  test('recommendation cards stay compact when descriptions are hidden', () {
+    final source = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(source, contains('height: 196,'));
+  });
+
+  test('unknown update dates do not occupy detail metadata space', () {
+    final source = File('lib/src/features/detail.dart').readAsStringSync();
+
+    expect(source, contains('if (widget.place.updatedAt != null)'));
+  });
+
+  test('onboarding prepares its images and keeps swipe frames lightweight', () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(source, contains('Future<void> _precacheSlideImages() async'));
+    expect(source, contains(r'precacheImage(NetworkImage(slide.$1), context)'));
+    expect(source, contains('physics: const PageScrollPhysics()'));
+    expect(source, contains('return RepaintBoundary('));
+  });
+
   test('authentication screen uses the supplied forest image as its background',
       () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
@@ -34,6 +76,29 @@ void main() {
 
     expect(source, contains('mainAxisSize: MainAxisSize.min'));
     expect(source, isNot(contains('height: constraints.maxHeight')));
+  });
+
+  test('authentication background owns the entire available viewport', () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(
+      source,
+      matches(RegExp(r'body: Stack\(\s+fit: StackFit\.expand,')),
+    );
+  });
+
+  test('authentication presents adjacent sign-up and sign-in tabs', () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(source, contains('_buildAuthModeSwitcher(isDark)'));
+    expect(source, contains("label: 'Kayıt ol'"));
+    expect(source, contains("label: 'Giriş yap'"));
+  });
+
+  test('native app surfaces are never constrained to a phone-width frame', () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(source, isNot(contains('width: 430,')));
   });
 
   test(
@@ -143,7 +208,7 @@ void main() {
 
     expect(find.text('Test Doğa Noktası'), findsOneWidget);
     expect(find.text('2,4 km'), findsOneWidget);
-    expect(find.byTooltip('Kaydet'), findsOneWidget);
+    expect(find.byTooltip('Favorilere ekle'), findsOneWidget);
   });
 
   testWidgets('place thumbnail uses a quiet fallback when no photo exists',

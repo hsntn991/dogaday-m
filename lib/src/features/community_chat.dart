@@ -135,9 +135,8 @@ class _CommunityChatHubScreenState extends State<CommunityChatHubScreen> {
           AppStrings.get('community_chats_desc'),
           style: TextStyle(
             fontFamily: 'Outfit',
-            color: isDark
-                ? AppColors.darkTextSecondary
-                : AppColors.textSecondary,
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
             fontSize: AppFontSizes.label,
             height: 1.4,
           ),
@@ -350,20 +349,50 @@ class CommunityChatRoomScreen extends StatefulWidget {
 
 class _CommunityMessage {
   const _CommunityMessage({
+    this.id = '',
+    this.authorId = '',
     required this.author,
     required this.role,
     required this.text,
     required this.time,
     this.isUser = false,
+    this.isStaff = false,
   });
 
+  final String id;
+  final String authorId;
   final String author;
   final String role;
   final String text;
   final String time;
   final bool isUser;
+  final bool isStaff;
+
+  factory _CommunityMessage.fromLive(CommunityChatMessage message) {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    return _CommunityMessage(
+      id: message.id,
+      authorId: message.authorId,
+      author: message.authorName,
+      role: message.isStaff ? 'Yönetici' : 'Doğa Kaşifi',
+      text: message.body,
+      time: _relativeChatTime(message.createdAt),
+      isUser: currentUserId == message.authorId,
+      isStaff: message.isStaff,
+    );
+  }
 }
 
+String _relativeChatTime(DateTime time) {
+  final elapsed = DateTime.now().difference(time.toLocal());
+  if (elapsed.inMinutes < 1) return 'Şimdi';
+  if (elapsed.inMinutes < 60) return '${elapsed.inMinutes} dk';
+  if (elapsed.inHours < 24) return '${elapsed.inHours} sa';
+  return '${elapsed.inDays} gün';
+}
+
+// Kept only as a local development fixture; production rooms load live data.
+// ignore: unused_element
 List<_CommunityMessage> _getInitialMessages(String category) {
   final cat = category.toLowerCase();
   if (cat.contains('su') || cat.contains('water')) {
@@ -403,7 +432,8 @@ List<_CommunityMessage> _getInitialMessages(String category) {
       _CommunityMessage(
         author: 'Kaan B.',
         role: 'Dağcı',
-        text: 'Zirveye ve yaylaya çıkan yol açık mı, binek araçla çıkılabilir mi?',
+        text:
+            'Zirveye ve yaylaya çıkan yol açık mı, binek araçla çıkılabilir mi?',
         time: '45 dk önce',
       ),
       _CommunityMessage(
@@ -643,22 +673,22 @@ List<String> _getCategoryPrompts(String category) {
 class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
   final controller = TextEditingController();
   final scrollController = ScrollController();
-  late List<_CommunityMessage> messages;
+  List<_CommunityMessage> messages = const [];
+  bool _loadingMessages = true;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
-    messages =
-        List<_CommunityMessage>.from(_getInitialMessages(widget.category));
+    _loadMessages();
   }
 
   @override
   void didUpdateWidget(covariant CommunityChatRoomScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.category != widget.category) {
-      messages =
-          List<_CommunityMessage>.from(_getInitialMessages(widget.category));
       controller.clear();
+      _loadMessages();
     }
   }
 
@@ -667,6 +697,26 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
     controller.dispose();
     scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadMessages() async {
+    setState(() {
+      _loadingMessages = true;
+      _loadError = null;
+    });
+    try {
+      final liveMessages =
+          await CommunityChatService.loadMessages(widget.category);
+      if (!mounted) return;
+      setState(() {
+        messages = liveMessages.map(_CommunityMessage.fromLive).toList();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadError = 'Sohbet şu anda yüklenemedi.');
+    } finally {
+      if (mounted) setState(() => _loadingMessages = false);
+    }
   }
 
   Future<void> addPreviewMessage([String? presetText]) async {
@@ -679,18 +729,29 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
 
     final message = (presetText ?? controller.text).trim();
     if (message.isEmpty) return;
-    setState(() {
-      messages.add(
-        _CommunityMessage(
-          author: 'Sen',
-          role: 'Kaşif',
-          text: message,
-          time: 'Şimdi',
-          isUser: true,
-        ),
+    try {
+      final sent = await CommunityChatService.sendMessage(
+        categoryKey: widget.category,
+        body: message,
       );
-      controller.clear();
-    });
+      if (!mounted) return;
+      setState(() {
+        messages = [...messages, _CommunityMessage.fromLive(sent)];
+        controller.clear();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final text = error.toString();
+      final restriction = RegExp(r'chat_restricted:([^\s]+)').firstMatch(text);
+      final feedback = restriction == null
+          ? 'Mesaj gönderilemedi. Bağlantılar ve uygunsuz içerikler kabul edilmez.'
+          : restriction.group(1) == 'permanent'
+              ? 'Sohbet erişimin süresiz olarak kısıtlandı.'
+              : 'Sohbet erişimin ${restriction.group(1)} tarihine kadar kısıtlandı.';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(feedback)));
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
         scrollController.animateTo(
@@ -700,6 +761,82 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
         );
       }
     });
+  }
+
+  Future<void> _showReportDialog(_CommunityMessage message) async {
+    String reason = 'abuse';
+    final noteController = TextEditingController();
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Mesajı şikayet et'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final item in const <(String, String)>[
+                    ('abuse', 'Hakaret veya argo'),
+                    ('harassment', 'Taciz'),
+                    ('spam', 'Spam'),
+                    ('unsafe', 'Güvenlik riski'),
+                    ('other', 'Diğer'),
+                  ])
+                    ChoiceChip(
+                      label: Text(item.$2),
+                      selected: reason == item.$1,
+                      onSelected: (_) => setDialogState(() => reason = item.$1),
+                    ),
+                ],
+              ),
+              TextField(
+                controller: noteController,
+                maxLength: 300,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Ek açıklama (isteğe bağlı)',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Gönder'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (submitted != true || !mounted) {
+      noteController.dispose();
+      return;
+    }
+    try {
+      await CommunityChatService.reportMessage(
+        messageId: message.id,
+        reason: reason,
+        note: noteController.text,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Şikayetin yönetime iletildi.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Şikayet gönderilemedi.')),
+      );
+    } finally {
+      noteController.dispose();
+    }
   }
 
   @override
@@ -751,168 +888,232 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
             ),
           ),
           Expanded(
-            child: ListView.separated(
-              controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-              itemCount: messages.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (_, index) {
-                final message = messages[index];
-                if (message.isUser) {
-                  return Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 290),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: green,
-                        borderRadius: BorderRadius.circular(AppRadii.large),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            message.text,
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              color: Colors.white,
-                              fontSize: AppFontSizes.label,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Şimdi · Sen',
-                            style: TextStyle(
-                              fontSize: AppFontSizes.caption,
-                              color: Colors.white.withValues(alpha: 0.75),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurface : Colors.white,
-                      borderRadius: BorderRadius.circular(AppRadii.large),
-                      border: Border.all(
-                        color:
-                            isDark ? AppColors.darkBorder : AppColors.border,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: AppColors.shadow08,
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 12,
-                              backgroundColor: isDark
-                                  ? AppColors.darkPrimarySoft
-                                  : AppColors.primarySoft,
-                              child: Text(
-                                message.author.isNotEmpty
-                                    ? message.author[0]
-                                    : 'D',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primary,
-                                ),
+            child: _loadingMessages
+                ? const Center(child: CircularProgressIndicator())
+                : _loadError != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(_loadError!),
+                              const SizedBox(height: 12),
+                              OutlinedButton(
+                                onPressed: _loadMessages,
+                                child: const Text('Tekrar dene'),
                               ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : messages.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Bu sohbette henüz mesaj yok. İlk mesajı sen yaz.',
+                              textAlign: TextAlign.center,
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      message.author,
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: AppFontSizes.label,
-                                        fontWeight: FontWeight.w600,
-                                        color: textPrimary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                          )
+                        : ListView.separated(
+                            controller: scrollController,
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                            itemCount: messages.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (_, index) {
+                              final message = messages[index];
+                              if (message.isUser) {
+                                return Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Container(
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 290),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: green,
+                                      borderRadius:
+                                          BorderRadius.circular(AppRadii.large),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          message.text,
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            color: Colors.white,
+                                            fontSize: AppFontSizes.label,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${message.time} · ${message.author}',
+                                          style: TextStyle(
+                                            fontSize: AppFontSizes.caption,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.75),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
+                                );
+                              }
+
+                              return Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 320),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? AppColors.darkSurface
+                                        : Colors.white,
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.large),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? AppColors.darkBorder
+                                          : AppColors.border,
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: AppColors.shadow08,
+                                        blurRadius: 8,
+                                        offset: Offset(0, 2),
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? AppColors.darkPrimarySoft
-                                            : AppColors.primarySoft,
-                                        borderRadius:
-                                            BorderRadius.circular(AppRadii.small),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 12,
+                                            backgroundColor: isDark
+                                                ? AppColors.darkPrimarySoft
+                                                : AppColors.primarySoft,
+                                            child: Text(
+                                              message.author.isNotEmpty
+                                                  ? message.author[0]
+                                                  : 'D',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Row(
+                                              children: [
+                                                Flexible(
+                                                  child: Text(
+                                                    message.author,
+                                                    style: TextStyle(
+                                                      fontFamily: 'Outfit',
+                                                      fontSize:
+                                                          AppFontSizes.label,
+                                                      fontWeight:
+                                                          message.isStaff
+                                                              ? FontWeight.w800
+                                                              : FontWeight.w600,
+                                                      color: textPrimary,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                if (message.isStaff) ...[
+                                                  const Icon(
+                                                    Icons.verified_rounded,
+                                                    size: 16,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                ],
+                                                Flexible(
+                                                  child: Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: isDark
+                                                          ? AppColors
+                                                              .darkPrimarySoft
+                                                          : AppColors
+                                                              .primarySoft,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              AppRadii.small),
+                                                    ),
+                                                    child: Text(
+                                                      message.role,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: isDark
+                                                            ? AppColors
+                                                                .darkPrimaryLight
+                                                            : AppColors.primary,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          if (!message.isUser &&
+                                              message.id.isNotEmpty)
+                                            IconButton(
+                                              tooltip: 'Şikayet et',
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              icon: Icon(
+                                                Icons.more_horiz_rounded,
+                                                size: 20,
+                                                color: textTertiary,
+                                              ),
+                                              onPressed: () =>
+                                                  _showReportDialog(message),
+                                            ),
+                                        ],
                                       ),
-                                      child: Text(
-                                        message.role,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      const SizedBox(height: 7),
+                                      Text(
+                                        message.text,
                                         style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: isDark
-                                              ? AppColors.darkPrimaryLight
-                                              : AppColors.primary,
+                                          fontFamily: 'Outfit',
+                                          fontSize: AppFontSizes.body,
+                                          height: 1.35,
+                                          color: textPrimary,
                                         ),
                                       ),
-                                    ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              message.time,
-                              style: TextStyle(
-                                fontSize: AppFontSizes.caption,
-                                color: textTertiary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          message.text,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: AppFontSizes.body,
-                            height: 1.35,
-                            color: textPrimary,
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
           ),
           Container(
             height: 42,
@@ -1020,6 +1221,24 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
                     )
                   : Row(
                       children: [
+                        for (final emoji in const ['⛺', '💧', '🌿', '👍'])
+                          InkWell(
+                            onTap: () {
+                              controller.text = '${controller.text}$emoji';
+                              controller.selection = TextSelection.collapsed(
+                                offset: controller.text.length,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: TextField(
                             controller: controller,
@@ -1031,16 +1250,19 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
                               color: isDark ? AppColors.darkTextPrimary : null,
                             ),
                             decoration: InputDecoration(
-                              hintText: AppStrings.get('community_chat_input_hint'),
+                              hintText:
+                                  AppStrings.get('community_chat_input_hint'),
                               hintStyle: TextStyle(
-                                color: isDark ? AppColors.darkTextTertiary : null,
+                                color:
+                                    isDark ? AppColors.darkTextTertiary : null,
                               ),
                               filled: true,
                               fillColor: isDark
                                   ? Colors.white.withValues(alpha: 0.13)
                                   : AppColors.surfaceMuted,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(AppRadii.large),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.large),
                                 borderSide: BorderSide.none,
                               ),
                             ),
@@ -1050,7 +1272,8 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
                         IconButton.filled(
                           onPressed: addPreviewMessage,
                           style: IconButton.styleFrom(
-                            backgroundColor: isDark ? AppColors.darkPrimary : green,
+                            backgroundColor:
+                                isDark ? AppColors.darkPrimary : green,
                           ),
                           icon: const Icon(Icons.send_rounded),
                         ),

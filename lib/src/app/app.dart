@@ -23,10 +23,19 @@ class DogaApp extends StatelessWidget {
                   colorScheme: const ColorScheme.light(
                     primary: AppColors.primary,
                     onPrimary: AppColors.onPrimary,
+                    primaryContainer: AppColors.primarySoft,
+                    onPrimaryContainer: AppColors.primary,
                     secondary: AppColors.primary,
                     onSecondary: AppColors.onPrimary,
+                    secondaryContainer: AppColors.surfaceMuted,
+                    onSecondaryContainer: AppColors.textPrimary,
+                    tertiary: AppColors.primary,
+                    onTertiary: AppColors.onPrimary,
                     surface: AppColors.surface,
                     onSurface: AppColors.textPrimary,
+                    surfaceContainerHighest: AppColors.surfaceMuted,
+                    outline: AppColors.border,
+                    outlineVariant: AppColors.border,
                     error: AppColors.error,
                     onError: AppColors.onPrimary,
                   ),
@@ -147,6 +156,38 @@ class DogaApp extends StatelessWidget {
                     thickness: 1,
                     space: 1,
                   ),
+                  iconTheme: const IconThemeData(
+                    color: AppColors.textSecondary,
+                  ),
+                  listTileTheme: const ListTileThemeData(
+                    iconColor: AppColors.textSecondary,
+                    textColor: AppColors.textPrimary,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.medium,
+                    ),
+                  ),
+                  chipTheme: ChipThemeData(
+                    backgroundColor: AppColors.surface,
+                    selectedColor: AppColors.primary,
+                    secondarySelectedColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.border),
+                    labelStyle: AppTypography.label.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                    secondaryLabelStyle: AppTypography.label.copyWith(
+                      color: AppColors.onPrimary,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                  ),
+                  bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+                    backgroundColor: AppColors.surface,
+                    selectedItemColor: AppColors.primary,
+                    unselectedItemColor: AppColors.textSecondary,
+                    elevation: 0,
+                    type: BottomNavigationBarType.fixed,
+                  ),
                   appBarTheme: const AppBarTheme(
                     elevation: 0,
                     scrolledUnderElevation: 0,
@@ -188,56 +229,14 @@ class DogaApp extends StatelessWidget {
                 themeMode: themeMode,
                 home: const SplashScreen(),
                 builder: (context, child) {
-                  final mediaQuery = MediaQuery.of(context);
-                  final isWide = mediaQuery.size.width > 430;
-                  final effectiveWidth = isWide ? 430.0 : mediaQuery.size.width;
-                  final effectiveMediaQuery = mediaQuery.copyWith(
-                    size: Size(effectiveWidth, mediaQuery.size.height),
-                  );
-
-                  Widget appContent = MediaQuery(
-                    data: effectiveMediaQuery,
-                    child: child ?? const SizedBox.shrink(),
-                  );
-
-                  if (isWide) {
-                    final isDark =
-                        Theme.of(context).brightness == Brightness.dark;
-                    appContent = Center(
-                      child: Container(
-                        width: 430,
-                        height: double.infinity,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          boxShadow: [
-                            BoxShadow(
-                              color: isDark
-                                  ? const Color(0x66000000)
-                                  : const Color(0x22000000),
-                              blurRadius: 32,
-                              spreadRadius: 2,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: appContent,
-                      ),
-                    );
-                  }
-
                   return Directionality(
                     textDirection: locale.languageCode == 'ar'
                         ? TextDirection.rtl
                         : TextDirection.ltr,
-                    child: ColoredBox(
-                      color: isWide
-                          ? (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF0F1411)
-                              : const Color(0xFFE4E9E6))
-                          : Theme.of(context).scaffoldBackgroundColor,
-                      child: appContent,
-                    ),
+                    // Önizleme penceresinde de gerçek cihazda da uygulamayı
+                    // dar bir telefon kartına sıkıştırma: ekranın tamamını
+                    // kullanması gerekir.
+                    child: child ?? const SizedBox.shrink(),
                   );
                 },
               )));
@@ -404,46 +403,50 @@ class _AppStartupErrorApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        backgroundColor: const Color(0xFFF5F5F0),
+        backgroundColor: AppColors.background,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.signal_wifi_off_rounded,
-                    size: 56, color: Color(0xFF888880)),
+                const Icon(
+                  Icons.signal_wifi_off_rounded,
+                  size: 56,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'Bağlantı kurulamadı',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A2718),
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'İnternet bağlantını kontrol et ve uygulamayı yeniden başlat.',
+                Text(
+                  kIsWeb
+                      ? 'İnternet bağlantını kontrol et ve sayfayı yenile.'
+                      : 'İnternet bağlantını kontrol et; ardından uygulamayı kapatıp tekrar aç.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: Color(0xFF6B6B60)),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 28),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF2D6A4F),
+                if (!kIsWeb)
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                    ),
+                    onPressed: () {
+                      SystemNavigator.pop();
+                    },
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Uygulamayı kapat'),
                   ),
-                  onPressed: () {
-                    // Web'de sayfayı yenile
-                    if (kIsWeb) {
-                      // ignore: avoid_dynamic_calls
-                      // dart:html bağımlılığı eklememek için url_launcher kullanılıyor.
-                    }
-                    // Native'de uygulama yeniden başlatılamaz; kullanıcı manuel yapar.
-                  },
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Yeniden Dene'),
-                ),
               ],
             ),
           ),
@@ -544,6 +547,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     entryScale = Tween<double>(begin: 1.09, end: 1).animate(curve);
     entryOpacity = Tween<double>(begin: .55, end: 1).animate(curve);
     entryController.forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_precacheSlideImages());
+    });
   }
 
   static const slides = [
@@ -569,6 +575,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       AppColors.onboardingCamp,
     ),
   ];
+
+  Future<void> _precacheSlideImages() async {
+    // Kullanıcı sonraki sayfaya geçtiğinde ağdan görsel beklemesin. Sırayla
+    // önbelleğe almak ilk ekranın çizimini ve kaydırma karelerini engellemez.
+    for (final slide in slides) {
+      if (!mounted) return;
+      await precacheImage(NetworkImage(slide.$1), context);
+    }
+  }
 
   @override
   void dispose() {
@@ -641,8 +656,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       finish();
     } else {
       controller.nextPage(
-        duration: const Duration(milliseconds: 360),
-        curve: Curves.easeInOutCubic,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
       );
     }
   }
@@ -658,28 +673,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
           child: PageView.builder(
             controller: controller,
-            physics: const BouncingScrollPhysics(),
+            physics: const PageScrollPhysics(),
             itemCount: slides.length,
             onPageChanged: (value) => setState(() => current = value),
             itemBuilder: (_, index) {
               final slide = slides[index];
-              return AnimatedBuilder(
-                animation: controller,
-                builder: (_, child) {
-                  var page = current.toDouble();
-                  if (controller.hasClients &&
-                      controller.position.hasContentDimensions) {
-                    page = controller.page ?? page;
-                  }
-                  final distance = (page - index).abs().clamp(0.0, 1.0);
-                  return Opacity(
-                    opacity: 1 - (.18 * distance),
-                    child: Transform.scale(
-                      scale: 1 + (.05 * distance),
-                      child: child,
-                    ),
-                  );
-                },
+              return RepaintBoundary(
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -886,7 +885,9 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-  AuthMode _mode = AuthMode.signIn;
+  // Kayıt ekranı uygulamaya ilk kez gelen kişilerin ana akışıdır. Aynı
+  // ekrandaki sekme, hesabı olanların girişe geçmesini sağlar.
+  AuthMode _mode = AuthMode.signUp;
   bool _passwordVisible = false;
   bool _confirmVisible = false;
   bool _acceptedTerms = false;
@@ -982,7 +983,7 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (!_acceptedTerms) {
+    if (_isSignUp && !_acceptedTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Devam etmek için koşulları kabul et.')),
       );
@@ -1188,6 +1189,43 @@ class _AuthScreenState extends State<AuthScreen> {
         ],
       );
 
+  Widget _buildAuthModeSwitcher(bool isDark) => Semantics(
+        label: 'Hesap işlemi seçimi',
+        child: Container(
+          key: const Key('auth_mode_switcher'),
+          height: 52,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: isDark ? .16 : .78),
+            borderRadius: BorderRadius.circular(AppRadii.large),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: isDark ? .18 : .88),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _AuthModeTab(
+                  key: const Key('auth_sign_up_tab'),
+                  label: 'Kayıt ol',
+                  selected: _isSignUp,
+                  onTap: () => _setMode(AuthMode.signUp),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _AuthModeTab(
+                  key: const Key('auth_sign_in_tab'),
+                  label: 'Giriş yap',
+                  selected: !_isSignUp,
+                  onTap: () => _setMode(AuthMode.signIn),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
   Widget _buildLanguageChooser() => ValueListenableBuilder<Locale>(
         valueListenable: AppLocaleController.current,
         builder: (context, locale, _) => Column(
@@ -1236,6 +1274,7 @@ class _AuthScreenState extends State<AuthScreen> {
       backgroundColor:
           isDark ? AppColors.darkBackground : AppColors.surfaceMuted,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           // Kullanıcının seçtiği sisli orman görseli giriş ekranının ana
           // atmosferidir. Üstteki koyu geçiş, form ve marka alanını her
@@ -1371,9 +1410,11 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 18),
+                          _buildAuthModeSwitcher(isDark),
+                          const SizedBox(height: 16),
                           _buildSocialAuthRow(isDark),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
                           Row(children: [
                             Expanded(
                               child: Divider(
@@ -1399,7 +1440,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                             ),
                           ]),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -1415,7 +1456,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                           ? 'Adını ve soyadını yaz.'
                                           : null,
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 12),
                               ],
                               _AuthField(
                                 controller: _emailController,
@@ -1433,7 +1474,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                   return null;
                                 },
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 12),
                               _AuthField(
                                 controller: _passwordController,
                                 label: 'Şifre',
@@ -1460,7 +1501,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 },
                               ),
                               if (_isSignUp) ...[
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 12),
                                 _AuthField(
                                   controller: _confirmController,
                                   label: 'Şifre tekrarı',
@@ -1499,80 +1540,86 @@ class _AuthScreenState extends State<AuthScreen> {
                                     ),
                                   ),
                                 ),
-                              const SizedBox(height: 8),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 6),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SizedBox(
-                                      width: 23,
-                                      height: 23,
-                                      child: Checkbox(
-                                        value: _acceptedTerms,
-                                        onChanged: (value) => setState(() =>
-                                            _acceptedTerms = value ?? false),
-                                        activeColor: isDark
-                                            ? AppColors.darkPrimary
-                                            : AppColors.primary,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(5)),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text.rich(
-                                        TextSpan(children: [
-                                          TextSpan(
-                                            text: 'Kullanım Şartları',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                              decoration:
-                                                  TextDecoration.underline,
-                                            ),
-                                            recognizer:
-                                                _termsOfServiceRecognizer,
-                                          ),
-                                          const TextSpan(text: ' ve '),
-                                          TextSpan(
-                                            text: 'Gizlilik Politikası',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                              decoration:
-                                                  TextDecoration.underline,
-                                            ),
-                                            recognizer:
-                                                _privacyPolicyRecognizer,
-                                          ),
-                                          TextSpan(
-                                            text: '’nı okudum, kabul ediyorum.',
-                                            recognizer: _toggleTermsRecognizer,
-                                          ),
-                                        ]),
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: AppFontSizes.caption,
-                                          height: 1.45,
-                                          color: Colors.white
-                                              .withValues(alpha: .90),
+                              if (_isSignUp) ...[
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(
+                                        width: 23,
+                                        height: 23,
+                                        child: Checkbox(
+                                          value: _acceptedTerms,
+                                          onChanged: (value) => setState(() =>
+                                              _acceptedTerms = value ?? false),
+                                          activeColor: isDark
+                                              ? AppColors.darkPrimary
+                                              : AppColors.primary,
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(5)),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text.rich(
+                                          TextSpan(children: [
+                                            TextSpan(
+                                              text: 'Kullanım Şartları',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                decoration:
+                                                    TextDecoration.underline,
+                                              ),
+                                              recognizer:
+                                                  _termsOfServiceRecognizer,
+                                            ),
+                                            const TextSpan(text: ' ve '),
+                                            TextSpan(
+                                              text: 'Gizlilik Politikası',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                decoration:
+                                                    TextDecoration.underline,
+                                              ),
+                                              recognizer:
+                                                  _privacyPolicyRecognizer,
+                                            ),
+                                            TextSpan(
+                                              text:
+                                                  '’nı okudum, kabul ediyorum.',
+                                              recognizer:
+                                                  _toggleTermsRecognizer,
+                                            ),
+                                          ]),
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: AppFontSizes.caption,
+                                            height: 1.45,
+                                            color: Colors.white
+                                                .withValues(alpha: .90),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
+                              ],
                               const SizedBox(height: 13),
                               SizedBox(
                                 width: double.infinity,
                                 height: 54,
                                 child: FilledButton(
-                                  onPressed: _loading || !_acceptedTerms
-                                      ? null
-                                      : _submit,
+                                  onPressed:
+                                      _loading || (_isSignUp && !_acceptedTerms)
+                                          ? null
+                                          : _submit,
                                   style: FilledButton.styleFrom(
                                     backgroundColor: isDark
                                         ? AppColors.darkPrimary
@@ -1598,9 +1645,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                               MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              _isSignUp
-                                                  ? 'Hesap oluştur'
-                                                  : 'Devam et',
+                                              'Devam et',
                                               style: const TextStyle(
                                                   fontSize: AppFontSizes.title,
                                                   fontWeight: FontWeight.w600),
@@ -1612,20 +1657,6 @@ class _AuthScreenState extends State<AuthScreen> {
                                           ],
                                         ),
                                 ),
-                              ),
-                              const SizedBox(height: 10),
-                              TextButton(
-                                onPressed: () => _setMode(_isSignUp
-                                    ? AuthMode.signIn
-                                    : AuthMode.signUp),
-                                child: Text(
-                                    _isSignUp
-                                        ? 'Zaten hesabın var mı? Giriş yap'
-                                        : 'Hesabın yok mu? Hesap oluştur',
-                                    style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600)),
                               ),
                             ],
                           ),
@@ -1772,6 +1803,45 @@ class _SocialAuthButton extends StatelessWidget {
   }
 }
 
+class _AuthModeTab extends StatelessWidget {
+  const _AuthModeTab({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        selected: selected,
+        label: label,
+        child: Material(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadii.medium),
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.body,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
 class _AuthField extends StatelessWidget {
   const _AuthField({
     required this.controller,
@@ -1881,11 +1951,15 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+  static const _mapNavigationIdleDuration = Duration(seconds: 6);
   int index = 0;
   Set<String> get favorites => UserFavoritesController.favorites.value;
   late List<Widget?> _tabScreens;
   Timer? _locationReminderTimer;
+  Timer? _mapNavigationTimer;
+  final ValueNotifier<bool> _mapNavigationVisibility = ValueNotifier(true);
   bool _locationReminderShown = false;
+  bool _isMapNavigationVisible = true;
 
   @override
   void initState() {
@@ -1905,7 +1979,35 @@ class _MainShellState extends State<MainShell> {
   void dispose() {
     AppLocaleController.current.removeListener(_onLocaleChanged);
     _locationReminderTimer?.cancel();
+    _mapNavigationTimer?.cancel();
+    _mapNavigationVisibility.dispose();
     super.dispose();
+  }
+
+  void _setMapNavigationVisibility(bool visible) {
+    if (_isMapNavigationVisible == visible) return;
+    _mapNavigationVisibility.value = visible;
+    if (mounted) setState(() => _isMapNavigationVisible = visible);
+  }
+
+  /// Harita, içeriğin önünde kalması için kısa bir süre sonra alt menüyü
+  /// kapatır. Kullanıcı haritaya yeniden dokunduğunda menü hemen geri gelir.
+  void _registerMapInteraction() {
+    if (index != 1) return;
+    _mapNavigationTimer?.cancel();
+    _setMapNavigationVisibility(true);
+    _mapNavigationTimer = Timer(_mapNavigationIdleDuration, () {
+      if (mounted && index == 1) {
+        _setMapNavigationVisibility(false);
+      }
+    });
+  }
+
+  void _showMapNavigation() {
+    _mapNavigationTimer?.cancel();
+    if (!_isMapNavigationVisible) {
+      _setMapNavigationVisibility(true);
+    }
   }
 
   void _onLocaleChanged() {
@@ -2200,7 +2302,11 @@ class _MainShellState extends State<MainShell> {
               ),
             ),
           ),
-        1 => MapScreen(onOpen: open),
+        1 => MapScreen(
+            onOpen: open,
+            onUserInteraction: _registerMapInteraction,
+            bottomNavigationVisible: _mapNavigationVisibility,
+          ),
         2 => const GoodnessMovementScreen(),
         _ => FigmaProfileScreen(onOpen: open),
       };
@@ -2219,29 +2325,63 @@ class _MainShellState extends State<MainShell> {
       index = value;
       _tabScreens[value] ??= _createTab(value);
     });
+    if (value == 1) {
+      _registerMapInteraction();
+    } else {
+      _showMapNavigation();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final showNavigation = index != 1 || _isMapNavigationVisible;
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
-        index: index,
-        children: List<Widget>.generate(
-          _tabScreens.length,
-          // A locale/theme rebuild can temporarily clear an inactive cached
-          // tab. Never render a blank page for a selected navigation item.
-          (tabIndex) =>
-              _tabScreens[tabIndex] ??
-              (tabIndex == index
-                  ? _createTab(tabIndex)
-                  : const SizedBox.shrink()),
-        ),
-      ),
-      bottomNavigationBar: _FigmaBottomBar(
-        index: index,
-        onChanged: selectTab,
-        onAdd: openAddPlace,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          IndexedStack(
+            index: index,
+            children: List<Widget>.generate(
+              _tabScreens.length,
+              // A locale/theme rebuild can temporarily clear an inactive
+              // cached tab. Never render a blank page for a selected item.
+              (tabIndex) =>
+                  _tabScreens[tabIndex] ??
+                  (tabIndex == index
+                      ? _createTab(tabIndex)
+                      : const SizedBox.shrink()),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              reverseDuration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, .22),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: FadeTransition(opacity: animation, child: child),
+              ),
+              child: showNavigation
+                  ? KeyedSubtree(
+                      key: const Key('map_auto_hiding_bottom_navigation'),
+                      child: _FigmaBottomBar(
+                        index: index,
+                        onChanged: selectTab,
+                        onAdd: openAddPlace,
+                      ),
+                    )
+                  : const SizedBox.shrink(
+                      key: ValueKey('map_navigation_hidden'),
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2258,119 +2398,135 @@ class _FigmaBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
-        top: false,
-        child: SizedBox(
-            height: 76,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 640),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.topCenter,
-                  children: [
-                    Positioned.fill(
-                      top: 12,
-                      child: GlassContainer(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(AppRadii.hero),
-                          topRight: Radius.circular(AppRadii.hero),
-                        ),
-                        blur: 10.0,
-                        color: Colors.white.withValues(alpha: 0.72),
-                        darkColor: AppColors.darkGlass,
+      top: false,
+      child: SizedBox(
+        height: 82,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.topCenter,
+              children: [
+                Positioned.fill(
+                  child: Material(
+                    key: const Key('figma_floating_bottom_bar'),
+                    color: isDark ? AppColors.darkSurface : Colors.white,
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
+                    clipBehavior: Clip.antiAlias,
+                    borderRadius: BorderRadius.zero,
+                    child: Container(
+                      key: const Key('figma_attached_navigation_surface'),
+                      decoration: BoxDecoration(
                         border: Border(
                           top: BorderSide(
                             color: isDark
-                                ? Colors.white.withValues(alpha: 0.12)
-                                : Colors.white.withValues(alpha: 0.85),
-                            width: 1.2,
+                                ? AppColors.darkBorder
+                                : AppColors.border,
                           ),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: isDark
-                                ? AppColors.shadow33
-                                : AppColors.shadow08,
-                            blurRadius: 16,
-                            offset: const Offset(0, -2),
-                          ),
-                        ],
+                      ),
+                      child: DecoratedBox(
+                        key: const Key('figma_navigation_surface'),
+                        decoration: const BoxDecoration(),
                         child: ValueListenableBuilder<Locale>(
                           valueListenable: AppLocaleController.current,
                           builder: (context, _, __) => Row(children: [
                             Expanded(
-                                child: _FigmaNavItem(
-                                    index: 0,
-                                    current: index,
-                                    icon: Icons.home_outlined,
-                                    activeIcon: Icons.home_rounded,
-                                    label: AppStrings.get('tab_discover'),
-                                    onTap: onChanged)),
+                              child: _FigmaNavItem(
+                                index: 0,
+                                current: index,
+                                icon: Icons.explore_outlined,
+                                activeIcon: Icons.explore_rounded,
+                                label: AppStrings.get('tab_discover'),
+                                onTap: onChanged,
+                              ),
+                            ),
                             Expanded(
-                                child: _FigmaNavItem(
-                                    index: 1,
-                                    current: index,
-                                    icon: Icons.map_outlined,
-                                    activeIcon: Icons.map_rounded,
-                                    label: AppStrings.get('tab_map'),
-                                    onTap: onChanged)),
-                            const SizedBox(width: 64),
+                              child: _FigmaNavItem(
+                                index: 1,
+                                current: index,
+                                icon: Icons.map_outlined,
+                                activeIcon: Icons.map_rounded,
+                                label: AppStrings.get('tab_map'),
+                                onTap: onChanged,
+                              ),
+                            ),
+                            const SizedBox(width: 60),
                             Expanded(
-                                child: _FigmaNavItem(
-                                    index: 2,
-                                    current: index,
-                                    icon: Icons.volunteer_activism_outlined,
-                                    activeIcon:
-                                        Icons.volunteer_activism_rounded,
-                                    label: AppStrings.get('tab_goodness'),
-                                    onTap: onChanged)),
+                              child: _FigmaNavItem(
+                                index: 2,
+                                current: index,
+                                icon: Icons.volunteer_activism_outlined,
+                                activeIcon: Icons.volunteer_activism_rounded,
+                                label: AppStrings.get('tab_goodness'),
+                                onTap: onChanged,
+                                customIconBuilder: (active, color) =>
+                                    _GoodnessImpactIcon(
+                                  active: active,
+                                  color: color,
+                                ),
+                              ),
+                            ),
                             Expanded(
-                                child: _FigmaNavItem(
-                                    index: 3,
-                                    current: index,
-                                    icon: Icons.person_outline_rounded,
-                                    activeIcon: Icons.person_rounded,
-                                    label: AppStrings.get('tab_profile'),
-                                    onTap: onChanged)),
+                              child: _FigmaNavItem(
+                                index: 3,
+                                current: index,
+                                icon: Icons.account_circle_outlined,
+                                activeIcon: Icons.account_circle_rounded,
+                                label: AppStrings.get('tab_profile'),
+                                onTap: onChanged,
+                              ),
+                            ),
                           ]),
                         ),
                       ),
                     ),
-                    Positioned(
-                      top: -14,
-                      child: ValueListenableBuilder<Locale>(
-                        valueListenable: AppLocaleController.current,
-                        builder: (context, _, __) => Semantics(
-                          label: AppStrings.get('tab_add_place'),
-                          button: true,
-                          child: Tooltip(
-                            message: AppStrings.get('tab_add_place'),
-                            child: Material(
-                              color: isDark
-                                  ? AppColors.darkPrimary
-                                  : AppColors.primary,
-                              shape: const CircleBorder(),
-                              elevation: 3,
-                              child: InkWell(
-                                onTap: onAdd,
-                                customBorder: const CircleBorder(),
-                                child: const SizedBox(
-                                  width: 56,
-                                  height: 56,
-                                  child: Icon(Icons.add_rounded,
-                                      color: Colors.white, size: 28),
-                                ),
+                  ),
+                ),
+                Positioned(
+                  top: 13,
+                  child: ValueListenableBuilder<Locale>(
+                    valueListenable: AppLocaleController.current,
+                    builder: (context, _, __) => Semantics(
+                      label: AppStrings.get('tab_add_place'),
+                      button: true,
+                      child: Tooltip(
+                        message: AppStrings.get('tab_add_place'),
+                        child: Material(
+                          key: const Key('figma_center_add_button'),
+                          color: isDark
+                              ? AppColors.darkPrimary
+                              : AppColors.primary,
+                          shape: const CircleBorder(),
+                          elevation: 5,
+                          shadowColor: Colors.black.withValues(alpha: .28),
+                          child: InkWell(
+                            onTap: onAdd,
+                            customBorder: const CircleBorder(),
+                            child: SizedBox(
+                              width: 56,
+                              height: 56,
+                              child: Icon(
+                                Icons.add_rounded,
+                                color: Colors.white,
+                                size: 29,
                               ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            )));
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -2381,11 +2537,13 @@ class _FigmaNavItem extends StatelessWidget {
       required this.icon,
       required this.activeIcon,
       required this.label,
-      required this.onTap});
+      required this.onTap,
+      this.customIconBuilder});
   final int index, current;
   final IconData icon, activeIcon;
   final String label;
   final ValueChanged<int> onTap;
+  final Widget Function(bool active, Color color)? customIconBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -2402,21 +2560,99 @@ class _FigmaNavItem extends StatelessWidget {
         message: label,
         child: InkWell(
           onTap: () => onTap(index),
-          borderRadius: BorderRadius.circular(AppRadii.medium),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(active ? activeIcon : icon, color: color, size: 23),
-            const SizedBox(height: 4),
-            Text(label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontFamily: 'Outfit',
-                    color: color,
-                    fontSize: AppFontSizes.caption,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.w500)),
-          ]),
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedScale(
+                      duration: const Duration(milliseconds: 180),
+                      scale: active ? 1.08 : 1,
+                      child: customIconBuilder?.call(active, color) ??
+                          Icon(active ? activeIcon : icon,
+                              color: color, size: 23),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontFamily: 'Outfit',
+                            color: color,
+                            fontSize: 10,
+                            height: 1.1,
+                            fontWeight:
+                                active ? FontWeight.w700 : FontWeight.w500)),
+                  ]),
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+/// A small brand mark for the İyilik tab: a seedling whose influence spreads
+/// outward instead of the generic hand-heart metaphor.
+class _GoodnessImpactIcon extends StatelessWidget {
+  const _GoodnessImpactIcon({required this.active, required this.color});
+
+  final bool active;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+        child: SizedBox(
+          key: const Key('goodness_impact_icon'),
+          width: 25,
+          height: 25,
+          child: CustomPaint(
+            painter: _GoodnessImpactPainter(color),
+            child: Center(
+              child: Icon(
+                active ? Icons.eco_rounded : Icons.eco_outlined,
+                color: color,
+                size: 14,
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _GoodnessImpactPainter extends CustomPainter {
+  const _GoodnessImpactPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.65
+      ..strokeCap = StrokeCap.round;
+    final center = Offset(size.width / 2, size.height / 2);
+    final outer = Rect.fromCircle(center: center, radius: 10.5);
+    final inner = Rect.fromCircle(center: center, radius: 7.3);
+    // Two pairs of arcs leave breathing space around the seedling while
+    // suggesting that one small action can spread through a community.
+    canvas.drawArc(outer, -2.42, 1.12, false, paint);
+    canvas.drawArc(outer, .72, 1.12, false, paint);
+    canvas.drawArc(inner, -2.30, .72, false, paint);
+    canvas.drawArc(inner, .84, .72, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GoodnessImpactPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

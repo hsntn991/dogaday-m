@@ -950,6 +950,56 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+      'selecting a search result outside the current region focuses it on map',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(() {
+      SupabasePlacesController.places.value = const [];
+      UserPlacesController.places.value = const [];
+    });
+
+    const result = Place(
+      'Arama ile Bulunan Şelale',
+      'Artvin',
+      'Şelale',
+      4.7,
+      Icons.waterfall_chart_rounded,
+      [Colors.blue, Colors.lightBlue],
+      null,
+      latitude: 41.183,
+      longitude: 41.818,
+      sourceId: 'search-result-outside-region',
+    );
+    SupabasePlacesController.places.value = [result];
+    UserPlacesController.places.value = const [];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: MapScreen(onOpen: (_) {})),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.text(AppStrings.get('map_search_places')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Arama ile Bulunan');
+    await tester.pump();
+    await tester.tap(find.text(result.name));
+    await tester.pump();
+
+    expect(find.byType(AppMapPreviewCard), findsOneWidget);
+    final camera = tester
+        .widget<FlutterMap>(find.byType(FlutterMap))
+        .mapController!
+        .camera;
+    // Kart için yer, ekranın tam ortası yerine biraz üstünde tutulur.
+    expect(camera.center.latitude, closeTo(result.latitude!, .04));
+    expect(camera.center.longitude, closeTo(result.longitude!, .01));
+    expect(camera.zoom, greaterThanOrEqualTo(12));
+  });
+
   testWidgets('map floating controls stay overflow-free on phone widths',
       (tester) async {
     const pathChannel = MethodChannel('plugins.flutter.io/path_provider');
@@ -1011,11 +1061,95 @@ void main() {
     expect(find.byTooltip('İyilik'), findsOneWidget);
     expect(find.byTooltip('Profil'), findsOneWidget);
     expect(find.byTooltip('Yer Ekle'), findsOneWidget);
+    expect(find.byIcon(Icons.explore_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.map_outlined), findsWidgets);
+    expect(find.byKey(const Key('goodness_impact_icon')), findsOneWidget);
+    expect(find.byIcon(Icons.account_circle_outlined), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.add_rounded));
     await tester.pumpAndSettle();
 
     expect(find.byType(AddPlaceScreen), findsOneWidget);
+  });
+
+  testWidgets('Figma-style navigation floats above the safe area',
+      (tester) async {
+    AppAuthGuard.debugOverrideAuthenticated = true;
+    addTearDown(() => AppAuthGuard.debugOverrideAuthenticated = null);
+    await tester.pumpWidget(const MaterialApp(home: MainShell()));
+    await tester.pump();
+
+    expect(find.byKey(const Key('figma_floating_bottom_bar')), findsOneWidget);
+    expect(find.byKey(const Key('figma_navigation_surface')), findsOneWidget);
+    expect(find.byKey(const Key('figma_attached_navigation_surface')),
+        findsOneWidget);
+    expect(find.byKey(const Key('figma_center_add_button')), findsOneWidget);
+    expect(
+      tester
+          .widget<Material>(
+            find.byKey(const Key('figma_floating_bottom_bar')),
+          )
+          .clipBehavior,
+      Clip.antiAlias,
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const Key('figma_center_add_button')))
+          .center
+          .dy,
+      closeTo(
+        tester
+            .getRect(find.byKey(const Key('figma_attached_navigation_surface')))
+            .center
+            .dy,
+        1,
+      ),
+    );
+  });
+
+  testWidgets('map navigation hides after inactivity and returns on touch',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: MainShell()));
+    await tester.pump();
+
+    final deferLocation = find.text('Şimdi Değil');
+    if (deferLocation.evaluate().isNotEmpty) {
+      await tester.tap(deferLocation);
+      await tester.pump();
+    }
+
+    await tester.tap(find.byTooltip('Harita'));
+    await tester.pump();
+
+    expect(find.byKey(const Key('map_auto_hiding_bottom_navigation')),
+        findsOneWidget);
+    final navigationTop = tester
+        .getRect(find.byKey(const Key('map_auto_hiding_bottom_navigation')))
+        .top;
+    expect(
+      tester.getRect(find.byTooltip('Çevrimdışı harita')).bottom,
+      lessThanOrEqualTo(navigationTop - 8),
+    );
+    expect(
+      tester.getRect(find.text('Servis')).bottom,
+      lessThanOrEqualTo(navigationTop - 8),
+    );
+
+    await tester.pump(const Duration(seconds: 6));
+    // Harita, alt menü kaybolurken beyaz bir ara boşluk bırakmamalı.
+    expect(
+      tester.getRect(find.byType(FlutterMap)).bottom,
+      closeTo(
+          tester.view.physicalSize.height / tester.view.devicePixelRatio, 1),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const Key('map_auto_hiding_bottom_navigation')),
+        findsNothing);
+
+    await tester.tapAt(const Offset(180, 360));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const Key('map_auto_hiding_bottom_navigation')),
+        findsOneWidget);
   });
 
   testWidgets('premium bottom navigation remains overflow-free on phones',
@@ -2650,7 +2784,9 @@ void main() {
           equals('https://youtube.com/@husnutuna'));
     });
 
-    test('PlaceViewStats parses json correctly and provides valid empty defaults', () {
+    test(
+        'PlaceViewStats parses json correctly and provides valid empty defaults',
+        () {
       final stats = PlaceViewStats.fromJson({
         'place_id': 'beysehir_golu',
         'views_today': 12,
@@ -2669,7 +2805,9 @@ void main() {
       expect(PlaceViewStats.empty.views24h, equals(0));
     });
 
-    test('UserReviewRecord serializes and deserializes social handle and platform', () async {
+    test(
+        'UserReviewRecord serializes and deserializes social handle and platform',
+        () async {
       final record = UserReviewRecord(
         id: 'rev-test-123',
         placeKey: 'test_place',
@@ -2695,7 +2833,9 @@ void main() {
       expect(entry.socialPlatform, equals('instagram'));
     });
 
-    test('UserReviewsController saves and retrieves reviews with social handles', () async {
+    test(
+        'UserReviewsController saves and retrieves reviews with social handles',
+        () async {
       const place = Place(
         'Sosyal Rozet Test Yeri',
         'Antalya',
@@ -2725,4 +2865,3 @@ void main() {
     });
   });
 }
-

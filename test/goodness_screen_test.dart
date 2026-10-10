@@ -62,7 +62,7 @@ void main() {
     }
 
     // Tap on Goodness tab (İyilik)
-    final goodnessTab = find.byIcon(Icons.volunteer_activism_outlined);
+    final goodnessTab = find.byKey(const Key('goodness_impact_icon'));
     expect(goodnessTab, findsOneWidget);
     await tester.tap(goodnessTab);
     await tester.pump();

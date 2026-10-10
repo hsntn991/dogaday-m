@@ -323,14 +323,101 @@ class FigmaProfileScreen extends StatefulWidget {
 class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
   bool _isDeletingAccount = false;
   bool _expiredCallPromptShown = false;
+  bool _rejectionNoticeShown = false;
+
+  Future<void> _showDisplayNameEditor(String currentName) async {
+    final controller = TextEditingController(text: currentName);
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Görünecek adın'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 48,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Sohbette görünen ad',
+            hintText: 'Örn. Hüsnü T. veya Hüsnü Tuna',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final displayName = selected?.trim() ?? '';
+    if (displayName.length < 2 || displayName.length > 48 || !mounted) return;
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: {'display_name': displayName}),
+      );
+      if (mounted) setState(() {});
+    } on AuthException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     unawaited(EmergencyHelpController.load());
-    unawaited(SubmissionFeedbackController.load());
+    unawaited(_loadSubmissionFeedback());
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _showExpiredCallPrompt());
+  }
+
+  Future<void> _loadSubmissionFeedback() async {
+    await SubmissionFeedbackController.load();
+    if (!mounted) return;
+    await _showUnreadRejectionNotice();
+  }
+
+  Future<void> _showUnreadRejectionNotice() async {
+    if (!mounted || _rejectionNoticeShown) return;
+    final feedback = SubmissionFeedbackController.items.value
+        .where((item) => item.isRejected)
+        .cast<SubmissionFeedback?>()
+        .firstWhere((item) => item != null, orElse: () => null);
+    if (feedback == null) return;
+    _rejectionNoticeShown = true;
+
+    final acknowledged = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.info_outline_rounded, color: AppColors.error),
+        title: const Text('Yer ekleme başvurun reddedildi'),
+        content: Text(feedback.body),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Okudum'),
+          ),
+        ],
+      ),
+    );
+    if (acknowledged != true || !mounted) return;
+    try {
+      await SubmissionFeedbackController.markRead(feedback);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Bildirim okundu olarak işaretlenemedi. Tekrar dene.'),
+        ));
+      }
+    }
   }
 
   Future<void> _showExpiredCallPrompt() async {
@@ -389,14 +476,6 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
     }
     await EmergencyHelpController.load();
     if (!mounted) return;
-    if (!EmergencyHelpController.isAvailable.value) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Yardım çağrısı altyapısı henüz etkin değil.'),
-        ),
-      );
-      return;
-    }
     final active = EmergencyHelpController.currentUserActiveRequest;
     if (active != null) {
       await Navigator.push(
@@ -885,6 +964,13 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
             textPrimary: textPrimary,
             textSecondary: textSecondary,
           ),
+          const SizedBox(height: 12),
+          _buildFavoritesShortcut(
+            context: context,
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+          ),
           const SizedBox(height: 20),
           _buildEmergencyHelpCard(
             context: context,
@@ -1229,16 +1315,29 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: AppFontSizes.title,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: AppFontSizes.title,
+                                fontWeight: FontWeight.w700,
+                                color: textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (!isGuest)
+                            IconButton(
+                              tooltip: 'Görünecek adı düzenle',
+                              onPressed: () =>
+                                  _showDisplayNameEditor(displayName),
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 3),
                       Text(
@@ -1420,6 +1519,99 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
         ),
       );
 
+  List<Place> _favoritePlaces() {
+    final savedNames = UserFavoritesController.favorites.value;
+    final seen = <String>{};
+    return <Place>[
+      ...SupabasePlacesController.places.value,
+      ...UserPlacesController.places.value,
+      ...NearbyPlacesService.availableNow(
+          HomeWeatherLocationController.current.value),
+    ].where((place) {
+      final name = place.name.trim();
+      return savedNames.contains(name) && name.isNotEmpty && seen.add(name);
+    }).toList(growable: false);
+  }
+
+  void _openFavorites(BuildContext context) {
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => FigmaFavoritesScreen(
+          items: _favoritePlaces(),
+          onOpen: widget.onOpen,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFavoritesShortcut({
+    required BuildContext context,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) =>
+      ValueListenableBuilder<Set<String>>(
+        valueListenable: UserFavoritesController.favorites,
+        builder: (context, favorites, _) => Semantics(
+          button: true,
+          label: 'Favorilerim, ${favorites.length} kayıtlı yer',
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _openFavorites(context),
+              borderRadius: BorderRadius.circular(AppRadii.large),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 72),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurface : AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.large),
+                  border: Border.all(
+                    color: isDark ? AppColors.darkBorder : AppColors.border,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.favorite_rounded,
+                        color: AppColors.error, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppStrings.get('favorites_title'),
+                            style: TextStyle(
+                              color: textPrimary,
+                              fontFamily: 'Outfit',
+                              fontSize: AppFontSizes.body,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${favorites.length} kayıtlı yer',
+                            style: TextStyle(
+                              color: textSecondary,
+                              fontSize: AppFontSizes.caption,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded,
+                        color: textSecondary, size: 22),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
   Widget _buildEmergencyHelpCard({
     required BuildContext context,
     required bool isDark,
@@ -1520,7 +1712,10 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
       ValueListenableBuilder<List<SubmissionFeedback>>(
         valueListenable: SubmissionFeedbackController.items,
         builder: (context, feedback, _) {
-          if (feedback.isEmpty) return const SizedBox.shrink();
+          final visibleFeedback = feedback
+              .where((item) => !item.isRejected)
+              .toList(growable: false);
+          if (visibleFeedback.isEmpty) return const SizedBox.shrink();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1534,7 +1729,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              ...feedback.take(2).map(
+              ...visibleFeedback.take(2).map(
                     (item) => Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 8),

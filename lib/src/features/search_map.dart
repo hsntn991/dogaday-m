@@ -690,9 +690,16 @@ class _MapCluster {
 }
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key, required this.onOpen});
+  const MapScreen({
+    super.key,
+    required this.onOpen,
+    this.onUserInteraction,
+    this.bottomNavigationVisible,
+  });
 
   final ValueChanged<Place> onOpen;
+  final VoidCallback? onUserInteraction;
+  final ValueNotifier<bool>? bottomNavigationVisible;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -723,6 +730,12 @@ class _MapScreenState extends State<MapScreen> {
   bool _isViewportLoading = false;
   bool _viewportNeedsSearch = false;
   String? _viewportError;
+  int _viewportRequestToken = 0;
+  bool _isMapReady = false;
+  MapRegionFocus? _pendingRegionFocus;
+  // Arama, açık bölgenin dışından da sonuç döndürebilir. Seçilen sonucu
+  // kamera/veri yenilenirken kaybetmemek için geçici olarak haritada tutarız.
+  Place? _searchFocusedPlace;
   // Bölge görünümü varsayılandır: kullanıcı bir alanı açıkça seçene kadar
   // harita sade kalır. Tüm Türkiye görünümü ise bilinçli bir tercih olmalıdır.
   bool _isAllRegionsMode = false;
@@ -734,7 +747,8 @@ class _MapScreenState extends State<MapScreen> {
     if (usesRegionalExplorer &&
         !_isAllRegionsMode &&
         !_hasOpenedRegion &&
-        UserPlacesController.places.value.isEmpty) {
+        UserPlacesController.places.value.isEmpty &&
+        _searchFocusedPlace == null) {
       return const <Place>[];
     }
     final useViewportPoints = usesRegionalExplorer &&
@@ -753,9 +767,11 @@ class _MapScreenState extends State<MapScreen> {
       ...UserPlacesController.places.value,
       ...remotePlaces,
       if (selectedFilter == 'local_service') ...SampleMobileServices.samples,
+      if (_searchFocusedPlace != null) _searchFocusedPlace!,
     ].where((place) {
       final key = place.sourceId ??
           '${place.name.toLowerCase()}:${place.latitude}:${place.longitude}';
+      final isFocusedSearchResult = _isFocusedSearchResult(place);
       return place.hasCoordinates &&
           !isNonNatureCandidateName(
             place.name,
@@ -768,11 +784,13 @@ class _MapScreenState extends State<MapScreen> {
           ) &&
           // Yardımcı tesisler bölge keşfinde de görünür; yakın ölçekte ise
           // kümeden ayrılıp tekil, seçilebilir simgelere dönüşür.
-          (!place.isUtility ||
+          (isFocusedSearchResult ||
+              !place.isUtility ||
               _mapZoom >= MapViewportPointsService.auxiliaryMinZoom) &&
           // RPC hazır olmadan da eski veriyle ekran dışındaki binlerce nokta
           // çizilmez. Bu, işlev kapatıldığında dahi güvenli bir yerel yedektir.
           (_isAllRegionsMode ||
+              isFocusedSearchResult ||
               bounds == null ||
               (place.latitude! >= bounds.south &&
                   place.latitude! <= bounds.north &&
@@ -791,6 +809,15 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   List<Place> get mapPlaces => _mapPlaces;
+
+  bool _isFocusedSearchResult(Place place) {
+    final focused = _searchFocusedPlace;
+    if (focused == null) return false;
+    return (focused.sourceId != null && focused.sourceId == place.sourceId) ||
+        (focused.name == place.name &&
+            focused.latitude == place.latitude &&
+            focused.longitude == place.longitude);
+  }
 
   /// Kamera/veri yenilenirken önceki seçimin indeksi artık listede olmayabilir.
   /// Bu yüzden ekran, doğrudan liste indeksi yerine bu güvenli erişimi kullanır.
@@ -842,13 +869,14 @@ class _MapScreenState extends State<MapScreen> {
           index,
     ];
 
-    // Bölge keşfinde P4N benzeri doğrudan keşif tercih edilir: kullanıcı
-    // sayı balonları yerine, orta ölçekte dahi türünü anlatan küçük pinleri
-    // görür. Eski ekran davranışı yalnızca özellik kapatılırsa korunur.
+    // İl ölçeğinde sayı balonları yerine türü anlatan küçük küme ikonları
+    // kullanılır. Kullanıcı biraz yaklaştığında tekil pinlere geçilir;
+    // böylece ekran, Gümüşhane gibi yoğun alanlarda da temiz kalır.
     final renderAsIndividualPins =
         MapViewportPointsService.regionalExplorerEnabled &&
             _hasOpenedRegion &&
-            !_isAllRegionsMode;
+            !_isAllRegionsMode &&
+            _mapZoom >= MapViewportPointsService.compactPinsMinZoom;
     if (renderAsIndividualPins ||
         _mapZoom >= MapViewportPointsService.amenityMinZoom) {
       final individual = visibleIndexes
@@ -1009,6 +1037,7 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _loadViewportPoints({bool userInitiated = false}) async {
     if (!MapViewportPointsService.enabled || _visibleBounds == null) return;
     if (_isViewportLoading) return;
+    final requestToken = ++_viewportRequestToken;
     final requestedBounds = _visibleBounds!;
     final requestedZoom = _mapZoom;
     final filterTypes = switch (selectedFilter) {
@@ -1027,7 +1056,7 @@ class _MapScreenState extends State<MapScreen> {
         zoom: requestedZoom,
         filterTypes: filterTypes,
       );
-      if (!mounted) return;
+      if (!mounted || requestToken != _viewportRequestToken) return;
       setState(() {
         _viewportPlaces = loaded;
         _viewportNeedsSearch = false;
@@ -1038,7 +1067,7 @@ class _MapScreenState extends State<MapScreen> {
         _clusterCache = null;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestToken != _viewportRequestToken) return;
       setState(() {
         _isViewportLoading = false;
         _viewportError = 'Bu alan için yerler şu an yüklenemedi.';
@@ -1077,26 +1106,32 @@ class _MapScreenState extends State<MapScreen> {
     if (!target.hasCoordinates) return;
 
     _mapPlaces = buildMapPlaces();
-    final idx = _mapPlaces.indexWhere((p) =>
-        (p.sourceId != null && p.sourceId == target.sourceId) ||
-        (p.name == target.name &&
-            p.latitude == target.latitude &&
-            p.longitude == target.longitude));
-    if (idx >= 0) {
-      selectPlace(_mapPlaces[idx]);
-    } else {
-      mapController.move(
-        LatLng(target.latitude!, target.longitude!),
-        math.max(mapController.camera.zoom, 13.0),
-        offset: const Offset(0, -90),
-      );
-    }
+    selectPlace(target);
   }
 
   void _onMapRegionFocusRequested() {
     final region = MapRegionFocusController.focusedRegion.value;
     if (region == null || !mounted) return;
     MapRegionFocusController.clear();
+
+    // FlutterMap henüz hazır değilken yapılan move çağrısı önceki kameranın
+    // ekranda kalmasına neden olabiliyordu. İsteği saklayıp onMapReady'de
+    // uygularsak seçilen il her zaman doğru merkezden açılır.
+    _pendingRegionFocus = region;
+    if (_isMapReady) _applyPendingRegionFocus();
+  }
+
+  void _applyPendingRegionFocus() {
+    _isMapReady = true;
+    final region = _pendingRegionFocus;
+    if (region == null || !mounted) return;
+    _pendingRegionFocus = null;
+    _applyRegionFocus(region);
+  }
+
+  void _applyRegionFocus(MapRegionFocus region) {
+    // Eski alanın asenkron isteği yeni ilin verisini ezemez.
+    _viewportRequestToken++;
 
     // Bir il seçildiğinde önce eski alanın verisini ve seçimini temizleriz.
     // Böylece Konya'dan Antalya'ya geçen kullanıcı, önceki bölgenin
@@ -1105,6 +1140,7 @@ class _MapScreenState extends State<MapScreen> {
       _isAllRegionsMode = false;
       _hasOpenedRegion = false;
       _viewportPlaces = null;
+      _isViewportLoading = false;
       _viewportNeedsSearch = false;
       _viewportError = null;
       selectedFilter = 'Tümü';
@@ -1172,10 +1208,19 @@ class _MapScreenState extends State<MapScreen> {
           isVisible(entry.value));
 
   void selectPlace(Place place, {bool keepHistory = false}) {
-    final index = mapPlaces.indexWhere((item) =>
+    if (!place.hasCoordinates) return;
+    var index = mapPlaces.indexWhere((item) =>
         item.name == place.name &&
         item.latitude == place.latitude &&
         item.longitude == place.longitude);
+    if (index < 0) {
+      _searchFocusedPlace = place;
+      _mapPlaces = buildMapPlaces();
+      index = mapPlaces.indexWhere((item) =>
+          item.name == place.name &&
+          item.latitude == place.latitude &&
+          item.longitude == place.longitude);
+    }
     if (index < 0) return;
     setState(() {
       if (!keepHistory) _selectionHistory.clear();
@@ -1579,7 +1624,25 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final navigationVisibility = widget.bottomNavigationVisible;
+    if (navigationVisibility == null) {
+      return _buildMapPage(context, bottomNavigationVisible: false);
+    }
+    return ValueListenableBuilder<bool>(
+      valueListenable: navigationVisibility,
+      builder: (context, bottomNavigationVisible, _) => _buildMapPage(
+        context,
+        bottomNavigationVisible: bottomNavigationVisible,
+      ),
+    );
+  }
+
+  Widget _buildMapPage(
+    BuildContext context, {
+    required bool bottomNavigationVisible,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mapBottomInset = bottomNavigationVisible ? 96.0 : 18.0;
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1589,13 +1652,19 @@ class _MapScreenState extends State<MapScreen> {
               constraints.maxWidth >= AppBreakpoints.tabletPortraitMin;
 
           if (isLandscapeTablet) {
-            return _buildLandscapeLayout(context, constraints, isDark);
+            return _buildLandscapeLayout(
+              context,
+              constraints,
+              isDark,
+              mapBottomInset: mapBottomInset,
+            );
           }
           return _buildStandardMapLayout(
             context,
             constraints,
             isDark,
             isTablet: isPortraitTablet,
+            mapBottomInset: mapBottomInset,
           );
         },
       ),
@@ -1604,116 +1673,121 @@ class _MapScreenState extends State<MapScreen> {
 
   Widget _buildFlutterMap(bool isDark) {
     final selectedPlace = selectedMapPlace;
-    // Bölgesel keşifte her nokta kendi tür ikonu ile görünür; sayılı küme
-    // marker'ları yalnızca eski, bayrakla kapatılabilir deneyimde kalır.
+    // Bölgesel keşifte uzak ölçekte sayısız tür kümeleri, yakın ölçekte
+    // tekil pinler kullanılır. Bu, haritayı hem okunur hem seçilebilir tutar.
     final renderAsIndividualPins =
         MapViewportPointsService.regionalExplorerEnabled &&
             _hasOpenedRegion &&
-            !_isAllRegionsMode;
+            !_isAllRegionsMode &&
+            _mapZoom >= MapViewportPointsService.compactPinsMinZoom;
     final useClusterMarkers = !renderAsIndividualPins &&
         _mapZoom < MapViewportPointsService.amenityMinZoom;
     return RepaintBoundary(
-      child: FlutterMap(
-        mapController: mapController,
-        options: MapOptions(
-          initialCenter: initialCenter,
-          initialZoom: initialZoom,
-          minZoom: 4,
-          maxZoom: 18,
-          cameraConstraint: CameraConstraint.containLatitude(),
-          onPositionChanged: handleMapPositionChanged,
-          onTap: (_, __) {
-            if (selectedIndex != null) {
-              setState(() {
-                selectedIndex = null;
-                _selectionHistory.clear();
-                _clusterCache = null;
-              });
-            }
-          },
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: switch (_mapStyle) {
-              _MapStyle.standart =>
-                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              _MapStyle.uydu =>
-                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-              _MapStyle.topo =>
-                'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      child: Listener(
+        onPointerDown: (_) => widget.onUserInteraction?.call(),
+        child: FlutterMap(
+          mapController: mapController,
+          options: MapOptions(
+            initialCenter: initialCenter,
+            initialZoom: initialZoom,
+            minZoom: 4,
+            maxZoom: 18,
+            cameraConstraint: CameraConstraint.containLatitude(),
+            onMapReady: _applyPendingRegionFocus,
+            onPositionChanged: handleMapPositionChanged,
+            onTap: (_, __) {
+              if (selectedIndex != null) {
+                setState(() {
+                  selectedIndex = null;
+                  _selectionHistory.clear();
+                  _clusterCache = null;
+                });
+              }
             },
-            subdomains: _mapStyle == _MapStyle.topo
-                ? const ['a', 'b', 'c']
-                : const ['a'],
-            userAgentPackageName: 'com.dogadagezi.dogada_gezi',
-            maxNativeZoom: _mapStyle == _MapStyle.topo ? 17 : 19,
-            panBuffer: 2,
-            tileProvider: tileProvider,
           ),
-          MarkerLayer(
-            markers: [
-              if (userCoordinate != null)
-                Marker(
-                  point: userCoordinate!,
-                  width: 54,
-                  height: 54,
-                  child: const _UserLocationMarker(),
-                ),
-            ],
-          ),
-          MarkerLayer(
-            markers: markerClusters.map((cluster) {
-              if (useClusterMarkers && cluster.placeIndexes.length > 1) {
-                final count = cluster.placeIndexes.length;
-                final markerWidth =
-                    count >= 1000 ? 76.0 : (count >= 100 ? 68.0 : 60.0);
+          children: [
+            TileLayer(
+              urlTemplate: switch (_mapStyle) {
+                _MapStyle.standart =>
+                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                _MapStyle.uydu =>
+                  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                _MapStyle.topo =>
+                  'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+              },
+              subdomains: _mapStyle == _MapStyle.topo
+                  ? const ['a', 'b', 'c']
+                  : const ['a'],
+              userAgentPackageName: 'com.dogadagezi.dogada_gezi',
+              maxNativeZoom: _mapStyle == _MapStyle.topo ? 17 : 19,
+              panBuffer: 2,
+              tileProvider: tileProvider,
+            ),
+            MarkerLayer(
+              markers: [
+                if (userCoordinate != null)
+                  Marker(
+                    point: userCoordinate!,
+                    width: 54,
+                    height: 54,
+                    child: const _UserLocationMarker(),
+                  ),
+              ],
+            ),
+            MarkerLayer(
+              markers: markerClusters.map((cluster) {
+                if (useClusterMarkers && cluster.placeIndexes.length > 1) {
+                  final count = cluster.placeIndexes.length;
+                  final markerWidth =
+                      count >= 1000 ? 76.0 : (count >= 100 ? 68.0 : 60.0);
+                  return Marker(
+                    point: cluster.center,
+                    width: markerWidth,
+                    height: AppControlSizes.minimumTouchTarget,
+                    alignment: Alignment.center,
+                    child: _MapClusterMarker(
+                      cluster: cluster,
+                      showCount: false,
+                      onTap: () => openCluster(cluster),
+                    ),
+                  );
+                }
+                final index = cluster.placeIndexes.single;
+                final selected = selectedIndex == index;
+                final showLabel = _mapZoom >= 11.5;
                 return Marker(
                   point: cluster.center,
-                  width: markerWidth,
-                  height: AppControlSizes.minimumTouchTarget,
-                  alignment: Alignment.center,
-                  child: _MapClusterMarker(
-                    cluster: cluster,
-                    showCount: !_isAllRegionsMode,
-                    onTap: () => openCluster(cluster),
+                  width: selected ? 130 : (showLabel ? 96 : 52),
+                  height: selected ? 74 : (showLabel ? 52 : 46),
+                  alignment: Alignment.bottomCenter,
+                  child: _MapMarker(
+                    place: mapPlaces[index],
+                    selected: selected,
+                    showLabel: showLabel,
+                    sizeScale: _markerScaleForZoom(_mapZoom),
+                    onTap: () => selectPlace(mapPlaces[index]),
                   ),
                 );
-              }
-              final index = cluster.placeIndexes.single;
-              final selected = selectedIndex == index;
-              final showLabel = _mapZoom >= 11.5;
-              return Marker(
-                point: cluster.center,
-                width: selected ? 130 : (showLabel ? 96 : 52),
-                height: selected ? 74 : (showLabel ? 52 : 46),
-                alignment: Alignment.bottomCenter,
-                child: _MapMarker(
-                  place: mapPlaces[index],
-                  selected: selected,
-                  showLabel: showLabel,
-                  sizeScale: _markerScaleForZoom(_mapZoom),
-                  onTap: () => selectPlace(mapPlaces[index]),
-                ),
-              );
-            }).toList(growable: false),
-          ),
-          if (selectedPlace != null)
-            MarkerLayer(markers: [
-              Marker(
-                point: coordinateFor(validSelectedIndex!),
-                width: 130,
-                height: 74,
-                alignment: Alignment.bottomCenter,
-                child: _MapMarker(
-                  place: selectedPlace,
-                  selected: true,
-                  showLabel: true,
-                  sizeScale: _markerScaleForZoom(_mapZoom),
-                  onTap: () => selectPlace(selectedPlace),
-                ),
-              )
-            ]),
-        ],
+              }).toList(growable: false),
+            ),
+            if (selectedPlace != null)
+              MarkerLayer(markers: [
+                Marker(
+                  point: coordinateFor(validSelectedIndex!),
+                  width: 130,
+                  height: 74,
+                  alignment: Alignment.bottomCenter,
+                  child: _MapMarker(
+                    place: selectedPlace,
+                    selected: true,
+                    showLabel: true,
+                    sizeScale: _markerScaleForZoom(_mapZoom),
+                    onTap: () => selectPlace(selectedPlace),
+                  ),
+                )
+              ]),
+          ],
+        ),
       ),
     );
   }
@@ -1721,9 +1795,10 @@ class _MapScreenState extends State<MapScreen> {
   Widget _buildAttribution(bool isDark) {
     return GlassContainer(
       borderRadius: BorderRadius.circular(AppRadii.medium),
-      blur: 10,
-      color: Colors.white.withValues(alpha: 0.75),
-      borderColor: Colors.white.withValues(alpha: 0.65),
+      blur: 0,
+      color: AppColors.surface,
+      borderColor: AppColors.border,
+      boxShadow: const [],
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       child: Text(
         switch (_mapStyle) {
@@ -1744,9 +1819,9 @@ class _MapScreenState extends State<MapScreen> {
     return GlassContainer(
       borderRadius: BorderRadius.circular(AppRadii.large),
       blur: 8,
-      color: Colors.white.withValues(alpha: 0.72),
+      color: AppColors.surface,
       darkColor: AppColors.darkGlass,
-      borderColor: Colors.white.withValues(alpha: 0.85),
+      borderColor: AppColors.border,
       darkBorderColor: Colors.white.withValues(alpha: 0.14),
       borderWidth: 1.2,
       boxShadow: [
@@ -1834,8 +1909,7 @@ class _MapScreenState extends State<MapScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(AppRadii.pill),
                 border: Border.all(
-                  color:
-                      selected ? green : Colors.white.withValues(alpha: 0.70),
+                  color: selected ? green : AppColors.border,
                 ),
               ),
               child: Row(
@@ -1869,17 +1943,11 @@ class _MapScreenState extends State<MapScreen> {
               return GlassContainer(
                 borderRadius: BorderRadius.circular(AppRadii.pill),
                 blur: 0,
-                color: green.withValues(alpha: 0.92),
+                color: green,
                 darkColor: AppColors.darkPrimary.withValues(alpha: 0.95),
-                borderColor: Colors.white.withValues(alpha: 0.50),
+                borderColor: green,
                 borderWidth: 1.2,
-                boxShadow: const [
-                  BoxShadow(
-                    color: AppColors.shadow26,
-                    blurRadius: 10,
-                    offset: Offset(0, 3),
-                  ),
-                ],
+                boxShadow: const [],
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -1894,10 +1962,10 @@ class _MapScreenState extends State<MapScreen> {
             return GlassContainer(
               borderRadius: BorderRadius.circular(AppRadii.pill),
               blur: 0,
-              color: Colors.white.withValues(alpha: 0.82),
-              borderColor: Colors.white.withValues(alpha: 0.85),
-              borderWidth: 1.2,
-              boxShadow: AppShadows.soft,
+              color: AppColors.surface,
+              borderColor: AppColors.border,
+              borderWidth: 1,
+              boxShadow: const [],
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -1943,20 +2011,16 @@ class _MapScreenState extends State<MapScreen> {
             return GlassContainer(
               borderRadius: BorderRadius.circular(AppRadii.pill),
               blur: 0,
-              color: isSelected
-                  ? green.withValues(alpha: 0.92)
-                  : Colors.white.withValues(alpha: 0.82),
+              color: isSelected ? green : AppColors.surface,
               darkColor: isSelected
                   ? AppColors.darkPrimary.withValues(alpha: 0.95)
                   : AppColors.darkSurfaceMuted.withValues(alpha: 0.90),
-              borderColor: isSelected
-                  ? Colors.white.withValues(alpha: 0.50)
-                  : Colors.white.withValues(alpha: 0.70),
+              borderColor: isSelected ? green : AppColors.border,
               darkBorderColor: isSelected
                   ? Colors.white.withValues(alpha: 0.30)
                   : Colors.white.withValues(alpha: 0.14),
-              borderWidth: 1.2,
-              boxShadow: AppShadows.soft,
+              borderWidth: 1,
+              boxShadow: const [],
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -2151,8 +2215,9 @@ class _MapScreenState extends State<MapScreen> {
   Widget _buildLandscapeLayout(
     BuildContext context,
     BoxConstraints constraints,
-    bool isDark,
-  ) {
+    bool isDark, {
+    required double mapBottomInset,
+  }) {
     final selectedPlace = selectedMapPlace;
     final visiblePlaces = mapPlaces.where(isVisible).toList(growable: false);
 
@@ -2183,12 +2248,12 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               Positioned(
                 left: 12,
-                bottom: 18,
+                bottom: mapBottomInset,
                 child: _buildAttribution(isDark),
               ),
               Positioned(
                 right: 14,
-                bottom: 18,
+                bottom: mapBottomInset,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -2254,8 +2319,8 @@ class _MapScreenState extends State<MapScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: SizedBox(
-                      height: 224,
-                      child: _buildDiscoverySheet(selectedPlace, 224),
+                      height: 248,
+                      child: _buildDiscoverySheet(selectedPlace, 248),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2424,9 +2489,10 @@ class _MapScreenState extends State<MapScreen> {
     BoxConstraints constraints,
     bool isDark, {
     required bool isTablet,
+    required double mapBottomInset,
   }) {
     final selectedPlace = selectedMapPlace;
-    final sheetHeight = selectedPlace == null ? 0.0 : 224.0;
+    final sheetHeight = selectedPlace == null ? 0.0 : 248.0;
     final showRegionalFilters =
         MapViewportPointsService.regionalExplorerEnabled &&
             _hasOpenedRegion &&
@@ -2444,7 +2510,9 @@ class _MapScreenState extends State<MapScreen> {
         ),
         Positioned(
           left: 8,
-          bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
+          bottom: sheetHeight == 0
+              ? mapBottomInset
+              : sheetHeight + mapBottomInset + 12,
           child: _buildAttribution(isDark),
         ),
         Positioned(
@@ -2518,7 +2586,9 @@ class _MapScreenState extends State<MapScreen> {
           ),
         Positioned(
           right: 14,
-          bottom: sheetHeight == 0 ? 18 : sheetHeight + 12,
+          bottom: sheetHeight == 0
+              ? mapBottomInset
+              : sheetHeight + mapBottomInset + 12,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -2533,7 +2603,7 @@ class _MapScreenState extends State<MapScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: mapBottomInset,
             height: sheetHeight,
             child: isTablet
                 ? Center(
@@ -2563,12 +2633,12 @@ class _MapLocationChip extends StatelessWidget {
       child: GlassContainer(
         borderRadius: BorderRadius.circular(AppRadii.pill),
         blur: 0,
-        color: Colors.white.withValues(alpha: 0.82),
+        color: AppColors.surface,
         darkColor: AppColors.darkGlass,
-        borderColor: Colors.white.withValues(alpha: 0.85),
+        borderColor: AppColors.border,
         darkBorderColor: Colors.white.withValues(alpha: 0.14),
-        borderWidth: 1.2,
-        boxShadow: AppShadows.softOf(context),
+        borderWidth: 1,
+        boxShadow: const [],
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -2633,15 +2703,14 @@ class _MapDiscoverySheet extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return GlassContainer(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      blur: 16,
-      color: Colors.white.withValues(alpha: 0.88),
+      blur: 0,
+      color: AppColors.surface,
       darkColor: AppColors.darkGlass,
       border: Border(
         top: BorderSide(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.12)
-              : Colors.white.withValues(alpha: 0.90),
-          width: 1.2,
+          color:
+              isDark ? Colors.white.withValues(alpha: 0.12) : AppColors.border,
+          width: 1,
         ),
       ),
       boxShadow: [
@@ -2655,6 +2724,15 @@ class _MapDiscoverySheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkBorder : AppColors.border,
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+            ),
+          ),
+          const SizedBox(height: 4),
           Row(children: [
             IconButton(
                 tooltip: AppStrings.get('map_prev_place'),
@@ -2674,6 +2752,8 @@ class _MapDiscoverySheet extends StatelessWidget {
                 onPressed: onClose,
                 icon: const Icon(Icons.close_rounded)),
           ]),
+          const AppSectionDivider(),
+          const SizedBox(height: 8),
           AppMapPreviewCard(
             place: place,
             onTap: () => onOpen(place),

@@ -3,6 +3,12 @@ part of '../../main.dart';
 bool isSafeExternalUrl(Uri? uri) =>
     uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
 
+String? placeCoordinatesForClipboard(Place place) {
+  if (!place.hasCoordinates) return null;
+  return '${place.latitude!.toStringAsFixed(6)}, '
+      '${place.longitude!.toStringAsFixed(6)}';
+}
+
 List<Place> filterNearbyDetailPlaces({
   required Place origin,
   required Iterable<Place> candidates,
@@ -203,7 +209,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
   String get sourceLabel => switch (widget.place.source) {
         PlaceSource.osm => 'OpenStreetMap',
         PlaceSource.user => AppStrings.get('source_community'),
-        PlaceSource.curated => 'Supabase',
+        PlaceSource.curated => 'Doğadayım',
       };
 
   String get updatedAtLabel {
@@ -292,7 +298,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
             stat(Icons.schedule_outlined, duration,
                 AppStrings.get('card_arrival_time')),
             const SizedBox(width: 9),
-            stat(Icons.category_outlined, widget.place.kind,
+            stat(widget.place.icon, widget.place.kind,
                 AppStrings.get('card_place_type')),
             const SizedBox(width: 9),
             stat(Icons.verified_outlined, placeSourceLabel,
@@ -705,6 +711,13 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
   void toggleFavorite() {
     widget.onFavorite();
     setState(() => favorite = !favorite);
+  }
+
+  Future<void> copyCoordinates() async {
+    final coordinates = placeCoordinatesForClipboard(widget.place);
+    if (coordinates == null) return;
+    await Clipboard.setData(ClipboardData(text: coordinates));
+    if (mounted) message(AppStrings.get('nav_coords_copied'));
   }
 
   Future<void> startNavigation() async {
@@ -1168,7 +1181,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget info(IconData icon, String label, String value) {
+  Widget info(IconData icon, String label, String value,
+      {VoidCallback? onCopy}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Container(
@@ -1217,6 +1231,19 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                     isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
+            if (onCopy != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: SizedBox(
+                  width: AppControlSizes.minimumTouchTarget,
+                  height: AppControlSizes.minimumTouchTarget,
+                  child: IconButton(
+                    tooltip: AppStrings.get('nav_copy_coords'),
+                    onPressed: onCopy,
+                    icon: const Icon(Icons.copy_outlined),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -1339,12 +1366,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
             borderRadius: BorderRadius.circular(AppRadii.pill),
             border: Border.all(
               color: isHot
-                  ? (isDark
-                      ? const Color(0xFF9F1239)
-                      : const Color(0xFFFECDD3))
-                  : (isDark
-                      ? AppColors.darkBorder
-                      : AppColors.border),
+                  ? (isDark ? const Color(0xFF9F1239) : const Color(0xFFFECDD3))
+                  : (isDark ? AppColors.darkBorder : AppColors.border),
             ),
           ),
           child: Row(
@@ -1548,10 +1571,13 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
           const SizedBox(height: 22),
           Row(children: [
             info(Icons.explore_outlined, AppStrings.get('card_coordinates'),
-                coordinateLabel),
-            const SizedBox(width: 10),
-            info(Icons.update_rounded, AppStrings.get('card_last_updated'),
-                updatedAtLabel),
+                coordinateLabel,
+                onCopy: widget.place.hasCoordinates ? copyCoordinates : null),
+            if (widget.place.updatedAt != null) ...[
+              const SizedBox(width: 10),
+              info(Icons.update_rounded, AppStrings.get('card_last_updated'),
+                  updatedAtLabel),
+            ],
           ]),
         ],
       );
@@ -3385,9 +3411,8 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.darkSurfaceMuted
-                : const Color(0xFFFDF2F8),
+            color:
+                isDark ? AppColors.darkSurfaceMuted : const Color(0xFFFDF2F8),
             borderRadius: BorderRadius.circular(AppRadii.large),
             border: Border.all(
               color: isDark
@@ -3432,9 +3457,7 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                             fontFamily: 'Outfit',
                             fontSize: AppFontSizes.caption,
                             fontWeight: FontWeight.w700,
-                            color: isDark
-                                ? AppColors.darkTextPrimary
-                                : ink,
+                            color: isDark ? AppColors.darkTextPrimary : ink,
                           ),
                         ),
                         Text(
@@ -3491,30 +3514,22 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                       vertical: 10,
                     ),
                     filled: true,
-                    fillColor: isDark
-                        ? AppColors.darkSurfaceDeep
-                        : Colors.white,
+                    fillColor:
+                        isDark ? AppColors.darkSurfaceDeep : Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(AppRadii.medium),
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
                       borderSide: BorderSide(
-                        color: isDark
-                            ? AppColors.darkBorder
-                            : AppColors.border,
+                        color: isDark ? AppColors.darkBorder : AppColors.border,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(AppRadii.medium),
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
                       borderSide: BorderSide(
-                        color: isDark
-                            ? AppColors.darkBorder
-                            : AppColors.border,
+                        color: isDark ? AppColors.darkBorder : AppColors.border,
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(AppRadii.medium),
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
                       borderSide: const BorderSide(
                         color: Color(0xFFE1306C),
                         width: 1.4,

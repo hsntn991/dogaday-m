@@ -44,7 +44,8 @@ void main() {
       expect(find.text('Özel Başlık'), findsOneWidget);
       expect(find.text('Özel Mesaj'), findsOneWidget);
       expect(find.text(AppStrings.get('guest_auth_btn_login')), findsOneWidget);
-      expect(find.text(AppStrings.get('guest_auth_btn_continue')), findsOneWidget);
+      expect(
+          find.text(AppStrings.get('guest_auth_btn_continue')), findsOneWidget);
 
       // Tap continue exploring (dismiss)
       await tester.tap(find.text(AppStrings.get('guest_auth_btn_continue')));
@@ -83,7 +84,8 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('CommunityChatRoomScreen in guest mode renders locked input prompt',
+    testWidgets(
+        'CommunityChatRoomScreen in guest mode renders locked input prompt',
         (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: CommunityChatRoomScreen(
@@ -100,11 +102,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.get('guest_auth_title')), findsOneWidget);
-      expect(find.text(AppStrings.get('guest_auth_btn_continue')), findsOneWidget);
+      expect(
+          find.text(AppStrings.get('guest_auth_btn_continue')), findsOneWidget);
     });
 
     testWidgets(
-        'CommunityChatRoomScreen renders category-specific Q&A and prompt chips',
+        'CommunityChatRoomScreen renders category-specific prompt chips without mock messages',
         (tester) async {
       // 1. Water room
       await tester.pumpWidget(const MaterialApp(
@@ -114,8 +117,6 @@ void main() {
       ));
       await tester.pump();
 
-      expect(find.text('Göl ve şelale çevresinde içilebilir temiz su kaynağı var mı?'),
-          findsOneWidget);
       expect(find.text('Yakında içme suyu kaynağı var mı?'), findsOneWidget);
 
       // 2. Mountain room
@@ -126,26 +127,29 @@ void main() {
       ));
       await tester.pump();
 
-      expect(find.text('Zirveye ve yaylaya çıkan yol açık mı, binek araçla çıkılabilir mi?'),
-          findsOneWidget);
       expect(find.text('Yayla yolu binek araca uygun mu?'), findsOneWidget);
     });
 
-    test('LocationReverseGeocoder resolves truthful city and district names', () {
+    test('LocationReverseGeocoder resolves truthful city and district names',
+        () {
       // Pozanti coordinates -> Pozantı, Adana
-      final pozanti = LocationReverseGeocoder.findNearestOfflineCity(37.4278, 34.8719);
+      final pozanti =
+          LocationReverseGeocoder.findNearestOfflineCity(37.4278, 34.8719);
       expect(pozanti, 'Pozantı, Adana');
 
       // Yenimahalle coordinates -> Yenimahalle, Ankara
-      final yenimahalle = LocationReverseGeocoder.findNearestOfflineCity(39.9700, 32.7900);
+      final yenimahalle =
+          LocationReverseGeocoder.findNearestOfflineCity(39.9700, 32.7900);
       expect(yenimahalle, 'Yenimahalle, Ankara');
 
       // Konya coordinates -> Konya
-      final konya = LocationReverseGeocoder.findNearestOfflineCity(37.8667, 32.4833);
+      final konya =
+          LocationReverseGeocoder.findNearestOfflineCity(37.8667, 32.4833);
       expect(konya, 'Konya');
     });
 
-    testWidgets('LocationUpdateSheet renders GPS badge and update action without manual input',
+    testWidgets(
+        'LocationUpdateSheet renders GPS badge and update action without manual input',
         (tester) async {
       const testTarget = WeatherTarget.coordinates(
         latitude: 37.4278,
@@ -168,25 +172,56 @@ void main() {
       expect(find.byType(TextField), findsNothing);
     });
 
-    test('isNonNatureCandidateName eliminates false Obruk streets, mosques, and borders while preserving genuine karst sinkholes', () {
+    test(
+        'isNonNatureCandidateName eliminates false Obruk streets, mosques, and borders while preserving genuine karst sinkholes',
+        () {
       // False records from screenshot
-      expect(isNonNatureCandidateName('Yukarı Obruk Kümeevleri Sokağı', subtype: 'sinkhole'), isTrue);
-      expect(isNonNatureCandidateName('Yukarı Obruk Kümeevleri Caddesi', subtype: 'sinkhole'), isTrue);
-      expect(isNonNatureCandidateName('Yukarı Obruk Camii', subtype: 'sinkhole'), isTrue);
-      expect(isNonNatureCandidateName('Yukarı Obruk - Özlüce mahalle sınırı', subtype: 'sinkhole'), isTrue);
-      expect(isNonNatureCandidateName('Yukarı Obruk - Eğriekin mahalle sınırı', subtype: 'sinkhole'), isTrue);
-      expect(isNonNatureCandidateName('Yukarı Obruk', subtype: 'sinkhole'), isTrue);
-      expect(isNonNatureCandidateName('Yiğitli - Yukarı Obruk mahalle sınırı', subtype: 'sinkhole'), isTrue);
+      expect(
+          isNonNatureCandidateName('Yukarı Obruk Kümeevleri Sokağı',
+              subtype: 'sinkhole'),
+          isTrue);
+      expect(
+          isNonNatureCandidateName('Yukarı Obruk Kümeevleri Caddesi',
+              subtype: 'sinkhole'),
+          isTrue);
+      expect(
+          isNonNatureCandidateName('Yukarı Obruk Camii', subtype: 'sinkhole'),
+          isTrue);
+      expect(
+          isNonNatureCandidateName('Yukarı Obruk - Özlüce mahalle sınırı',
+              subtype: 'sinkhole'),
+          isTrue);
+      expect(
+          isNonNatureCandidateName('Yukarı Obruk - Eğriekin mahalle sınırı',
+              subtype: 'sinkhole'),
+          isTrue);
+      expect(isNonNatureCandidateName('Yukarı Obruk', subtype: 'sinkhole'),
+          isTrue);
+      expect(
+          isNonNatureCandidateName('Yiğitli - Yukarı Obruk mahalle sınırı',
+              subtype: 'sinkhole'),
+          isTrue);
 
       // Genuine geological sinkholes must be kept
-      expect(isNonNatureCandidateName('Kızören Obruğu', subtype: 'sinkhole'), isFalse);
-      expect(isNonNatureCandidateName('Çıralı Obruğu', subtype: 'sinkhole'), isFalse);
-      expect(isNonNatureCandidateName('Meyil Obruğu', subtype: 'sinkhole'), isFalse);
-      expect(isNonNatureCandidateName('Obruk Gölü Tabiat Parkı', subtype: 'nature_park'), isFalse);
-      expect(isNonNatureCandidateName('Cennet Cehennem Obrukları', subtype: 'sinkhole'), isFalse);
+      expect(isNonNatureCandidateName('Kızören Obruğu', subtype: 'sinkhole'),
+          isFalse);
+      expect(isNonNatureCandidateName('Çıralı Obruğu', subtype: 'sinkhole'),
+          isFalse);
+      expect(isNonNatureCandidateName('Meyil Obruğu', subtype: 'sinkhole'),
+          isFalse);
+      expect(
+          isNonNatureCandidateName('Obruk Gölü Tabiat Parkı',
+              subtype: 'nature_park'),
+          isFalse);
+      expect(
+          isNonNatureCandidateName('Cennet Cehennem Obrukları',
+              subtype: 'sinkhole'),
+          isFalse);
     });
 
-    test('CommunityFacilityUpdatesController stores and updates facility status', () async {
+    test(
+        'CommunityFacilityUpdatesController stores and updates facility status',
+        () async {
       const place = Place(
         'Test Kanyonu',
         'Antalya',
@@ -198,31 +233,41 @@ void main() {
         sourceId: 'canyon-1',
       );
 
-      expect(CommunityFacilityUpdatesController.getStatus(place, 'drinking_water'), isNull);
+      expect(
+          CommunityFacilityUpdatesController.getStatus(place, 'drinking_water'),
+          isNull);
 
       await CommunityFacilityUpdatesController.setStatus(
         place: place,
         facilityKey: 'drinking_water',
         value: true,
       );
-      expect(CommunityFacilityUpdatesController.getStatus(place, 'drinking_water'), isTrue);
+      expect(
+          CommunityFacilityUpdatesController.getStatus(place, 'drinking_water'),
+          isTrue);
 
       await CommunityFacilityUpdatesController.setStatus(
         place: place,
         facilityKey: 'drinking_water',
         value: false,
       );
-      expect(CommunityFacilityUpdatesController.getStatus(place, 'drinking_water'), isFalse);
+      expect(
+          CommunityFacilityUpdatesController.getStatus(place, 'drinking_water'),
+          isFalse);
 
       await CommunityFacilityUpdatesController.setStatus(
         place: place,
         facilityKey: 'drinking_water',
         value: null,
       );
-      expect(CommunityFacilityUpdatesController.getStatus(place, 'drinking_water'), isNull);
+      expect(
+          CommunityFacilityUpdatesController.getStatus(place, 'drinking_water'),
+          isNull);
     });
 
-    test('CommunityPlacePhotosController stores photos and retrieves by author and place', () async {
+    test(
+        'CommunityPlacePhotosController stores photos and retrieves by author and place',
+        () async {
       const place = Place(
         'Gölcük Yaylası',
         'Bolu',
@@ -243,25 +288,32 @@ void main() {
 
       final placePhotos = CommunityPlacePhotosController.forPlace(place);
       expect(placePhotos.length, 1);
-      expect(placePhotos.first.imageUrl, 'https://example.com/custom_nature.jpg');
+      expect(
+          placePhotos.first.imageUrl, 'https://example.com/custom_nature.jpg');
       expect(placePhotos.first.authorName, 'Ahmet Gezgin');
 
-      final authorPhotos = CommunityPlacePhotosController.byAuthor('Ahmet Gezgin');
+      final authorPhotos =
+          CommunityPlacePhotosController.byAuthor('Ahmet Gezgin');
       expect(authorPhotos.length, 1);
       expect(authorPhotos.first.placeName, 'Gölcük Yaylası');
     });
 
-    test('UserProfileAvatarController updates and persists custom avatar', () async {
+    test('UserProfileAvatarController updates and persists custom avatar',
+        () async {
       expect(UserProfileAvatarController.avatarNotifier.value, isNull);
 
-      await UserProfileAvatarController.setAvatar('https://example.com/avatar.jpg');
-      expect(UserProfileAvatarController.avatarNotifier.value, 'https://example.com/avatar.jpg');
+      await UserProfileAvatarController.setAvatar(
+          'https://example.com/avatar.jpg');
+      expect(UserProfileAvatarController.avatarNotifier.value,
+          'https://example.com/avatar.jpg');
 
       await UserProfileAvatarController.setAvatar(null);
       expect(UserProfileAvatarController.avatarNotifier.value, isNull);
     });
 
-    testWidgets('PublicUserProfileScreen renders author contributions and no private settings', (tester) async {
+    testWidgets(
+        'PublicUserProfileScreen renders author contributions and no private settings',
+        (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: PublicUserProfileScreen(
           authorName: 'Mert Doğa',
@@ -282,7 +334,8 @@ void main() {
       expect(find.text('Çıkış Yap'), findsNothing);
     });
 
-    test('local_service businesses category is preserved and maps properly', () {
+    test('local_service businesses category is preserved and maps properly',
+        () {
       final taxonomy = taxonomyFromLegacy('İşletme / Hizmet');
       expect(taxonomy.mainCategory, 'local_service');
       expect(taxonomy.subtype, 'local_service');
@@ -299,10 +352,14 @@ void main() {
         subtype: 'local_service',
       );
 
-      expect(isNonNatureCandidateName(businessPlace.name, mainCategory: 'local_service'), isFalse);
+      expect(
+          isNonNatureCandidateName(businessPlace.name,
+              mainCategory: 'local_service'),
+          isFalse);
     });
 
-    test('UserReviewsController deleteReview removes the review for a place', () async {
+    test('UserReviewsController deleteReview removes the review for a place',
+        () async {
       const place = Place(
         'Yedigöller',
         'Bolu',
@@ -325,7 +382,9 @@ void main() {
       expect(UserReviewsController.userReviewForPlace(place), isNull);
     });
 
-    test('CommunityPlacePhotosController removePhoto removes wrongly uploaded photo', () async {
+    test(
+        'CommunityPlacePhotosController removePhoto removes wrongly uploaded photo',
+        () async {
       const place = Place(
         'Abant Gölü',
         'Bolu',
@@ -352,7 +411,9 @@ void main() {
       expect(photosAfter, isEmpty);
     });
 
-    test('UserSocialAccountsController saves and persists instagram, facebook, youtube', () async {
+    test(
+        'UserSocialAccountsController saves and persists instagram, facebook, youtube',
+        () async {
       await UserSocialAccountsController.save(
         instagram: '@dogasever',
         facebook: 'dogasever.resmi',
@@ -373,7 +434,9 @@ void main() {
       expect(UserSocialAccountsController.accounts.value.isEmpty, isTrue);
     });
 
-    test('Place mobile service helpers extract contactPhone, workingHours and isMobileService', () {
+    test(
+        'Place mobile service helpers extract contactPhone, workingHours and isMobileService',
+        () {
       const servicePlace = Place(
         'Toros Karavan & Yol Yardım',
         'Antalya, Konyaaltı',
@@ -384,7 +447,11 @@ void main() {
         null,
         mainCategory: 'local_service',
         subtype: 'service_roadside',
-        features: ['Telefon: 0532 111 22 33', 'Çalışma: 7/24 Açık', 'Hizmet: Çekici'],
+        features: [
+          'Telefon: 0532 111 22 33',
+          'Çalışma: 7/24 Açık',
+          'Hizmet: Çekici'
+        ],
       );
 
       expect(servicePlace.isMobileService, isTrue);
@@ -409,7 +476,9 @@ void main() {
       expect(regularPlace.workingHours, isNull);
     });
 
-    testWidgets('MobileServiceHubScreen renders 10 services and firm registration card', (tester) async {
+    testWidgets(
+        'MobileServiceHubScreen renders 10 services and firm registration card',
+        (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: MobileServiceHubScreen(),
       ));
@@ -428,7 +497,8 @@ void main() {
       expect(find.text('Montaj & Parça'), findsOneWidget);
       expect(find.text('Muayene'), findsOneWidget);
       expect(find.text('Servis veren firma mısınız?'), findsOneWidget);
-      expect(find.text('Firmanızı ekleyin, inceleyip listeleyelim'), findsOneWidget);
+      expect(find.text('Firmanızı ekleyin, inceleyip listeleyelim'),
+          findsOneWidget);
     });
   });
 }

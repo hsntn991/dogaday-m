@@ -27,7 +27,8 @@ extension EmergencyHelpReportReasonDetails on EmergencyHelpReportReason {
         EmergencyHelpReportReason.spam => 'Spam veya kötüye kullanım',
         EmergencyHelpReportReason.falseAlarm => 'Yanlış çağrı',
         EmergencyHelpReportReason.inappropriate => 'Uygunsuz içerik',
-        EmergencyHelpReportReason.resolvedAlready => 'Yardım ulaştı / çağrı kapanmalı',
+        EmergencyHelpReportReason.resolvedAlready =>
+          'Yardım ulaştı / çağrı kapanmalı',
         EmergencyHelpReportReason.other => 'Diğer',
       };
 }
@@ -249,7 +250,8 @@ class EmergencyHelpController {
   ) async {
     final userId = currentUserId;
     if (userId == null) {
-      throw StateError('Şikâyet göndermek için önce hesabına giriş yapmalısın.');
+      throw StateError(
+          'Şikâyet göndermek için önce hesabına giriş yapmalısın.');
     }
     await Supabase.instance.client.from('help_request_reports').insert({
       'request_id': requestId,
@@ -1143,11 +1145,13 @@ class _EmergencyHelpMapScreenState extends State<EmergencyHelpMapScreen> {
                       final allowed = await AppAuthGuard.requireAuth(
                         sheetContext,
                         title: AppStrings.get('guest_auth_title'),
-                        message: AppStrings.get('guest_emergency_accept_prompt'),
+                        message:
+                            AppStrings.get('guest_emergency_accept_prompt'),
                       );
                       if (!allowed) return;
                       final accepted =
-                          await EmergencyHelpController.acceptRequest(request.id);
+                          await EmergencyHelpController.acceptRequest(
+                              request.id);
                       if (!sheetContext.mounted) return;
                       if (!accepted) {
                         ScaffoldMessenger.of(sheetContext).showSnackBar(
@@ -1237,7 +1241,8 @@ class _EmergencyHelpMapScreenState extends State<EmergencyHelpMapScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bildirim gönderilemedi. Lütfen tekrar dene.')),
+        const SnackBar(
+            content: Text('Bildirim gönderilemedi. Lütfen tekrar dene.')),
       );
     }
   }
@@ -1295,22 +1300,20 @@ class _EmergencyHelpMapScreenState extends State<EmergencyHelpMapScreen> {
                       tileProvider: _tileProvider,
                     ),
                     MarkerLayer(
-                      markers: visible
-                          .map((request) {
-                            final isOwner = request.requesterId ==
-                                EmergencyHelpController.currentUserId;
-                            return Marker(
-                              point: isOwner
-                                  ? request.coordinate
-                                  : request.approximateCoordinate,
-                              width: 64,
-                              height: 72,
-                              alignment: Alignment.bottomCenter,
-                              child: _EmergencyMapMarker(
-                                  onTap: () => _showRequest(request)),
-                            );
-                          })
-                          .toList(growable: false),
+                      markers: visible.map((request) {
+                        final isOwner = request.requesterId ==
+                            EmergencyHelpController.currentUserId;
+                        return Marker(
+                          point: isOwner
+                              ? request.coordinate
+                              : request.approximateCoordinate,
+                          width: 64,
+                          height: 72,
+                          alignment: Alignment.bottomCenter,
+                          child: _EmergencyMapMarker(
+                              onTap: () => _showRequest(request)),
+                        );
+                      }).toList(growable: false),
                     ),
                   ],
                 ),
@@ -1448,7 +1451,7 @@ class _EmergencyUnavailableNotice extends StatelessWidget {
         child: const Padding(
           padding: EdgeInsets.all(12),
           child: Text(
-              'Yardım çağrıları henüz etkin değil. Acil durumdaysan 112’yi ara.',
+              'Yardım çağrıları listesi şu an yüklenemedi. Yeni çağrı oluşturmayı deneyebilirsin. Hayati acil durumdaysan 112’yi ara.',
               style: TextStyle(
                   color: AppColors.error, fontWeight: FontWeight.w600)),
         ),

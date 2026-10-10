@@ -100,7 +100,8 @@ class _AdminGateState extends State<_AdminGate> {
               _checking = false;
               _authorized = false;
               _needsMfa = false;
-              _error = 'MFA güvenlik kontrolü başarısız oldu. Güvenlik nedeniyle erişim reddedildi.';
+              _error =
+                  'MFA güvenlik kontrolü başarısız oldu. Güvenlik nedeniyle erişim reddedildi.';
             });
           }
           return;
@@ -150,6 +151,161 @@ class _AdminGateState extends State<_AdminGate> {
     }
     return const _AdminDashboard();
   }
+}
+
+class AdminChatModerationScreen extends StatefulWidget {
+  const AdminChatModerationScreen({super.key});
+
+  @override
+  State<AdminChatModerationScreen> createState() =>
+      _AdminChatModerationScreenState();
+}
+
+class _AdminChatModerationScreenState extends State<AdminChatModerationScreen> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _reports = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rows = await Supabase.instance.client
+          .from('community_chat_reports')
+          .select(
+              'id, reason, note, created_at, community_chat_messages(id, author_id, author_name, body)')
+          .order('created_at', ascending: false)
+          .limit(200);
+      if (mounted) {
+        setState(() => _reports = rows
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList(growable: false));
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Sohbet şikayetleri yüklenemedi.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _restrict(Map<String, dynamic> report, int days) async {
+    final message = Map<String, dynamic>.from(
+      report['community_chat_messages'] as Map? ?? const {},
+    );
+    final userId = message['author_id']?.toString();
+    if (userId == null || userId.isEmpty) return;
+    final reasonController = TextEditingController(
+      text: report['reason']?.toString() ?? 'Sohbet kurallarının ihlali',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(days == -1 ? 'Süresiz kısıtla' : '1 hafta kısıtla'),
+        content: TextField(
+          controller: reasonController,
+          maxLength: 300,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Kısıtlama nedeni'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Kısıtla'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      reasonController.dispose();
+      return;
+    }
+    try {
+      await Supabase.instance.client.rpc(
+        'apply_community_chat_restriction',
+        params: {
+          'p_user_id': userId,
+          'p_duration_days': days,
+          'p_reason': reasonController.text.trim(),
+        },
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(days == -1
+              ? 'Kullanıcı süresiz kısıtlandı.'
+              : 'Kullanıcı 1 hafta kısıtlandı.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kısıtlama uygulanamadı: $error')),
+      );
+    } finally {
+      reasonController.dispose();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          title: const Text('Sohbet şikayetleri'),
+          actions: [
+            IconButton(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh)),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Center(child: Text(_error!))
+                : _reports.isEmpty
+                    ? const Center(
+                        child: Text('İncelenecek sohbet şikayeti yok.'))
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _reports.length,
+                        separatorBuilder: (_, __) => const Divider(),
+                        itemBuilder: (context, index) {
+                          final report = _reports[index];
+                          final message = Map<String, dynamic>.from(
+                            report['community_chat_messages'] as Map? ??
+                                const {},
+                          );
+                          return ListTile(
+                            title: Text(message['author_name']?.toString() ??
+                                'Bilinmeyen kullanıcı'),
+                            subtitle: Text(
+                              '${message['body'] ?? 'Mesaj silinmiş'}\nŞikayet: ${report['reason']}${report['note'] == null ? '' : ' · ${report['note']}'}',
+                            ),
+                            isThreeLine: true,
+                            trailing: PopupMenuButton<int>(
+                              tooltip: 'Kısıtlama seç',
+                              onSelected: (days) => _restrict(report, days),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                    value: 7, child: Text('1 hafta kısıtla')),
+                                PopupMenuItem(
+                                    value: -1, child: Text('Süresiz kısıtla')),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+      );
 }
 
 class _AdminLogin extends StatefulWidget {
@@ -329,8 +485,8 @@ class _AdminDashboardState extends State<_AdminDashboard> {
   void initState() {
     super.initState();
     try {
-      final aal = Supabase.instance.client.auth.mfa
-          .getAuthenticatorAssuranceLevel();
+      final aal =
+          Supabase.instance.client.auth.mfa.getAuthenticatorAssuranceLevel();
       if (aal.nextLevel == AuthenticatorAssuranceLevels.aal2 &&
           aal.currentLevel != AuthenticatorAssuranceLevels.aal2) {
         _error = 'Oturum için AAL2 iki aşamalı doğrulama zorunludur.';
@@ -570,6 +726,16 @@ class _AdminDashboardState extends State<_AdminDashboard> {
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
           actions: [
+            IconButton(
+              tooltip: 'Sohbet şikayetleri',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminChatModerationScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.forum_outlined),
+            ),
             IconButton(
               tooltip: 'İki Aşamalı Doğrulama (MFA)',
               onPressed: () => _openMfaSettings(context),
@@ -2021,7 +2187,8 @@ class _AdminMfaSettingsDialogState extends State<_AdminMfaSettingsDialog> {
                                   );
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text('Gizli anahtar kopyalandı.'),
+                                      content:
+                                          Text('Gizli anahtar kopyalandı.'),
                                     ),
                                   );
                                 }
@@ -2064,7 +2231,8 @@ class _AdminMfaSettingsDialogState extends State<_AdminMfaSettingsDialog> {
                         onPressed: () => setState(() => _enrollment = null),
                         child: const Text('Vazgeç'),
                       ),
-                    ] else if ((_factors ?? const []).any((f) => f.status == FactorStatus.verified)) ...[
+                    ] else if ((_factors ?? const [])
+                        .any((f) => f.status == FactorStatus.verified)) ...[
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -2105,19 +2273,23 @@ class _AdminMfaSettingsDialogState extends State<_AdminMfaSettingsDialog> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      ..._factors!.where((f) => f.status == FactorStatus.verified).map(
-                        (f) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: OutlinedButton.icon(
-                            onPressed: _submitting ? null : () => _unenroll(f.id),
-                            icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                            label: const Text(
-                              'İki aşamalı doğrulamayı kaldır',
-                              style: TextStyle(color: AppColors.error),
+                      ..._factors!
+                          .where((f) => f.status == FactorStatus.verified)
+                          .map(
+                            (f) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: OutlinedButton.icon(
+                                onPressed:
+                                    _submitting ? null : () => _unenroll(f.id),
+                                icon: const Icon(Icons.delete_outline,
+                                    color: AppColors.error),
+                                label: const Text(
+                                  'İki aşamalı doğrulamayı kaldır',
+                                  style: TextStyle(color: AppColors.error),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
                     ] else ...[
                       const Text(
                         'Hesabınızda iki aşamalı doğrulama etkin değil. Yönetici paneline daha güvenli erişim için TOTP doğrulaması önerilir.',

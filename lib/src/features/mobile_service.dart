@@ -4,13 +4,11 @@ class MobileServiceCategoryItem {
   const MobileServiceCategoryItem({
     required this.key,
     required this.title,
-    required this.emoji,
     required this.icon,
   });
 
   final String key;
   final String title;
-  final String emoji;
   final IconData icon;
 }
 
@@ -18,61 +16,51 @@ const mobileServiceCategories = <MobileServiceCategoryItem>[
   MobileServiceCategoryItem(
     key: 'service_roadside',
     title: 'Çekici / Yol Yardım',
-    emoji: '🚛',
     icon: Icons.local_shipping_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_maintenance',
     title: 'Yıllık Bakım',
-    emoji: '🚐',
     icon: Icons.airport_shuttle_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_gas',
     title: 'Gaz Tesisatı',
-    emoji: '🔥',
     icon: Icons.local_fire_department_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_hvac',
     title: 'Isıtma & Soğutma',
-    emoji: '🌡️',
     icon: Icons.device_thermostat_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_electric',
     title: 'Elektrik & Enerji',
-    emoji: '⚡',
     icon: Icons.bolt_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_plumbing',
     title: 'Su & Tesisat',
-    emoji: '🚿',
     icon: Icons.shower_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_bodywork',
     title: 'Nem & Gövde',
-    emoji: '💧',
     icon: Icons.water_drop_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_chassis_brakes',
     title: 'Şasi & Fren',
-    emoji: '🛞',
     icon: Icons.tire_repair_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_parts',
     title: 'Montaj & Parça',
-    emoji: '⚙️',
     icon: Icons.settings_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_inspection',
     title: 'Muayene',
-    emoji: '🔍',
     icon: Icons.fact_check_rounded,
   ),
 ];
@@ -86,7 +74,7 @@ class MobileServiceHubScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? AppColors.darkSurface : AppColors.background,
       appBar: AppBar(
         backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
         elevation: 0,
@@ -96,7 +84,7 @@ class MobileServiceHubScreen extends StatelessWidget {
           icon: Icon(
             Icons.arrow_back_ios_new_rounded,
             size: 20,
-            color: isDark ? AppColors.darkTextPrimary : const Color(0xFF0F172A),
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -106,7 +94,7 @@ class MobileServiceHubScreen extends StatelessWidget {
             fontFamily: 'Outfit',
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: isDark ? AppColors.darkTextPrimary : const Color(0xFF0F172A),
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
           ),
         ),
       ),
@@ -125,7 +113,7 @@ class MobileServiceHubScreen extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                   color: isDark
                       ? AppColors.darkTextPrimary
-                      : const Color(0xFF0F172A),
+                      : AppColors.textPrimary,
                   letterSpacing: -0.3,
                 ),
               ),
@@ -138,7 +126,7 @@ class MobileServiceHubScreen extends StatelessWidget {
                   height: 1.4,
                   color: isDark
                       ? AppColors.darkTextSecondary
-                      : const Color(0xFF64748B),
+                      : AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 20),
@@ -147,7 +135,9 @@ class MobileServiceHubScreen extends StatelessWidget {
                 builder: (context, constraints) {
                   const spacing = 12.0;
                   final itemWidth = (constraints.maxWidth - (spacing * 2)) / 3;
-                  const itemHeight = 110.0;
+                  // Dar telefonlarda iki satırlı servis adları ve firma kartı
+                  // aynı ritimde kalmalı; 110 px, metni alttan taşırıyordu.
+                  const itemHeight = 136.0;
 
                   return Column(
                     children: [
@@ -228,53 +218,50 @@ class MobileServiceHubScreen extends StatelessWidget {
       height: height,
       child: Material(
         color: isDark ? AppColors.darkSurfaceMuted : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadii.medium),
         elevation: 0,
         child: InkWell(
           onTap: () {
             // Seçilen hizmet anahtarını döndürerek haritada filtreleme yapar
             Navigator.pop(context, item.key);
           },
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadii.medium),
               border: Border.all(
-                color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                color: isDark ? AppColors.darkBorder : AppColors.border,
                 width: 1.0,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.25)
-                      : Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  item.emoji,
-                  style: const TextStyle(fontSize: 28),
+                Icon(
+                  item.icon,
+                  size: AppIconSizes.large,
+                  color:
+                      isDark ? AppColors.darkPrimaryLight : AppColors.primary,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  item.title,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    height: 1.2,
-                    color: isDark
-                        ? AppColors.darkTextPrimary
-                        : const Color(0xFF1E293B),
+                Flexible(
+                  child: Center(
+                    child: Text(
+                      item.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                        color: isDark
+                            ? AppColors.darkTextPrimary
+                            : AppColors.textPrimary,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -291,7 +278,7 @@ class MobileServiceHubScreen extends StatelessWidget {
       height: height,
       child: Material(
         color: isDark ? AppColors.darkSurfaceMuted : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadii.medium),
         child: InkWell(
           onTap: () async {
             final authOk = await AppAuthGuard.requireAuth(
@@ -313,17 +300,17 @@ class MobileServiceHubScreen extends StatelessWidget {
                   result.resolvedTaxonomy.subtype ?? 'service_roadside');
             }
           },
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadii.medium),
               color: isDark
                   ? const Color(0xFF064E3B).withValues(alpha: 0.20)
-                  : const Color(0xFFF0FDF4),
+                  : AppColors.primarySoft,
               border: Border.all(
-                color: const Color(0xFF10B981).withValues(alpha: 0.65),
-                width: 1.4,
+                color: AppColors.primary,
+                width: 1,
               ),
             ),
             child: Row(
@@ -333,13 +320,13 @@ class MobileServiceHubScreen extends StatelessWidget {
                   height: 38,
                   decoration: BoxDecoration(
                     color: isDark
-                        ? const Color(0xFF059669).withValues(alpha: 0.35)
-                        : const Color(0xFFDCFCE7),
+                        ? AppColors.darkPrimary.withValues(alpha: 0.35)
+                        : AppColors.primarySoft,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.add_rounded,
-                    color: Color(0xFF059669),
+                    color: AppColors.primary,
                     size: 22,
                   ),
                 ),
@@ -357,7 +344,7 @@ class MobileServiceHubScreen extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                           color: isDark
                               ? AppColors.darkTextPrimary
-                              : const Color(0xFF0F172A),
+                              : AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -370,7 +357,7 @@ class MobileServiceHubScreen extends StatelessWidget {
                           fontSize: 11,
                           color: isDark
                               ? AppColors.darkTextSecondary
-                              : const Color(0xFF64748B),
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -571,7 +558,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: const Color(0xFF059669),
+        backgroundColor: AppColors.primary,
         content: Text(statusMessage),
       ),
     );
@@ -622,7 +609,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                           fontWeight: FontWeight.w700,
                           color: isDark
                               ? AppColors.darkTextPrimary
-                              : const Color(0xFF0F172A),
+                              : AppColors.textPrimary,
                         ),
                       ),
                       Text(
@@ -632,7 +619,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                           fontSize: 12,
                           color: isDark
                               ? AppColors.darkTextSecondary
-                              : const Color(0xFF64748B),
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -652,9 +639,8 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : const Color(0xFF1E293B),
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -677,9 +663,8 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : const Color(0xFF1E293B),
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -689,12 +674,19 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
               children: mobileServiceCategories.map((item) {
                 final isSelected = _selectedSubtype == item.key;
                 return ChoiceChip(
-                  label: Text('${item.emoji} ${item.title}'),
+                  avatar: Icon(
+                    item.icon,
+                    size: AppIconSizes.small,
+                    color: isSelected
+                        ? AppColors.accentOrange
+                        : AppColors.textSecondaryOf(context),
+                  ),
+                  label: Text(item.title),
                   selected: isSelected,
                   selectedColor: const Color(0xFFFEF3C7),
                   backgroundColor: isDark
                       ? AppColors.darkSurfaceMuted
-                      : const Color(0xFFF1F5F9),
+                      : AppColors.surfaceMuted,
                   labelStyle: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 12,
@@ -703,7 +695,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                         ? const Color(0xFFB45309)
                         : (isDark
                             ? AppColors.darkTextPrimary
-                            : const Color(0xFF334155)),
+                            : AppColors.textPrimary),
                   ),
                   onSelected: (val) {
                     if (val) setState(() => _selectedSubtype = item.key);
@@ -719,9 +711,8 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : const Color(0xFF1E293B),
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -745,9 +736,8 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : const Color(0xFF1E293B),
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -780,9 +770,8 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : const Color(0xFF1E293B),
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -805,9 +794,8 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : const Color(0xFF1E293B),
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -829,9 +817,8 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : const Color(0xFF1E293B),
+                color:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -856,14 +843,14 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                 fontSize: 11,
                 color: isDark
                     ? AppColors.darkTextSecondary
-                    : const Color(0xFF64748B),
+                    : AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _saving ? null : _saveFirm,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -877,7 +864,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                           strokeWidth: 2, color: Colors.white),
                     )
                   : const Text(
-                      'Firmayı Kaydet ve Haritada Yayınla',
+                      'Başvuruyu incelemeye gönder',
                       style: TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 15,
@@ -897,7 +884,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -905,7 +892,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
           style: const TextStyle(
             fontFamily: 'Outfit',
             fontSize: 11,
-            color: Color(0xFF475569),
+            color: AppColors.textSecondary,
           ),
         ),
       ),

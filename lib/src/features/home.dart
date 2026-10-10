@@ -321,7 +321,6 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
         builder: (_) => ProvinceExplorerScreen(
           region: region,
           onOpen: widget.onOpen,
-          onOpenFullMap: widget.onExploreProvince,
         ),
       ),
     );
@@ -346,9 +345,13 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
           _buildSearchField(),
           const SizedBox(height: 16),
           _buildCategoryStrip(),
+          const SizedBox(height: 16),
+          const AppSectionDivider(),
           const SizedBox(height: 20),
           _buildProvinceExplorerSection(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          const AppSectionDivider(),
+          const SizedBox(height: 20),
           ValueListenableBuilder<WeatherTarget>(
             valueListenable: HomeWeatherLocationController.current,
             builder: (_, target, __) => _TodayRecommendationsSection(
@@ -358,7 +361,9 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
               onExploreMap: widget.onExploreMap,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          const AppSectionDivider(),
+          const SizedBox(height: 20),
           ValueListenableBuilder<WeatherTarget>(
             valueListenable: HomeWeatherLocationController.current,
             builder: (_, target, __) => _NearbyPlacesSection(
@@ -369,7 +374,9 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
               onRequestLocation: widget.onRequestLocation,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          const AppSectionDivider(),
+          const SizedBox(height: 20),
           ValueListenableBuilder<WeatherTarget>(
             valueListenable: HomeWeatherLocationController.current,
             builder: (_, target, __) => _CommunitySuggestionsSection(
@@ -578,6 +585,13 @@ String _provincePhotoAsset(String province) {
   return _provinceFallbackPhotos[stableIndex];
 }
 
+double provinceCardLabelFontSize(String province, {required bool compact}) {
+  final length = province.trim().characters.length;
+  if (length >= 14) return compact ? 11 : 12;
+  if (length >= 11) return compact ? 12 : 13;
+  return compact ? AppFontSizes.label : AppFontSizes.body;
+}
+
 class _ProvincePhotoCard extends StatelessWidget {
   const _ProvincePhotoCard({required this.province, this.compact = false});
 
@@ -618,10 +632,13 @@ class _ProvincePhotoCard extends StatelessWidget {
                 alignment: Alignment.bottomLeft,
                 child: Text(
                   province,
-                  maxLines: compact ? 1 : 2,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.label.copyWith(
                     color: Colors.white,
+                    fontSize:
+                        provinceCardLabelFontSize(province, compact: compact),
+                    height: 1.1,
                     fontWeight: FontWeight.w800,
                     shadows: const [
                       Shadow(color: Color(0x99000000), blurRadius: 4),
@@ -664,12 +681,10 @@ class ProvinceExplorerScreen extends StatefulWidget {
     super.key,
     required this.region,
     required this.onOpen,
-    this.onOpenFullMap,
   });
 
   final MapRegionFocus region;
   final ValueChanged<Place> onOpen;
-  final ValueChanged<MapRegionFocus>? onOpenFullMap;
 
   @override
   State<ProvinceExplorerScreen> createState() => _ProvinceExplorerScreenState();
@@ -815,26 +830,9 @@ class _ProvinceExplorerScreenState extends State<ProvinceExplorerScreen> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 26, 20, 12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text('Haritada ${widget.region.label}',
-                                style: AppTypography.title
-                                    .copyWith(color: textPrimary)),
-                          ),
-                          TextButton.icon(
-                            onPressed: widget.onOpenFullMap == null
-                                ? null
-                                : () {
-                                    widget.onOpenFullMap!(widget.region);
-                                    Navigator.of(context).pop();
-                                  },
-                            icon: const Icon(Icons.open_in_full_rounded,
-                                size: 18),
-                            label: const Text('Tam harita'),
-                          ),
-                        ],
-                      ),
+                      child: Text('Haritada ${widget.region.label}',
+                          style:
+                              AppTypography.title.copyWith(color: textPrimary)),
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -844,8 +842,8 @@ class _ProvinceExplorerScreenState extends State<ProvinceExplorerScreen> {
                         region: widget.region,
                         places: data.places,
                         selectedPlace: _selectedPlace,
-                        onSelect: (place) =>
-                            setState(() => _selectedPlace = _placeWithUserDistance(place)),
+                        onSelect: (place) => setState(() =>
+                            _selectedPlace = _placeWithUserDistance(place)),
                       ),
                     ),
                   ),
@@ -1227,7 +1225,7 @@ class _ProvinceExplorerEntry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
-    final provinces = _provinceCenters.entries.take(8).toList(growable: false);
+    final provinces = _provinceCenters.entries.take(4).toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1247,35 +1245,48 @@ class _ProvinceExplorerEntry extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 104,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: provinces.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (_, index) {
-              final entry = provinces[index];
-              return Semantics(
-                button: true,
-                label: '${entry.key} bölgesini haritada aç',
-                child: InkWell(
-                  onTap: () => onSelect(MapRegionFocus(
-                    label: entry.key,
-                    center: entry.value,
-                  )),
-                  borderRadius: BorderRadius.circular(AppRadii.large),
-                  child: Ink(
-                    width: 106,
-                    child: _ProvincePhotoCard(
-                      province: entry.key,
-                      compact: true,
-                    ),
-                  ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final wideLayout = constraints.maxWidth >= 600;
+            final columns = wideLayout ? 4 : 2;
+            const spacing = 10.0;
+            final cardWidth =
+                (constraints.maxWidth - (columns - 1) * spacing) / columns;
+            final cardHeight = cardWidth / (wideLayout ? 1.2 : 1.62);
+            final rowCount = (provinces.length / columns).ceil();
+            final gridHeight = rowCount * cardHeight + (rowCount - 1) * spacing;
+            return SizedBox(
+              height: gridHeight,
+              child: GridView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: provinces.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  mainAxisSpacing: spacing,
+                  crossAxisSpacing: spacing,
+                  childAspectRatio: wideLayout ? 1.2 : 1.62,
                 ),
-              );
-            },
-          ),
+                itemBuilder: (_, index) {
+                  final entry = provinces[index];
+                  return Semantics(
+                    button: true,
+                    label: '${entry.key} bölgesini haritada aç',
+                    child: InkWell(
+                      onTap: () =>
+                          onSelect(MapRegionFocus.forProvince(entry.key)),
+                      borderRadius: BorderRadius.circular(AppRadii.large),
+                      child: Ink(
+                        child: _ProvincePhotoCard(
+                          province: entry.key,
+                          compact: true,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
         ),
       ],
     );
@@ -1344,10 +1355,8 @@ class _ProvinceExplorerSheet extends StatelessWidget {
                         button: true,
                         label: '${entry.key} bölgesini haritada aç',
                         child: InkWell(
-                          onTap: () => onSelect(MapRegionFocus(
-                            label: entry.key,
-                            center: entry.value,
-                          )),
+                          onTap: () =>
+                              onSelect(MapRegionFocus.forProvince(entry.key)),
                           borderRadius: BorderRadius.circular(AppRadii.large),
                           child: Ink(
                             decoration: BoxDecoration(
@@ -1906,7 +1915,7 @@ class _TodayRecommendationsSectionState
             builder: (context, constraints) {
               if (recommendations.length == 2) {
                 return SizedBox(
-                  height: 228,
+                  height: 196,
                   child: Row(
                     children: [
                       Expanded(
@@ -1930,7 +1939,7 @@ class _TodayRecommendationsSectionState
               }
               final cardWidth = (constraints.maxWidth - 12) / 2;
               return SizedBox(
-                height: 228,
+                height: 196,
                 child: ScrollConfiguration(
                   behavior: const _MouseDragScrollBehavior(),
                   child: ListView.separated(
@@ -1989,7 +1998,7 @@ class _RecommendationCard extends StatelessWidget {
           onTap: onTap,
           showDistance: showDistance,
           decisionLabel: recommendation.suitabilityLabel,
-          decisionReason: recommendation.primaryReason,
+          showDescription: false,
         ),
       );
 }
@@ -3509,14 +3518,19 @@ class _SmallPhotoCard extends StatelessWidget {
                                 fontSize: AppFontSizes.caption,
                                 fontWeight: FontWeight.w600)))),
               if (kindBelow)
-                const Positioned(
-                    right: 8,
-                    top: 8,
-                    child: CircleAvatar(
-                        radius: 13,
-                        backgroundColor: AppColors.shadow80,
-                        child: Icon(Icons.favorite_border_rounded,
-                            color: Colors.white, size: 15)))
+                Positioned(
+                  right: 2,
+                  top: 2,
+                  child: ValueListenableBuilder<Set<String>>(
+                    valueListenable: UserFavoritesController.favorites,
+                    builder: (context, favorites, _) => AppBookmarkButton(
+                      isSaved: favorites.contains(place.name.trim()),
+                      onImage: true,
+                      onPressed: () =>
+                          unawaited(UserFavoritesController.toggle(place.name)),
+                    ),
+                  ),
+                )
             ])),
             Padding(
               padding: const EdgeInsets.fromLTRB(9, 7, 9, 8),
