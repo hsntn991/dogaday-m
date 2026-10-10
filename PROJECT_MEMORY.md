@@ -1,7 +1,7 @@
 # Doğadayım — Kalıcı Hafıza
 
-Son güncelleme: 2026-10-07
-Son doğrulanan commit: `37afbfa`
+Son güncelleme: 2026-10-11
+Son doğrulanan commit: `4d33058`
 
 ## Ürün amacı
 
@@ -31,6 +31,13 @@ Türkiye için toplum destekli doğa haritası. Gerçek konum, kaynak ve kullan�
 - Gereksiz proje taraması, aynı dosyayı tekrar okuma, geniş refactor ve gereksiz test komutları token maliyeti artırdığı için kaçınılmalıdır.
 
 ## Tamamlanan ana fazlar
+
+- Topluluk Sohbeti Moderasyonu, Güvenlik RPC'leri ve Profil Düzenleme (`4d33058`):
+  - Topluluk sohbeti canlı Supabase entegrasyonu: `community_chat_messages`, `community_chat_reports`, `community_chat_restrictions` tabloları ve RLS politikaları (`202610100001_community_chat_safety.sql`).
+  - Sohbet güvenlik kuralları: Link filtresi, zararlı yazılım/küfür filtresi, 10 saniye rate limit, kısıtlı kullanıcı engeli sunucu tarafında RPC ile zorlandı.
+  - Şikayet ve ceza akışı: Hakaret, taciz, spam, güvenlik riski şikayet dialogu; yönetim panelinde sohbet şikayetleri listesi, 1 hafta ve süresiz kısıtlama işlemleri.
+  - Profil ekranında kullanıcı adı düzenleme: "Hüsnü T." veya tam ad görünüm seçimi.
+  - 263/263 test (%100) başarıyla geçti, `flutter analyze` 0 hata.
 
 - İl Keşfi, Görüntülenme Sayacı, Sosyal Medya Rozetleri & Mesafe Sıralaması:
   - İl keşif sayfası (`ProvinceExplorerScreen`): İl kapak görseli, ilçe sayısı, su, WC, kamp, karavan, göl, şelale, kanyon/vadi, mağara vb. canlı sayıları ve il içi OSM haritası.

@@ -1,4 +1,15 @@
-# Güncel Görev — İl Keşif Akışı, Görüntülenme İstatistikleri, Sosyal Medya Rozeti & Yakından Uzağa Sıralama
+# Güncel Görev — Topluluk Sohbeti Canlı Bağlantısı, Güvenlik Kuralları & Moderasyon Sistemi
+
+> **✅ TAMAMLANDI — Topluluk sohbeti, sunucu RPC'leri, moderasyon araçları ve profil adı düzenlemesi tamamlanıp GitHub'a gönderildi:**
+> 1. **Canlı Supabase Sohbeti:** Sahte/örnek mesajlar yerine `community_chat_messages` tablosuna bağlandı; mesajlar gerçek zamanlı listelenir.
+> 2. **Sunucu Tarafı Güvenlik & Filtreler:** `send_community_chat_message` RPC ile link engeli, argo/zararlı içerik engeli, 10 saniye rate limit ve kısıtlama kontrolleri sunucu tarafında sağlandı (`202610100001_community_chat_safety.sql`).
+> 3. **Şikayet & Kısıtlama Sistemi:** Mesaj şikayet diyaloğu ve yönetim paneline entegre sohbet moderasyon ekranı; yöneticiler için "1 hafta kısıtla" ve "süresiz kısıtla" aksiyonları eklendi.
+> 4. **Profil Adı Görünümü:** Profil ekranında "Hüsnü T." veya "Hüsnü Tuna" gibi ad görünümü seçimi sağlandı.
+> 5. **Kalite & Doğrulama:** 263/263 test (%100) başarıyla geçti, `flutter analyze` 0 hata. Değişiklikler commit edilip GitHub'a push edildi (`4d33058`).
+
+---
+
+# Önceki Görev — İl Keşif Akışı, Görüntülenme İstatistikleri, Sosyal Medya Rozeti & Yakından Uzağa Sıralama
 
 > **✅ TAMAMLANDI — İl keşfi, canlı sayaçlar, izlenme metrikleri, sosyal rozetler ve konum bazlı sıralama başarıyla tamamlandı:**
 > 1. **İl Keşif Akışı & Canlı Kategori Sayaçları:** Ana sayfadaki il kartına dokunulduğunda açılan `ProvinceExplorerScreen`, il kapak fotoğrafı, ilçe sayısı, su, WC, kamp, karavan, göl, şelale, kanyon/vadi, mağara, milli park vb. canlı sayıları gösterir. İl içi OSM haritası ve nokta seçiminde önizleme kartı entegre edildi. Kategoriye dokunulduğunda ilgili ildeki noktalar listelenir.
