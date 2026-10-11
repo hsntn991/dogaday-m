@@ -676,11 +676,13 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
   List<_CommunityMessage> messages = const [];
   bool _loadingMessages = true;
   String? _loadError;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
+    _subscribeToLiveMessages();
   }
 
   @override
@@ -689,14 +691,52 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
     if (oldWidget.category != widget.category) {
       controller.clear();
       _loadMessages();
+      _unsubscribeFromLiveMessages();
+      _subscribeToLiveMessages();
     }
   }
 
   @override
   void dispose() {
+    _unsubscribeFromLiveMessages();
     controller.dispose();
     scrollController.dispose();
     super.dispose();
+  }
+
+  void _subscribeToLiveMessages() {
+    // Widget testleri ve bağlantısız önizlemeler Supabase'i başlatmadan bu
+    // ekranı açabilir. Sohbetin ilk yüklemesi çalışmaya devam eder; yalnızca
+    // canlı güncelleme, servis hazır olana kadar bekler.
+    try {
+      _realtimeChannel = CommunityChatService.watchMessages(
+        categoryKey: widget.category,
+        onChanged: _refreshLiveMessages,
+      );
+    } catch (_) {
+      _realtimeChannel = null;
+    }
+  }
+
+  void _unsubscribeFromLiveMessages() {
+    final channel = _realtimeChannel;
+    _realtimeChannel = null;
+    if (channel != null) {
+      unawaited(Supabase.instance.client.removeChannel(channel));
+    }
+  }
+
+  Future<void> _refreshLiveMessages() async {
+    try {
+      final liveMessages = await CommunityChatService.loadMessages(widget.category);
+      if (!mounted) return;
+      setState(() {
+        messages = liveMessages.map(_CommunityMessage.fromLive).toList();
+        _loadError = null;
+      });
+    } catch (_) {
+      // A transient realtime refresh failure must not erase visible messages.
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -770,7 +810,7 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Mesajı şikayet et'),
+          title: Text(AppStrings.get('chat_report_message')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -778,12 +818,12 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final item in const <(String, String)>[
-                    ('abuse', 'Hakaret veya argo'),
-                    ('harassment', 'Taciz'),
-                    ('spam', 'Spam'),
-                    ('unsafe', 'Güvenlik riski'),
-                    ('other', 'Diğer'),
+                  for (final item in <(String, String)>[
+                    ('abuse', AppStrings.get('chat_report_abuse')),
+                    ('harassment', AppStrings.get('chat_report_harassment')),
+                    ('spam', AppStrings.get('chat_report_spam')),
+                    ('unsafe', AppStrings.get('chat_report_unsafe')),
+                    ('other', AppStrings.get('chat_report_other')),
                   ])
                     ChoiceChip(
                       label: Text(item.$2),
@@ -796,8 +836,8 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
                 controller: noteController,
                 maxLength: 300,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Ek açıklama (isteğe bağlı)',
+                decoration: InputDecoration(
+                  labelText: AppStrings.get('chat_report_note'),
                 ),
               ),
             ],
@@ -805,11 +845,11 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Vazgeç'),
+              child: Text(AppStrings.get('general_cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Gönder'),
+              child: Text(AppStrings.get('general_confirm')),
             ),
           ],
         ),
@@ -827,12 +867,12 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Şikayetin yönetime iletildi.')),
+        SnackBar(content: Text(AppStrings.get('chat_report_sent'))),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Şikayet gönderilemedi.')),
+        SnackBar(content: Text(AppStrings.get('chat_report_failed'))),
       );
     } finally {
       noteController.dispose();
@@ -899,18 +939,18 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
                             children: [
                               Text(_loadError!),
                               const SizedBox(height: 12),
-                              OutlinedButton(
+                              AppTextButton(
                                 onPressed: _loadMessages,
-                                child: const Text('Tekrar dene'),
+                                label: AppStrings.get('community_chat_retry'),
                               ),
                             ],
                           ),
                         ),
                       )
                     : messages.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
-                              'Bu sohbette henüz mesaj yok. İlk mesajı sen yaz.',
+                              AppStrings.get('community_chat_empty'),
                               textAlign: TextAlign.center,
                             ),
                           )

@@ -2833,6 +2833,14 @@ void main() {
       expect(entry.socialPlatform, equals('instagram'));
     });
 
+    test('review form reuses a saved Instagram account instead of asking again',
+        () {
+      final detail = File('lib/src/features/detail.dart').readAsStringSync();
+
+      expect(detail, contains('_profileInstagramHandle'));
+      expect(detail, contains('Mevcut profil hesabın yorumunda gösterilecek'));
+    });
+
     test(
         'UserReviewsController saves and retrieves reviews with social handles',
         () async {

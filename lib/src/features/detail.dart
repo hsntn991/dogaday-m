@@ -1186,8 +1186,8 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Container(
-        constraints: const BoxConstraints(minHeight: 89),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+        constraints: const BoxConstraints(minHeight: 72),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
         decoration: BoxDecoration(
           color: isDark ? AppColors.darkSurface : AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadii.large),
@@ -1199,29 +1199,42 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(
-              icon,
-              size: 17,
-              color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: AppFontSizes.caption,
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
+            Row(children: [
+              Icon(
+                icon,
+                size: 17,
+                color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
               ),
-            ),
-            const SizedBox(height: 3),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: AppFontSizes.caption,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (onCopy != null)
+                SizedBox(
+                  width: AppControlSizes.minimumTouchTarget,
+                  height: AppControlSizes.minimumTouchTarget,
+                  child: IconButton(
+                    tooltip: AppStrings.get('nav_copy_coords'),
+                    onPressed: onCopy,
+                    icon: const Icon(Icons.copy_outlined),
+                  ),
+                ),
+            ]),
             Text(
               value,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'Outfit',
@@ -1231,19 +1244,6 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
                     isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
               ),
             ),
-            if (onCopy != null)
-              Align(
-                alignment: Alignment.centerRight,
-                child: SizedBox(
-                  width: AppControlSizes.minimumTouchTarget,
-                  height: AppControlSizes.minimumTouchTarget,
-                  child: IconButton(
-                    tooltip: AppStrings.get('nav_copy_coords'),
-                    onPressed: onCopy,
-                    icon: const Icon(Icons.copy_outlined),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -3024,6 +3024,7 @@ class _ReviewRecommendSheet extends StatefulWidget {
 class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
   final reviewController = TextEditingController();
   late final TextEditingController instagramController;
+  late final String _profileInstagramHandle;
   late int tab;
   int rating = 0;
   bool recommended = true;
@@ -3066,10 +3067,11 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
     final existingHandle = widget.initialSocialHandle?.trim() ?? '';
     final profileHandle =
         UserSocialAccountsController.accounts.value.instagram.trim();
+    _profileInstagramHandle = profileHandle.replaceAll('@', '');
     final effectiveHandle =
         existingHandle.isNotEmpty ? existingHandle : profileHandle;
     instagramController = TextEditingController(
-      text: effectiveHandle.replaceAll('@', ''),
+      text: existingHandle.replaceAll('@', ''),
     );
     attachSocialBadge = effectiveHandle.isNotEmpty;
   }
@@ -3083,7 +3085,11 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
 
   void submit() {
     if (!canSubmit) return;
-    final handleText = instagramController.text.trim().replaceAll('@', '');
+    final handleText = (instagramController.text.trim().isNotEmpty
+            ? instagramController.text
+            : _profileInstagramHandle)
+        .trim()
+        .replaceAll('@', '');
     final handle =
         (attachSocialBadge && handleText.isNotEmpty) ? handleText : null;
     if (handle != null) {
@@ -3484,59 +3490,83 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
               ),
               if (attachSocialBadge) ...[
                 const SizedBox(height: 10),
-                TextField(
-                  controller: instagramController,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 13,
-                    color: isDark ? AppColors.darkTextPrimary : ink,
-                  ),
-                  decoration: InputDecoration(
-                    prefixText: '@',
-                    prefixStyle: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      color: isDark
-                          ? AppColors.darkTextPrimary
-                          : const Color(0xFFE1306C),
-                    ),
-                    hintText: 'kullanici_adi',
-                    hintStyle: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: AppFontSizes.caption,
-                      color: isDark
-                          ? AppColors.darkTextTertiary
-                          : AppColors.textTertiary,
-                    ),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    filled: true,
-                    fillColor:
-                        isDark ? AppColors.darkSurfaceDeep : Colors.white,
-                    border: OutlineInputBorder(
+                if (_profileInstagramHandle.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSurfaceDeep : Colors.white,
                       borderRadius: BorderRadius.circular(AppRadii.medium),
-                      borderSide: BorderSide(
+                      border: Border.all(
                         color: isDark ? AppColors.darkBorder : AppColors.border,
                       ),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.medium),
-                      borderSide: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.border,
+                    child: Text(
+                      'Mevcut profil hesabın yorumunda gösterilecek: @$_profileInstagramHandle',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: AppFontSizes.caption,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textSecondary,
                       ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.medium),
-                      borderSide: const BorderSide(
-                        color: Color(0xFFE1306C),
-                        width: 1.4,
+                  )
+                else
+                  TextField(
+                    controller: instagramController,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 13,
+                      color: isDark ? AppColors.darkTextPrimary : ink,
+                    ),
+                    decoration: InputDecoration(
+                      prefixText: '@',
+                      prefixStyle: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? AppColors.darkTextPrimary
+                            : const Color(0xFFE1306C),
+                      ),
+                      hintText: 'kullanici_adi',
+                      hintStyle: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: AppFontSizes.caption,
+                        color: isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.textTertiary,
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      filled: true,
+                      fillColor:
+                          isDark ? AppColors.darkSurfaceDeep : Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadii.medium),
+                        borderSide: BorderSide(
+                          color: isDark ? AppColors.darkBorder : AppColors.border,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadii.medium),
+                        borderSide: BorderSide(
+                          color: isDark ? AppColors.darkBorder : AppColors.border,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadii.medium),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE1306C),
+                          width: 1.4,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ],
           ),

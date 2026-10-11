@@ -27,7 +27,21 @@ void main() {
 
     expect(profile, contains('_showDisplayNameEditor'));
     expect(profile, contains("'display_name'"));
-    expect(profile, contains('Görünecek adın'));
+    expect(profile, contains("AppStrings.get('profile_display_name_title')"));
+  });
+
+  test('chat reporting and profile name editing use app translations', () {
+    final chat = File('lib/src/features/community_chat.dart').readAsStringSync();
+    final profile =
+        File('lib/src/features/favorites_profile.dart').readAsStringSync();
+    final locale = File('lib/src/core/app_locale.dart').readAsStringSync();
+
+    expect(chat, contains("AppStrings.get('chat_report_message')"));
+    expect(locale, contains("'chat_report_sent':"));
+    expect(profile, contains("AppStrings.get('profile_display_name_title')"));
+    expect(locale, contains("'profile_display_name_title':"));
+    expect(profile, contains("AppStrings.get('profile_feedback_acknowledge')"));
+    expect(chat, contains("AppStrings.get('community_chat_retry')"));
   });
 
   test('the app loads chat messages and reports through guarded RPCs', () {
@@ -38,5 +52,15 @@ void main() {
     final admin = File('lib/src/app/admin_panel.dart').readAsStringSync();
     expect(admin, contains('AdminChatModerationScreen'));
     expect(admin, contains('apply_community_chat_restriction'));
+  });
+
+  test('community chat receives newly published messages without reopening', () {
+    final core = File('lib/src/core/app_core.dart').readAsStringSync();
+    final room = File('lib/src/features/community_chat.dart').readAsStringSync();
+
+    expect(core, contains('watchMessages'));
+    expect(core, contains('onPostgresChanges'));
+    expect(room, contains('_subscribeToLiveMessages'));
+    expect(room, contains('_realtimeChannel'));
   });
 }

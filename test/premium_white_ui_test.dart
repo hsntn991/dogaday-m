@@ -59,4 +59,11 @@ void main() {
 
     expect(map, contains('selectedPlace == null ? 0.0 : 248.0'));
   });
+
+  test('province cards acknowledge selection before opening a region', () {
+    final home = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(home, contains('_runWithSelectionHaptic('));
+    expect(home, contains('MapRegionFocus.forProvince(entry.key)'));
+  });
 }

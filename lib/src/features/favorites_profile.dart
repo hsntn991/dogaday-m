@@ -15,6 +15,8 @@ class _FigmaFavoritesScreenState extends State<FigmaFavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
     return SafeArea(
         child: ListView(
             padding: const EdgeInsets.fromLTRB(22, 26, 22, 110),
@@ -133,16 +135,19 @@ class _FigmaFavoritesScreenState extends State<FigmaFavoritesScreen> {
                       size: 55, color: AppColors.primary),
                   const SizedBox(height: 16),
                   Text(AppStrings.get('favorites_no_saved'),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: AppFontSizes.heading,
-                          fontWeight: FontWeight.w500)),
+                          fontWeight: FontWeight.w600,
+                          color: textPrimary,
+                          decoration: TextDecoration.none)),
                   const SizedBox(height: 7),
                   Text(AppStrings.get('favorites_no_saved_desc'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: AppFontSizes.label))
+                      style: TextStyle(
+                          color: textSecondary,
+                          fontSize: AppFontSizes.label,
+                          decoration: TextDecoration.none))
                 ]))
           else if (grid)
             GridView.builder(
@@ -330,25 +335,25 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
     final selected = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Görünecek adın'),
+        title: Text(AppStrings.get('profile_display_name_title')),
         content: TextField(
           controller: controller,
           autofocus: true,
           maxLength: 48,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            labelText: 'Sohbette görünen ad',
-            hintText: 'Örn. Hüsnü T. veya Hüsnü Tuna',
+          decoration: InputDecoration(
+            labelText: AppStrings.get('profile_display_name_label'),
+            hintText: AppStrings.get('profile_display_name_hint'),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Vazgeç'),
+            child: Text(AppStrings.get('general_cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Kaydet'),
+            child: Text(AppStrings.get('general_save')),
           ),
         ],
       ),
@@ -387,7 +392,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
   Future<void> _showUnreadRejectionNotice() async {
     if (!mounted || _rejectionNoticeShown) return;
     final feedback = SubmissionFeedbackController.items.value
-        .where((item) => item.isRejected)
+        .where((item) => item.isRejected || item.isActionRequired)
         .cast<SubmissionFeedback?>()
         .firstWhere((item) => item != null, orElse: () => null);
     if (feedback == null) return;
@@ -397,13 +402,22 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.info_outline_rounded, color: AppColors.error),
-        title: const Text('Yer ekleme başvurun reddedildi'),
+        icon: Icon(
+          feedback.isActionRequired
+              ? Icons.edit_note_rounded
+              : Icons.info_outline_rounded,
+          color: feedback.isActionRequired
+              ? AppColors.primary
+              : AppColors.error,
+        ),
+        title: Text(feedback.isActionRequired
+            ? AppStrings.get('profile_feedback_correction_title')
+            : AppStrings.get('profile_feedback_rejected_title')),
         content: Text(feedback.body),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Okudum'),
+            child: Text(AppStrings.get('profile_feedback_acknowledge')),
           ),
         ],
       ),
@@ -413,8 +427,8 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
       await SubmissionFeedbackController.markRead(feedback);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Bildirim okundu olarak işaretlenemedi. Tekrar dene.'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppStrings.get('profile_feedback_mark_read_failed')),
         ));
       }
     }
@@ -430,18 +444,16 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Hâlâ yardıma ihtiyacın var mı?'),
-        content: const Text(
-          'Yardım çağrın 48 saati doldurdu ve haritadan kaldırıldı. İstersen 48 saat daha görünür kalsın.',
-        ),
+        title: Text(AppStrings.get('profile_help_expired_title')),
+        content: Text(AppStrings.get('profile_help_expired_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Hayır, sonlandır'),
+            child: Text(AppStrings.get('profile_help_end')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Evet, sürdür'),
+            child: Text(AppStrings.get('profile_help_continue')),
           ),
         ],
       ),
@@ -500,9 +512,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Aktif bir kullanıcı oturumu bulunamadı.'),
-        ),
+        SnackBar(content: Text(AppStrings.get('profile_no_active_session'))),
       );
       return;
     }
@@ -511,21 +521,19 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
     final firstConfirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Hesabınızı silmek istiyor musunuz?'),
-        content: const Text(
-          'Hesabınız ve hesabınızla ilişkili veriler kalıcı olarak silinecektir. Bu işlem geri alınamaz.',
-        ),
+        title: Text(AppStrings.get('profile_delete_confirm_title')),
+        content: Text(AppStrings.get('profile_delete_confirm_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Vazgeç'),
+            child: Text(AppStrings.get('general_cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: TextButton.styleFrom(
               foregroundColor: AppColors.error,
             ),
-            child: const Text('Hesabımı Sil'),
+            child: Text(AppStrings.get('profile_delete_action')),
           ),
         ],
       ),
@@ -538,21 +546,19 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
     final secondConfirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Emin misiniz?'),
-        content: const Text(
-          'Bu işlem geri alınamaz. Devam etmek istediğinize emin misiniz?',
-        ),
+        title: Text(AppStrings.get('profile_delete_final_title')),
+        content: Text(AppStrings.get('profile_delete_final_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Vazgeç'),
+            child: Text(AppStrings.get('general_cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: TextButton.styleFrom(
               foregroundColor: AppColors.error,
             ),
-            child: const Text('Evet, Kalıcı Olarak Sil'),
+            child: Text(AppStrings.get('profile_delete_final_action')),
           ),
         ],
       ),
@@ -567,7 +573,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const PopScope(
+      builder: (_) => PopScope(
         canPop: false,
         child: Center(
           child: Card(
@@ -582,7 +588,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'Hesabınız siliniyor...',
+                    AppStrings.get('profile_deleting'),
                     style: TextStyle(
                       fontSize: AppFontSizes.label,
                       fontWeight: FontWeight.w500,
@@ -642,10 +648,10 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
 
       setState(() => _isDeletingAccount = false);
 
-      // Başarısızlık durumunda yerel veriler korunur, oturum kapatılmaz, anlaşılır Türkçe hata gösterilir.
+      // Başarısızlık durumunda yerel veriler korunur, oturum kapatılmaz.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Hesabınız silinemedi. Lütfen tekrar deneyin.'),
+        SnackBar(
+          content: Text(AppStrings.get('profile_delete_failed')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1713,7 +1719,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
         valueListenable: SubmissionFeedbackController.items,
         builder: (context, feedback, _) {
           final visibleFeedback = feedback
-              .where((item) => !item.isRejected)
+              .where((item) => !item.isRejected && !item.isActionRequired)
               .toList(growable: false);
           if (visibleFeedback.isEmpty) return const SizedBox.shrink();
           return Column(
@@ -2751,7 +2757,7 @@ Future<void> _showSocialAccountsModal(BuildContext context) async {
           ),
           const SizedBox(height: 16),
           Text(
-            'Sosyal Medya Hesapları',
+            AppStrings.get('profile_social_title'),
             style: TextStyle(
               fontFamily: 'Outfit',
               fontSize: AppFontSizes.heading,
@@ -2761,7 +2767,7 @@ Future<void> _showSocialAccountsModal(BuildContext context) async {
           ),
           const SizedBox(height: 6),
           Text(
-            'Doğa profiline Instagram, Facebook veya YouTube hesaplarını ekle.',
+            AppStrings.get('profile_social_description'),
             style: TextStyle(
               fontSize: AppFontSizes.caption,
               color: textSecondary,
@@ -2776,7 +2782,7 @@ Future<void> _showSocialAccountsModal(BuildContext context) async {
                 color: Color(0xFFE1306C),
               ),
               labelText: 'Instagram',
-              hintText: '@kullaniciadi veya link',
+              hintText: AppStrings.get('profile_social_instagram_hint'),
               filled: true,
               fillColor:
                   isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
@@ -2797,7 +2803,7 @@ Future<void> _showSocialAccountsModal(BuildContext context) async {
                 color: Color(0xFF1877F2),
               ),
               labelText: 'Facebook',
-              hintText: 'kullaniciadi veya link',
+              hintText: AppStrings.get('profile_social_handle_or_link'),
               filled: true,
               fillColor:
                   isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
@@ -2818,7 +2824,7 @@ Future<void> _showSocialAccountsModal(BuildContext context) async {
                 color: Color(0xFFFF0000),
               ),
               labelText: 'YouTube',
-              hintText: '@kanal veya link',
+              hintText: AppStrings.get('profile_social_youtube_hint'),
               filled: true,
               fillColor:
                   isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
@@ -2851,16 +2857,16 @@ Future<void> _showSocialAccountsModal(BuildContext context) async {
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Sosyal medya hesapların kaydedildi.'),
-                      duration: Duration(seconds: 2),
+                    SnackBar(
+                      content: Text(AppStrings.get('profile_social_saved')),
+                      duration: const Duration(seconds: 2),
                     ),
                   );
                 }
               },
               icon: const Icon(Icons.check, size: 18),
-              label: const Text(
-                'Kaydet',
+              label: Text(
+                AppStrings.get('general_save'),
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w600,
@@ -2884,13 +2890,13 @@ Future<void> _openSocialLink(
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bağlantı açılamadı.')),
+        SnackBar(content: Text(AppStrings.get('profile_social_open_failed'))),
       );
     }
   } else if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Geçerli bir sosyal medya bağlantısı bulunamadı.')),
+      SnackBar(
+          content: Text(AppStrings.get('profile_social_invalid_link'))),
     );
   }
 }

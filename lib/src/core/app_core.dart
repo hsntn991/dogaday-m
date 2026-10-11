@@ -400,6 +400,8 @@ abstract final class AppIconSizes {
 abstract final class AppControlSizes {
   static const double button = 52;
   static const double minimumTouchTarget = 48;
+  static const double bottomNavigation = 82;
+  static const double mapControlsBottomInset = 96;
 }
 
 abstract final class AppFontSizes {
@@ -1225,6 +1227,30 @@ abstract final class CommunityChatService {
       createdAt: message.createdAt,
       isStaff: false,
     );
+  }
+
+  /// Mesaj listesi açıkken yeni kayıtları anında yeniler. Yazma işlemi hâlâ
+  /// yalnızca denetimli RPC üzerinden yapılır; Realtime sadece görünür kaydı
+  /// dinler.
+  static RealtimeChannel watchMessages({
+    required String categoryKey,
+    required VoidCallback onChanged,
+  }) {
+    final key = categoryKey.trim();
+    return Supabase.instance.client
+        .channel('community-chat-$key')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'community_chat_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'category_key',
+            value: key,
+          ),
+          callback: (_) => onChanged(),
+        )
+        .subscribe();
   }
 
   static Future<void> reportMessage({

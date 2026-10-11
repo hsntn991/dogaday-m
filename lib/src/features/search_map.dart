@@ -1034,6 +1034,18 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  List<Place> _cachedPlacesInsideViewport(LatLngBounds bounds) =>
+      SupabasePlacesController.places.value
+          .where(
+            (place) =>
+                place.hasCoordinates &&
+                place.latitude! >= bounds.south &&
+                place.latitude! <= bounds.north &&
+                place.longitude! >= bounds.west &&
+                place.longitude! <= bounds.east,
+          )
+          .toList(growable: false);
+
   Future<void> _loadViewportPoints({bool userInitiated = false}) async {
     if (!MapViewportPointsService.enabled || _visibleBounds == null) return;
     if (_isViewportLoading) return;
@@ -1058,7 +1070,12 @@ class _MapScreenState extends State<MapScreen> {
       );
       if (!mounted || requestToken != _viewportRequestToken) return;
       setState(() {
-        _viewportPlaces = loaded;
+        // Sunucu geçici olarak boş yanıt dönerse seçilen ilin ekranda boş
+        // görünmesini engelle; yalnızca aynı görünür sınırdaki önbellek
+        // kayıtları kullanılabilir, başka illerin noktaları eklenmez.
+        _viewportPlaces = loaded.isEmpty
+            ? _cachedPlacesInsideViewport(requestedBounds)
+            : loaded;
         _viewportNeedsSearch = false;
         _isViewportLoading = false;
         _mapPlaces = buildMapPlaces();
@@ -1642,7 +1659,9 @@ class _MapScreenState extends State<MapScreen> {
     required bool bottomNavigationVisible,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mapBottomInset = bottomNavigationVisible ? 96.0 : 18.0;
+    final mapBottomInset = bottomNavigationVisible
+        ? AppControlSizes.mapControlsBottomInset
+        : 18.0;
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {

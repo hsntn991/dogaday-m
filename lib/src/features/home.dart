@@ -1272,8 +1272,9 @@ class _ProvinceExplorerEntry extends StatelessWidget {
                     button: true,
                     label: '${entry.key} bölgesini haritada aç',
                     child: InkWell(
-                      onTap: () =>
-                          onSelect(MapRegionFocus.forProvince(entry.key)),
+                      onTap: () => _runWithSelectionHaptic(
+                        () => onSelect(MapRegionFocus.forProvince(entry.key)),
+                      ),
                       borderRadius: BorderRadius.circular(AppRadii.large),
                       child: Ink(
                         child: _ProvincePhotoCard(
@@ -1355,8 +1356,10 @@ class _ProvinceExplorerSheet extends StatelessWidget {
                         button: true,
                         label: '${entry.key} bölgesini haritada aç',
                         child: InkWell(
-                          onTap: () =>
-                              onSelect(MapRegionFocus.forProvince(entry.key)),
+                          onTap: () => _runWithSelectionHaptic(
+                            () =>
+                                onSelect(MapRegionFocus.forProvince(entry.key)),
+                          ),
                           borderRadius: BorderRadius.circular(AppRadii.large),
                           child: Ink(
                             decoration: BoxDecoration(
@@ -2039,6 +2042,10 @@ class _CommunitySuggestionsSectionState
     future = CommunitySuggestionsService.rankedFor(widget.target);
   }
 
+  void retry() => setState(() {
+        future = CommunitySuggestionsService.rankedFor(widget.target);
+      });
+
   @override
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2055,7 +2062,7 @@ class _CommunitySuggestionsSectionState
               if (snapshot.hasError || (snapshot.data?.isEmpty ?? true)) {
                 final isDark = Theme.of(context).brightness == Brightness.dark;
                 return Container(
-                  height: 100,
+                  height: 116,
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
@@ -2065,16 +2072,27 @@ class _CommunitySuggestionsSectionState
                       color: isDark ? AppColors.darkBorder : AppColors.border,
                     ),
                   ),
-                  child: Text(
-                    AppStrings.get('home_community_error'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary,
-                      fontSize: AppFontSizes.caption,
-                    ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        AppStrings.get('home_community_error'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
+                          fontSize: AppFontSizes.caption,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      AppTextButton(
+                        onPressed: retry,
+                        leading: const Icon(Icons.refresh_rounded, size: 16),
+                        label: AppStrings.get('general_retry'),
+                      ),
+                    ],
                   ),
                 );
               }
@@ -2703,64 +2721,8 @@ class _CompactSectionLoading extends StatelessWidget {
   const _CompactSectionLoading();
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      height: 72,
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.darkSurface
-            : Colors.white.withValues(alpha: .72),
-        borderRadius: BorderRadius.circular(AppRadii.large),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.border,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color:
-                  isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(AppRadii.large),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 138,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color:
-                        isDark ? AppColors.darkPrimarySoft : AppColors.border,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 88,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? AppColors.darkSurfaceMuted
-                        : AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      const AppLoadingCard(height: 72, compact: true);
 }
 
 class _EmptyPlacesCard extends StatelessWidget {

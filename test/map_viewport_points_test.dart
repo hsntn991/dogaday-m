@@ -216,6 +216,22 @@ void main() {
     expect(points.single.location, contains('Aydın'));
   });
 
+  test('regional map preserves cached points inside the selected viewport', () {
+    final map = File('lib/src/features/search_map.dart').readAsStringSync();
+
+    expect(map, contains('_cachedPlacesInsideViewport'));
+    expect(map, contains('loaded.isEmpty'));
+  });
+
+  test('nearby places action focuses the map on the user location', () {
+    final app = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(app, contains('void _openNearbyPlacesOnMap()'));
+    expect(app, contains('MapRegionFocusController.focus('));
+    expect(app, contains('zoom: 11.5'));
+    expect(app, contains('onExploreMap: _openNearbyPlacesOnMap'));
+  });
+
   test('province explorer does not offer a route into the global map mode', () {
     final home = File('lib/src/features/home.dart').readAsStringSync();
 

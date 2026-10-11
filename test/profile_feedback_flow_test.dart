@@ -28,6 +28,14 @@ void main() {
     expect(profile, contains('!item.isRejected'));
   });
 
+  test('profile also acknowledges a requested correction once', () {
+    final profile =
+        File('lib/src/features/favorites_profile.dart').readAsStringSync();
+
+    expect(profile, contains('item.isRejected || item.isActionRequired'));
+    expect(profile, contains("AppStrings.get('profile_feedback_correction_title')"));
+  });
+
   test('help request entry is not blocked when the feed cannot load', () {
     final profile =
         File('lib/src/features/favorites_profile.dart').readAsStringSync();
@@ -38,5 +46,25 @@ void main() {
 
     expect(entryFlow, isNot(contains('isAvailable.value')));
     expect(entryFlow, contains('EmergencyHelpRequestSheet.show(context)'));
+  });
+
+  test('account deletion confirmations use the active app language', () {
+    final profile =
+        File('lib/src/features/favorites_profile.dart').readAsStringSync();
+    final locale = File('lib/src/core/app_locale.dart').readAsStringSync();
+
+    expect(profile, contains("AppStrings.get('profile_delete_confirm_title')"));
+    expect(profile, contains("AppStrings.get('profile_delete_failed')"));
+    expect(locale, contains("'profile_delete_confirm_title':"));
+  });
+
+  test('social account editor uses the active app language', () {
+    final profile =
+        File('lib/src/features/favorites_profile.dart').readAsStringSync();
+    final locale = File('lib/src/core/app_locale.dart').readAsStringSync();
+
+    expect(profile, contains("AppStrings.get('profile_social_title')"));
+    expect(profile, contains("AppStrings.get('profile_social_saved')"));
+    expect(locale, contains("'profile_social_title':"));
   });
 }

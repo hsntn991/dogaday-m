@@ -1,5 +1,10 @@
 part of '../../main.dart';
 
+void _runWithSelectionHaptic(VoidCallback callback) {
+  HapticFeedback.selectionClick();
+  callback();
+}
+
 class AppPrimaryButton extends StatelessWidget {
   const AppPrimaryButton({
     super.key,
@@ -19,7 +24,8 @@ class AppPrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final button = FilledButton(
-      onPressed: onPressed,
+      onPressed:
+          onPressed == null ? null : () => _runWithSelectionHaptic(onPressed!),
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, AppControlSizes.button),
         backgroundColor: AppColors.primary,
@@ -61,7 +67,8 @@ class AppSecondaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final button = OutlinedButton(
-      onPressed: onPressed,
+      onPressed:
+          onPressed == null ? null : () => _runWithSelectionHaptic(onPressed!),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, AppControlSizes.button),
         foregroundColor: AppColors.textPrimaryOf(context),
@@ -81,6 +88,40 @@ class AppSecondaryButton extends StatelessWidget {
     );
     return expand ? SizedBox(width: double.infinity, child: button) : button;
   }
+}
+
+class AppTextButton extends StatelessWidget {
+  const AppTextButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.leading,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final Widget? leading;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: label,
+        child: TextButton.icon(
+          onPressed: onPressed == null
+              ? null
+              : () => _runWithSelectionHaptic(onPressed!),
+          icon: leading ?? const SizedBox.shrink(),
+          label: Text(label),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(44, AppControlSizes.minimumTouchTarget),
+            foregroundColor: AppColors.isDark(context)
+                ? AppColors.darkPrimaryLight
+                : AppColors.primary,
+            textStyle: AppTypography.labelOf(context),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+          ),
+        ),
+      );
 }
 
 /// İnce bölüm ve liste ayırıcıları için tek, tema uyumlu kaynak.
@@ -104,6 +145,122 @@ class AppSectionDivider extends StatelessWidget {
         endIndent: endIndent,
         color: AppColors.borderOf(context),
       );
+}
+
+/// Veri yüklenirken içerik alanını koruyan, tema uyumlu iskelet yüzey.
+/// Kısa isteklerde dikkat dağıtmayan, uzun isteklerde de bekleme durumunu
+/// açıkça anlatan hafif bir parlama kullanır.
+class AppLoadingCard extends StatefulWidget {
+  const AppLoadingCard({
+    super.key,
+    this.height = 88,
+    this.compact = false,
+  });
+
+  final double height;
+  final bool compact;
+
+  @override
+  State<AppLoadingCard> createState() => _AppLoadingCardState();
+}
+
+class _AppLoadingCardState extends State<AppLoadingCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    final mutedSurface =
+        isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted;
+    final barColor = isDark ? AppColors.darkPrimarySoft : AppColors.border;
+    final radius = BorderRadius.circular(AppRadii.large);
+
+    final skeleton = Container(
+      height: widget.height,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        borderRadius: radius,
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: widget.compact ? 38 : 46,
+            height: widget.compact ? 38 : 46,
+            decoration:
+                BoxDecoration(color: mutedSurface, borderRadius: radius),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FractionallySizedBox(
+                  widthFactor: widget.compact ? .50 : .68,
+                  child: Container(
+                    height: 9,
+                    decoration:
+                        BoxDecoration(color: barColor, borderRadius: radius),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FractionallySizedBox(
+                  widthFactor: widget.compact ? .32 : .44,
+                  child: Container(
+                    height: 7,
+                    decoration: BoxDecoration(
+                        color: mutedSurface, borderRadius: radius),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return Semantics(
+      container: true,
+      label: 'Yükleniyor',
+      child: ClipRRect(
+        borderRadius: radius,
+        child: reduceMotion
+            ? skeleton
+            : AnimatedBuilder(
+                animation: _shimmer,
+                child: skeleton,
+                builder: (context, child) => ShaderMask(
+                  blendMode: BlendMode.srcATop,
+                  shaderCallback: (bounds) => LinearGradient(
+                    begin: Alignment(-1.6 + (_shimmer.value * 3.2), 0),
+                    end: Alignment(-.6 + (_shimmer.value * 3.2), 0),
+                    colors: const [
+                      Colors.white12,
+                      Colors.white38,
+                      Colors.white12
+                    ],
+                    stops: const [0, .5, 1],
+                  ).createShader(bounds),
+                  child: child,
+                ),
+              ),
+      ),
+    );
+  }
 }
 
 class AppTextField extends StatelessWidget {

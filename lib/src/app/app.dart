@@ -900,6 +900,13 @@ class _AuthScreenState extends State<AuthScreen> {
 
   bool get _isSignUp => _mode == AuthMode.signUp;
 
+  String _authText(String tr, String en, String ar) =>
+      switch (AppLocaleController.current.value.languageCode) {
+        'en' => en,
+        'ar' => ar,
+        _ => tr,
+      };
+
   static String? get _authRedirectUrl =>
       kIsWeb ? Uri.base.origin : 'io.supabase.dogadagezi://login-callback/';
 
@@ -959,7 +966,11 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!mounted) return;
     final message = error is AuthException
         ? error.message
-        : 'İşlem tamamlanamadı. İnternet bağlantını kontrol edip tekrar dene.';
+        : _authText(
+            'İşlem tamamlanamadı. İnternet bağlantını kontrol edip tekrar dene.',
+            'The action could not be completed. Check your connection and try again.',
+            'تعذر إكمال العملية. تحقق من اتصالك وحاول مرة أخرى.',
+          );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
@@ -985,7 +996,11 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_isSignUp && !_acceptedTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Devam etmek için koşulları kabul et.')),
+        SnackBar(content: Text(_authText(
+          'Devam etmek için koşulları kabul et.',
+          'Accept the terms to continue.',
+          'وافق على الشروط للمتابعة.',
+        ))),
       );
       return;
     }
@@ -1006,11 +1021,11 @@ class _AuthScreenState extends State<AuthScreen> {
         if (!mounted) return;
         if (response.session == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Hesabın oluşturuldu. E-postana gönderilen doğrulama bağlantısını aç.',
-              ),
-            ),
+            SnackBar(content: Text(_authText(
+              'Hesabın oluşturuldu. E-postana gönderilen doğrulama bağlantısını aç.',
+              'Your account was created. Open the verification link sent to your email.',
+              'تم إنشاء حسابك. افتح رابط التحقق المرسل إلى بريدك الإلكتروني.',
+            ))),
           );
           _setMode(AuthMode.signIn);
         } else {
@@ -1072,7 +1087,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Şifreni yenile',
+                  _authText('Şifreni yenile', 'Reset your password', 'إعادة تعيين كلمة المرور'),
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: AppFontSizes.display,
@@ -1084,7 +1099,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  'Bağlantıyı gönderebilmemiz için e-posta adresini yaz.',
+                  _authText('Bağlantıyı gönderebilmemiz için e-posta adresini yaz.', 'Enter your email address so we can send the link.', 'أدخل بريدك الإلكتروني لإرسال الرابط.'),
                   style: TextStyle(
                     fontSize: AppFontSizes.body,
                     color: isSheetDark
@@ -1095,7 +1110,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 20),
                 _AuthField(
                   controller: controller,
-                  label: 'E-posta adresi',
+                  label: _authText('E-posta adresi', 'Email address', 'البريد الإلكتروني'),
                   hint: 'ornek@eposta.com',
                   icon: Icons.mail_outline_rounded,
                   keyboardType: TextInputType.emailAddress,
@@ -1110,8 +1125,8 @@ class _AuthScreenState extends State<AuthScreen> {
                       if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
                           .hasMatch(email)) {
                         ScaffoldMessenger.of(sheetContext).showSnackBar(
-                          const SnackBar(
-                            content: Text('Geçerli bir e-posta adresi yaz.'),
+                          SnackBar(
+                            content: Text(_authText('Geçerli bir e-posta adresi yaz.', 'Enter a valid email address.', 'أدخل بريدًا إلكترونيًا صالحًا.')),
                           ),
                         );
                         return;
@@ -1126,16 +1141,15 @@ class _AuthScreenState extends State<AuthScreen> {
                         Navigator.pop(sheetContext);
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content:
-                                Text('Şifre yenileme bağlantısı gönderildi.'),
+                          SnackBar(
+                            content: Text(_authText('Şifre yenileme bağlantısı gönderildi.', 'Password reset link sent.', 'تم إرسال رابط إعادة التعيين.')),
                           ),
                         );
                       } catch (error) {
                         if (!sheetContext.mounted) return;
                         final message = error is AuthException
                             ? error.message
-                            : 'Bağlantı gönderilemedi. Tekrar dene.';
+                            : _authText('Bağlantı gönderilemedi. Tekrar dene.', 'The link could not be sent. Try again.', 'تعذر إرسال الرابط. حاول مرة أخرى.');
                         ScaffoldMessenger.of(sheetContext).showSnackBar(
                           SnackBar(content: Text(message)),
                         );
@@ -1147,8 +1161,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         borderRadius: BorderRadius.circular(AppRadii.large),
                       ),
                     ),
-                    child: const Text(
-                      'Bağlantıyı Gönder',
+                    child: Text(
+                      _authText('Bağlantıyı Gönder', 'Send link', 'إرسال الرابط'),
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -1190,7 +1204,7 @@ class _AuthScreenState extends State<AuthScreen> {
       );
 
   Widget _buildAuthModeSwitcher(bool isDark) => Semantics(
-        label: 'Hesap işlemi seçimi',
+        label: _authText('Hesap işlemi seçimi', 'Choose account action', 'اختر إجراء الحساب'),
         child: Container(
           key: const Key('auth_mode_switcher'),
           height: 52,
@@ -1207,7 +1221,7 @@ class _AuthScreenState extends State<AuthScreen> {
               Expanded(
                 child: _AuthModeTab(
                   key: const Key('auth_sign_up_tab'),
-                  label: 'Kayıt ol',
+                  label: _authText('Kayıt ol', 'Sign up', 'إنشاء حساب'),
                   selected: _isSignUp,
                   onTap: () => _setMode(AuthMode.signUp),
                 ),
@@ -1216,7 +1230,7 @@ class _AuthScreenState extends State<AuthScreen> {
               Expanded(
                 child: _AuthModeTab(
                   key: const Key('auth_sign_in_tab'),
-                  label: 'Giriş yap',
+                  label: _authText('Giriş yap', 'Sign in', 'تسجيل الدخول'),
                   selected: !_isSignUp,
                   onTap: () => _setMode(AuthMode.signIn),
                 ),
@@ -1230,8 +1244,8 @@ class _AuthScreenState extends State<AuthScreen> {
         valueListenable: AppLocaleController.current,
         builder: (context, locale, _) => Column(
           children: [
-            const Text(
-              'Uygulama dilini seç',
+            Text(
+              _authText('Uygulama dilini seç', 'Choose app language', 'اختر لغة التطبيق'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: AppFontSizes.caption,
@@ -1425,7 +1439,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 12),
                               child: Text(
-                                'veya e-posta ile',
+                                _authText('veya e-posta ile', 'or continue with email', 'أو تابع بالبريد الإلكتروني'),
                                 style: TextStyle(
                                   fontFamily: 'Outfit',
                                   fontSize: AppFontSizes.caption,
@@ -1447,20 +1461,20 @@ class _AuthScreenState extends State<AuthScreen> {
                               if (_isSignUp) ...[
                                 _AuthField(
                                   controller: _nameController,
-                                  label: 'Ad soyad',
-                                  hint: 'Ad Soyad',
+                                  label: _authText('Ad soyad', 'Full name', 'الاسم الكامل'),
+                                  hint: _authText('Ad Soyad', 'Full name', 'الاسم الكامل'),
                                   icon: Icons.person_outline_rounded,
                                   textInputAction: TextInputAction.next,
                                   validator: (value) =>
                                       (value?.trim().length ?? 0) < 3
-                                          ? 'Adını ve soyadını yaz.'
+                                          ? _authText('Adını ve soyadını yaz.', 'Enter your full name.', 'أدخل اسمك الكامل.')
                                           : null,
                                 ),
                                 const SizedBox(height: 12),
                               ],
                               _AuthField(
                                 controller: _emailController,
-                                label: 'E-posta',
+                                  label: _authText('E-posta', 'Email', 'البريد الإلكتروني'),
                                 hint: 'ornek@eposta.com',
                                 icon: Icons.mail_outline_rounded,
                                 keyboardType: TextInputType.emailAddress,
@@ -1469,7 +1483,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                   final email = value?.trim() ?? '';
                                   if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
                                       .hasMatch(email)) {
-                                    return 'Geçerli bir e-posta adresi yaz.';
+                                    return _authText('Geçerli bir e-posta adresi yaz.', 'Enter a valid email address.', 'أدخل بريدًا إلكترونيًا صالحًا.');
                                   }
                                   return null;
                                 },
@@ -1477,10 +1491,10 @@ class _AuthScreenState extends State<AuthScreen> {
                               const SizedBox(height: 12),
                               _AuthField(
                                 controller: _passwordController,
-                                label: 'Şifre',
+                                label: _authText('Şifre', 'Password', 'كلمة المرور'),
                                 hint: _isSignUp
-                                    ? 'En az 8 karakter'
-                                    : 'Şifreni yaz',
+                                    ? _authText('En az 8 karakter', 'At least 8 characters', '8 أحرف على الأقل')
+                                    : _authText('Şifreni yaz', 'Enter your password', 'أدخل كلمة المرور'),
                                 icon: Icons.lock_outline_rounded,
                                 obscureText: !_passwordVisible,
                                 textInputAction: _isSignUp
@@ -1494,7 +1508,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                       : Icons.visibility_outlined),
                                 ),
                                 validator: (value) => (value?.length ?? 0) < 8
-                                    ? 'Şifre en az 8 karakter olmalı.'
+                                    ? _authText('Şifre en az 8 karakter olmalı.', 'Password must be at least 8 characters.', 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.')
                                     : null,
                                 onSubmitted: (_) {
                                   if (!_isSignUp) _submit();
@@ -1504,8 +1518,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                 const SizedBox(height: 12),
                                 _AuthField(
                                   controller: _confirmController,
-                                  label: 'Şifre tekrarı',
-                                  hint: 'Şifreni yeniden yaz',
+                                  label: _authText('Şifre tekrarı', 'Repeat password', 'تأكيد كلمة المرور'),
+                                  hint: _authText('Şifreni yeniden yaz', 'Enter your password again', 'أدخل كلمة المرور مرة أخرى'),
                                   icon: Icons.verified_user_outlined,
                                   obscureText: !_confirmVisible,
                                   textInputAction: TextInputAction.done,
@@ -1518,7 +1532,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                   ),
                                   validator: (value) =>
                                       value != _passwordController.text
-                                          ? 'Şifreler birbiriyle aynı değil.'
+                                          ? _authText('Şifreler birbiriyle aynı değil.', 'Passwords do not match.', 'كلمتا المرور غير متطابقتين.')
                                           : null,
                                   onSubmitted: (_) => _submit(),
                                 ),
@@ -1532,8 +1546,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                       padding: const EdgeInsets.only(
                                           top: 9, bottom: 8),
                                     ),
-                                    child: const Text(
-                                      'Şifremi unuttum',
+                                    child: Text(
+                                      _authText('Şifremi unuttum', 'Forgot password?', 'نسيت كلمة المرور؟'),
                                       style: TextStyle(
                                           fontSize: AppFontSizes.label,
                                           fontWeight: FontWeight.w600),
@@ -1569,7 +1583,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                         child: Text.rich(
                                           TextSpan(children: [
                                             TextSpan(
-                                              text: 'Kullanım Şartları',
+                                              text: _authText('Kullanım Şartları', 'Terms of Service', 'شروط الاستخدام'),
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.w700,
@@ -1579,9 +1593,9 @@ class _AuthScreenState extends State<AuthScreen> {
                                               recognizer:
                                                   _termsOfServiceRecognizer,
                                             ),
-                                            const TextSpan(text: ' ve '),
+                                            TextSpan(text: _authText(' ve ', ' and ', ' و')),
                                             TextSpan(
-                                              text: 'Gizlilik Politikası',
+                                              text: _authText('Gizlilik Politikası', 'Privacy Policy', 'سياسة الخصوصية'),
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.w700,
@@ -1592,8 +1606,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                                   _privacyPolicyRecognizer,
                                             ),
                                             TextSpan(
-                                              text:
-                                                  '’nı okudum, kabul ediyorum.',
+                                              text: _authText('’nı okudum, kabul ediyorum.', ' — I have read and accept.', ' — قرأت وأوافق.'),
                                               recognizer:
                                                   _toggleTermsRecognizer,
                                             ),
@@ -1645,7 +1658,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                               MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              'Devam et',
+                                              _authText('Devam et', 'Continue', 'متابعة'),
                                               style: const TextStyle(
                                                   fontSize: AppFontSizes.title,
                                                   fontWeight: FontWeight.w600),
@@ -2279,10 +2292,23 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
+  void _openNearbyPlacesOnMap() {
+    final target = HomeWeatherLocationController.current.value;
+    selectTab(1);
+    if (!target.usesCoordinates) return;
+    MapRegionFocusController.focus(
+      MapRegionFocus(
+        label: target.label,
+        center: LatLng(target.latitude!, target.longitude!),
+        zoom: 11.5,
+      ),
+    );
+  }
+
   Widget _createTab(int tabIndex) => switch (tabIndex) {
         0 => FigmaHomeScreen(
             onOpen: open,
-            onExploreMap: () => selectTab(1),
+            onExploreMap: _openNearbyPlacesOnMap,
             onExploreProvince: (region) {
               selectTab(1);
               MapRegionFocusController.focus(region);
@@ -2400,7 +2426,7 @@ class _FigmaBottomBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: SizedBox(
-        height: 82,
+        height: AppControlSizes.bottomNavigation,
         child: Align(
           alignment: Alignment.bottomCenter,
           child: ConstrainedBox(
@@ -2449,7 +2475,7 @@ class _FigmaBottomBar extends StatelessWidget {
                                 index: 1,
                                 current: index,
                                 icon: Icons.map_outlined,
-                                activeIcon: Icons.map_rounded,
+                                activeIcon: Icons.map_outlined,
                                 label: AppStrings.get('tab_map'),
                                 onTap: onChanged,
                               ),
@@ -2559,7 +2585,7 @@ class _FigmaNavItem extends StatelessWidget {
       child: Tooltip(
         message: label,
         child: InkWell(
-          onTap: () => onTap(index),
+          onTap: () => _runWithSelectionHaptic(() => onTap(index)),
           borderRadius: BorderRadius.circular(AppRadii.pill),
           child: Center(
             child: AnimatedContainer(

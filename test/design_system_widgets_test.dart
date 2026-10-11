@@ -32,6 +32,38 @@ void main() {
     expect(source, contains('height: 196,'));
   });
 
+  test('community suggestions provide an explicit retry after a load failure',
+      () {
+    final source = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(source, contains('void retry() => setState(() {'));
+    expect(source, contains('AppTextButton('));
+    expect(source, contains('onPressed: retry,'));
+  });
+
+  test('favorites empty state uses neutral, non-underlined information text',
+      () {
+    final source =
+        File('lib/src/features/favorites_profile.dart').readAsStringSync();
+
+    expect(
+      source,
+      matches(RegExp(
+        r"AppStrings\.get\('favorites_no_saved'\),\s+style: TextStyle\(",
+      )),
+    );
+    expect(source, contains('color: textPrimary,'));
+    expect(source, contains('decoration: TextDecoration.none))'));
+  });
+
+  test('coordinate metadata keeps its copy action beside the compact header',
+      () {
+    final detail = File('lib/src/features/detail.dart').readAsStringSync();
+
+    expect(detail, contains('constraints: const BoxConstraints(minHeight: 72)'));
+    expect(detail, contains("tooltip: AppStrings.get('nav_copy_coords')"));
+  });
+
   test('unknown update dates do not occupy detail metadata space', () {
     final source = File('lib/src/features/detail.dart').readAsStringSync();
 
@@ -91,14 +123,22 @@ void main() {
     final source = File('lib/src/app/app.dart').readAsStringSync();
 
     expect(source, contains('_buildAuthModeSwitcher(isDark)'));
-    expect(source, contains("label: 'Kayıt ol'"));
-    expect(source, contains("label: 'Giriş yap'"));
+    expect(source, contains("label: _authText('Kayıt ol', 'Sign up', 'إنشاء حساب')"));
+    expect(source, contains("label: _authText('Giriş yap', 'Sign in', 'تسجيل الدخول')"));
   });
 
   test('native app surfaces are never constrained to a phone-width frame', () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
 
     expect(source, isNot(contains('width: 430,')));
+  });
+
+  test('map and bottom navigation share one safe layout measurement', () {
+    final app = File('lib/src/app/app.dart').readAsStringSync();
+    final map = File('lib/src/features/search_map.dart').readAsStringSync();
+
+    expect(app, contains('height: AppControlSizes.bottomNavigation'));
+    expect(map, contains('AppControlSizes.mapControlsBottomInset'));
   });
 
   test(
@@ -159,6 +199,62 @@ void main() {
 
     final button = tester.widget<FilledButton>(find.byType(FilledButton));
     expect(button.onPressed, isNull);
+  });
+
+  testWidgets('text button keeps an accessible minimum touch target',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppTextButton(label: 'Tekrar dene', onPressed: () {}),
+        ),
+      ),
+    );
+
+    expect(tester.getSize(find.byType(AppTextButton)).height, greaterThanOrEqualTo(44));
+    expect(tester.getSemantics(find.byType(AppTextButton)),
+        matchesSemantics(label: 'Tekrar dene', isButton: true));
+  });
+
+  testWidgets(
+      'loading card reserves content space and announces loading accessibly',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: AppLoadingCard()),
+      ),
+    );
+
+    expect(find.byType(AppLoadingCard), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byType(AppLoadingCard)),
+      matchesSemantics(label: 'Yükleniyor', hasEnabledState: false),
+    );
+    expect(tester.getSize(find.byType(AppLoadingCard)).height, greaterThan(70));
+  });
+
+  test('loading card has a restrained shimmer instead of a static placeholder',
+      () {
+    final source =
+        File('lib/src/widgets/design_system_widgets.dart').readAsStringSync();
+
+    expect(source, contains('SingleTickerProviderStateMixin'));
+    expect(source, contains('LinearGradient'));
+    expect(source, contains('AnimationController'));
+    expect(source, contains('MediaQuery.disableAnimationsOf(context)'));
+  });
+
+  test('shared buttons provide restrained haptic confirmation', () {
+    final source =
+        File('lib/src/widgets/design_system_widgets.dart').readAsStringSync();
+
+    expect(source, contains('HapticFeedback.selectionClick()'));
+  });
+
+  test('bottom navigation provides the same selection feedback', () {
+    final app = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(app, contains('_runWithSelectionHaptic(() => onTap(index))'));
   });
 
   testWidgets('category chip exposes its selected state', (tester) async {
@@ -424,5 +520,16 @@ void main() {
     expect(find.text('Henüz incelenmedi'), findsOneWidget);
     expect(find.text('Tuvalet'), findsNothing);
     expect(find.text('Otopark'), findsNothing);
+  });
+
+  test('bottom navigation keeps the map symbol visually consistent when active',
+      () {
+    final appSource = File('lib/src/app/app.dart').readAsStringSync();
+    expect(
+      appSource,
+      matches(RegExp(
+        r'icon: Icons\.map_outlined,\r?\n\s*activeIcon: Icons\.map_outlined,',
+      )),
+    );
   });
 }
