@@ -1535,6 +1535,8 @@ class SubmissionFeedbackController {
   static final items = ValueNotifier<List<SubmissionFeedback>>(
     const <SubmissionFeedback>[],
   );
+  static RealtimeChannel? _channel;
+  static String? _watchingUserId;
 
   static Future<void> load() async {
     try {
@@ -1542,6 +1544,7 @@ class SubmissionFeedbackController {
       final user = client.auth.currentUser;
       if (user == null) {
         items.value = const <SubmissionFeedback>[];
+        _stopWatching();
         return;
       }
       final rows = await client
@@ -1556,9 +1559,47 @@ class SubmissionFeedbackController {
                 Map<String, dynamic>.from(row),
               ))
           .toList(growable: false);
+      _startWatching(user.id);
     } catch (_) {
       // The app remains compatible until the feedback migration is deployed.
       items.value = const <SubmissionFeedback>[];
+    }
+  }
+
+  /// Uygulama açıkken yönetici kararını veya yardım geri bildirimini anında
+  /// gösterir. Kanal, RLS'e ek olarak kullanıcı kimliği ile filtrelenir;
+  /// başka bir kullanıcının bildirimi istemciye hiç ulaşmaz.
+  static void _startWatching(String userId) {
+    if (_watchingUserId == userId && _channel != null) return;
+    _stopWatching();
+    try {
+      _watchingUserId = userId;
+      _channel = Supabase.instance.client
+          .channel('user-notifications-$userId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'user_notifications',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: userId,
+            ),
+            callback: (_) => unawaited(load()),
+          )
+          .subscribe();
+    } catch (_) {
+      _channel = null;
+      _watchingUserId = null;
+    }
+  }
+
+  static void _stopWatching() {
+    final channel = _channel;
+    _channel = null;
+    _watchingUserId = null;
+    if (channel != null) {
+      unawaited(Supabase.instance.client.removeChannel(channel));
     }
   }
 
@@ -2407,6 +2448,27 @@ class SupabasePlacesController {
     debugPrint(
       'SUPABASE PLACES: ${places.value.length} yer modele dönüştürüldü',
     );
+  }
+}
+
+/// Uzak görsellerin bellek kullanımını cihaz sınıfına göre sınırlar.
+///
+/// Flutter'ın varsayılan görsel önbelleği uzun keşif listelerinde gereğinden
+/// fazla tam çözünürlüklü fotoğraf tutabiliyor. Kartlardaki görseller zaten
+/// [cacheWidth] ile küçültüldüğü için burada da sayıyı ve toplam belleği sınırlı
+/// tutuyoruz. Bu ayar ilk kare çizilmeden uygulanır; ağ yokken ek bir istek
+/// üretmez ve platformun kendi disk önbelleğini değiştirmez.
+abstract final class AppImageCachePolicy {
+  static const int _mobileMaximumSize = 160;
+  static const int _mobileMaximumSizeBytes = 96 * 1024 * 1024;
+  static const int _webMaximumSize = 96;
+  static const int _webMaximumSizeBytes = 48 * 1024 * 1024;
+
+  static void configure() {
+    final cache = PaintingBinding.instance.imageCache;
+    cache.maximumSize = kIsWeb ? _webMaximumSize : _mobileMaximumSize;
+    cache.maximumSizeBytes =
+        kIsWeb ? _webMaximumSizeBytes : _mobileMaximumSizeBytes;
   }
 }
 

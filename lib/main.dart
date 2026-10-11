@@ -45,6 +45,7 @@ part 'src/widgets/design_system_widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppImageCachePolicy.configure();
   AppStartupTimer.mark('boot');
 
   // Supabase başlatma — ağ yoksa veya hata varsa hata ekranı göster.
