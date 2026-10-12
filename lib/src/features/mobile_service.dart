@@ -4,11 +4,13 @@ class MobileServiceCategoryItem {
   const MobileServiceCategoryItem({
     required this.key,
     required this.title,
+    required this.emoji,
     required this.icon,
   });
 
   final String key;
   final String title;
+  final String emoji;
   final IconData icon;
 }
 
@@ -16,51 +18,61 @@ const mobileServiceCategories = <MobileServiceCategoryItem>[
   MobileServiceCategoryItem(
     key: 'service_roadside',
     title: 'Çekici / Yol Yardım',
+    emoji: '🚛',
     icon: Icons.local_shipping_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_maintenance',
     title: 'Yıllık Bakım',
+    emoji: '🚐',
     icon: Icons.airport_shuttle_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_gas',
     title: 'Gaz Tesisatı',
+    emoji: '🔥',
     icon: Icons.local_fire_department_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_hvac',
     title: 'Isıtma & Soğutma',
+    emoji: '🌡️',
     icon: Icons.device_thermostat_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_electric',
     title: 'Elektrik & Enerji',
+    emoji: '⚡',
     icon: Icons.bolt_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_plumbing',
     title: 'Su & Tesisat',
+    emoji: '🚿',
     icon: Icons.shower_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_bodywork',
     title: 'Nem & Gövde',
+    emoji: '💧',
     icon: Icons.water_drop_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_chassis_brakes',
     title: 'Şasi & Fren',
+    emoji: '🛞',
     icon: Icons.tire_repair_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_parts',
     title: 'Montaj & Parça',
+    emoji: '⚙️',
     icon: Icons.settings_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_inspection',
     title: 'Muayene',
+    emoji: '🔍',
     icon: Icons.fact_check_rounded,
   ),
 ];
@@ -135,9 +147,9 @@ class MobileServiceHubScreen extends StatelessWidget {
                 builder: (context, constraints) {
                   const spacing = 12.0;
                   final itemWidth = (constraints.maxWidth - (spacing * 2)) / 3;
-                  // Dar telefonlarda iki satırlı servis adları ve firma kartı
-                  // aynı ritimde kalmalı; 110 px, metni alttan taşırıyordu.
-                  const itemHeight = 136.0;
+                  // Özgün kart dili korunur; adlar ve firma çağrısı bütün
+                  // telefon genişliklerinde taşmadan okunur.
+                  const itemHeight = 138.0;
 
                   return Column(
                     children: [
@@ -218,50 +230,53 @@ class MobileServiceHubScreen extends StatelessWidget {
       height: height,
       child: Material(
         color: isDark ? AppColors.darkSurfaceMuted : Colors.white,
-        borderRadius: BorderRadius.circular(AppRadii.medium),
+        borderRadius: BorderRadius.circular(16),
         elevation: 0,
         child: InkWell(
           onTap: () {
             // Seçilen hizmet anahtarını döndürerek haritada filtreleme yapar
             Navigator.pop(context, item.key);
           },
-          borderRadius: BorderRadius.circular(AppRadii.medium),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadii.medium),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.border,
+                color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
                 width: 1.0,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.25)
+                      : Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  item.icon,
-                  size: AppIconSizes.large,
-                  color:
-                      isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+                Text(
+                  item.emoji,
+                  style: const TextStyle(fontSize: 28),
                 ),
                 const SizedBox(height: 8),
-                Flexible(
-                  child: Center(
-                    child: Text(
-                      item.title,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                        color: isDark
-                            ? AppColors.darkTextPrimary
-                            : AppColors.textPrimary,
-                      ),
-                    ),
+                Text(
+                  item.title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : const Color(0xFF1E293B),
                   ),
                 ),
               ],
@@ -278,7 +293,7 @@ class MobileServiceHubScreen extends StatelessWidget {
       height: height,
       child: Material(
         color: isDark ? AppColors.darkSurfaceMuted : Colors.white,
-        borderRadius: BorderRadius.circular(AppRadii.medium),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: () async {
             final authOk = await AppAuthGuard.requireAuth(
@@ -300,17 +315,17 @@ class MobileServiceHubScreen extends StatelessWidget {
                   result.resolvedTaxonomy.subtype ?? 'service_roadside');
             }
           },
-          borderRadius: BorderRadius.circular(AppRadii.medium),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadii.medium),
+              borderRadius: BorderRadius.circular(16),
               color: isDark
                   ? const Color(0xFF064E3B).withValues(alpha: 0.20)
-                  : AppColors.primarySoft,
+                  : const Color(0xFFF0FDF4),
               border: Border.all(
-                color: AppColors.primary,
-                width: 1,
+                color: const Color(0xFF10B981).withValues(alpha: 0.65),
+                width: 1.4,
               ),
             ),
             child: Row(
@@ -320,13 +335,13 @@ class MobileServiceHubScreen extends StatelessWidget {
                   height: 38,
                   decoration: BoxDecoration(
                     color: isDark
-                        ? AppColors.darkPrimary.withValues(alpha: 0.35)
-                        : AppColors.primarySoft,
+                        ? const Color(0xFF059669).withValues(alpha: 0.35)
+                        : const Color(0xFFDCFCE7),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.add_rounded,
-                    color: AppColors.primary,
+                    color: Color(0xFF059669),
                     size: 22,
                   ),
                 ),
@@ -674,14 +689,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
               children: mobileServiceCategories.map((item) {
                 final isSelected = _selectedSubtype == item.key;
                 return ChoiceChip(
-                  avatar: Icon(
-                    item.icon,
-                    size: AppIconSizes.small,
-                    color: isSelected
-                        ? AppColors.accentOrange
-                        : AppColors.textSecondaryOf(context),
-                  ),
-                  label: Text(item.title),
+                  label: Text('${item.emoji} ${item.title}'),
                   selected: isSelected,
                   selectedColor: const Color(0xFFFEF3C7),
                   backgroundColor: isDark

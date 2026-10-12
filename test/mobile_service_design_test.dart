@@ -5,19 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('mobile service hub follows the shared premium component language', () {
+  test('mobile service hub preserves the original, icon-led service layout',
+      () {
     final source =
         File('lib/src/features/mobile_service.dart').readAsStringSync();
 
-    expect(source, contains('AppColors.background'));
-    expect(source, contains('AppColors.textPrimary'));
-    expect(source, contains('AppColors.textSecondary'));
-    expect(source, contains('AppColors.border'));
-    expect(source, contains('size: AppIconSizes.large'));
-    expect(source, contains('avatar: Icon('));
-    expect(source, isNot(contains('Text(item.emoji')));
-    expect(source, isNot(contains('Color(0xFFF8FAFC)')));
-    expect(source, isNot(contains('Color(0xFF0F172A)')));
+    expect(source, contains("emoji: '🚛'"));
+    expect(source, contains('item.emoji,'));
+    expect(source, contains('const itemHeight = 138.0'));
+    expect(source, contains('BorderRadius.circular(16)'));
+    expect(source, contains('boxShadow: ['));
+    expect(source, contains("label: Text('\${item.emoji} \${item.title}')"));
   });
 
   test('service submission does not promise instant publication', () {
