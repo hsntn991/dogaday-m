@@ -2274,34 +2274,12 @@ class _CategoryFeaturedSectionState extends State<_CategoryFeaturedSection> {
             }
 
             if (snapshot.hasError) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              return Container(
-                height: 112,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurface : AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadii.large),
-                  border: Border.all(
-                    color: isDark ? AppColors.darkBorder : AppColors.border,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Konuma göre kategori sonuçları alınamadı.',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.textSecondary,
-                          fontSize: AppFontSizes.caption,
-                        ),
-                      ),
-                    ),
-                    TextButton(onPressed: retry, child: const Text('Yenile')),
-                  ],
-                ),
+              return AppFeedbackCard(
+                icon: Icons.location_searching_rounded,
+                title: 'Kategori sonuçları alınamadı',
+                message: 'Konumuna göre yerleri yeniden arayabilirsin.',
+                actionLabel: 'Tekrar dene',
+                onAction: retry,
               );
             }
 
@@ -2461,44 +2439,12 @@ class _NearbyPlacesSectionState extends State<_NearbyPlacesSection> {
                 }
 
                 if (snapshot.hasError) {
-                  final isDark =
-                      Theme.of(context).brightness == Brightness.dark;
-                  return Container(
-                    height: 122,
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurface : AppColors.surface,
-                      borderRadius: BorderRadius.circular(AppRadii.large),
-                      border: Border.all(
-                        color: isDark ? AppColors.darkBorder : AppColors.border,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.location_off_outlined,
-                            color: isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.textSecondary,
-                            size: 25),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Yakındaki doğa noktaları şu anda alınamadı.',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.textSecondary,
-                              fontSize: AppFontSizes.caption,
-                              height: 1.35,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                            onPressed: retry, child: const Text('Yenile')),
-                      ],
-                    ),
+                  return AppFeedbackCard(
+                    icon: Icons.location_off_outlined,
+                    title: 'Yakındaki yerler alınamadı',
+                    message: 'Bağlantını kontrol edip yeniden deneyebilirsin.',
+                    actionLabel: 'Tekrar dene',
+                    onAction: retry,
                   );
                 }
 

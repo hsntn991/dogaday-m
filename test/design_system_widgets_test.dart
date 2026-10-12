@@ -41,6 +41,14 @@ void main() {
     expect(source, contains('onPressed: retry,'));
   });
 
+  test('nearby place failures use the shared accessible retry surface', () {
+    final source = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(source, contains('AppFeedbackCard('));
+    expect(source, contains("title: 'Yakındaki yerler alınamadı'"));
+    expect(source, contains("actionLabel: 'Tekrar dene'"));
+  });
+
   test('favorites empty state uses neutral, non-underlined information text',
       () {
     final source =
@@ -218,6 +226,38 @@ void main() {
         greaterThanOrEqualTo(44));
     expect(tester.getSemantics(find.byType(AppTextButton)),
         matchesSemantics(label: 'Tekrar dene', isButton: true));
+  });
+
+  testWidgets('feedback card explains a loading error and retries accessibly',
+      (tester) async {
+    var retried = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppFeedbackCard(
+            icon: Icons.location_off_outlined,
+            title: 'Yakındaki yerler alınamadı',
+            message: 'Bağlantını kontrol edip yeniden dene.',
+            actionLabel: 'Tekrar dene',
+            onAction: () => retried = true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Yakındaki yerler alınamadı'), findsOneWidget);
+    expect(find.text('Tekrar dene'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byType(AppFeedbackCard)),
+      matchesSemantics(
+        label:
+            'Yakındaki yerler alınamadı. Bağlantını kontrol edip yeniden dene.',
+      ),
+    );
+
+    await tester.tap(find.byType(AppTextButton));
+    expect(retried, isTrue);
   });
 
   testWidgets(

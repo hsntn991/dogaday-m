@@ -352,6 +352,84 @@ class _AppLoadingCardState extends State<AppLoadingCard>
   }
 }
 
+/// Ağ, konum veya filtre sonuçları alınamadığında kullanılan tek tip geri
+/// bildirim yüzeyi. Sabit yükseklik yerine içeriğe göre büyür; böylece büyük
+/// yazı tercihinde metin ya da eylem kesilmez.
+class AppFeedbackCard extends StatelessWidget {
+  const AppFeedbackCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  }) : assert(
+          actionLabel == null || onAction != null,
+          'Bir eylem etiketi verildiğinde onAction da verilmelidir.',
+        );
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    final primary = isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    final iconColor = isDark ? AppColors.darkPrimaryLight : AppColors.primary;
+
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: '$title. $message',
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 128),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.large,
+          vertical: AppSpacing.medium,
+        ),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          border: Border.all(color: AppColors.borderOf(context)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ExcludeSemantics(
+              child: Icon(icon, size: AppIconSizes.medium, color: iconColor),
+            ),
+            const SizedBox(height: AppSpacing.small),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: AppTypography.labelOf(context).copyWith(color: primary),
+            ),
+            const SizedBox(height: AppSpacing.xSmall),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTypography.metadataOf(context).copyWith(
+                color: secondary,
+                height: 1.35,
+              ),
+            ),
+            if (actionLabel != null) ...[
+              const SizedBox(height: AppSpacing.xSmall),
+              AppTextButton(label: actionLabel!, onPressed: onAction),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AppTextField extends StatelessWidget {
   const AppTextField({
     super.key,
