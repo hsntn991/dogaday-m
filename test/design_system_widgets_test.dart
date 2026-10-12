@@ -11,8 +11,11 @@ void main() {
     expect(source, contains("name: 'Buttons'"));
     expect(source, contains("name: 'Feedback'"));
     expect(source, contains("name: 'Loading'"));
-    expect(source,
-        contains("initialRoute: '/foundations/buttons/primary-and-secondary'"));
+    expect(
+        source,
+        contains(
+            "initialRoute: '?path=foundations/buttons/primary-and-secondary'"));
+    expect(source, contains('home: const _DogaWidgetbookHome()'));
     expect(source, contains('AppPrimaryButton('));
     expect(source, contains('AppFeedbackCard('));
     expect(source, contains('AppLoadingCard('));

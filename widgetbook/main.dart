@@ -11,9 +11,10 @@ class DogaWidgetbook extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Widgetbook.material(
-        initialRoute: '/foundations/buttons/primary-and-secondary',
+        initialRoute: '?path=foundations/buttons/primary-and-secondary',
         lightTheme: _theme(Brightness.light),
         darkTheme: _theme(Brightness.dark),
+        home: const _DogaWidgetbookHome(),
         directories: [
           WidgetbookCategory(
             name: 'Foundations',
@@ -66,6 +67,21 @@ class DogaWidgetbook extends StatelessWidget {
             ],
           ),
         ],
+      );
+}
+
+class _DogaWidgetbookHome extends StatelessWidget {
+  const _DogaWidgetbookHome();
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              child: _ButtonShowcase(),
+            ),
+          ),
+        ),
       );
 }
 
