@@ -236,10 +236,70 @@ class DogaApp extends StatelessWidget {
                     // Önizleme penceresinde de gerçek cihazda da uygulamayı
                     // dar bir telefon kartına sıkıştırma: ekranın tamamını
                     // kullanması gerekir.
-                    child: child ?? const SizedBox.shrink(),
+                    child: Stack(
+                      children: [
+                        child ?? const SizedBox.shrink(),
+                        const AppOfflineBanner(),
+                      ],
+                    ),
                   );
                 },
               )));
+}
+
+class AppOfflineBanner extends StatelessWidget {
+  const AppOfflineBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+        valueListenable: AppConnectivityController.isOffline,
+        builder: (context, offline, _) => IgnorePointer(
+          ignoring: !offline,
+          child: SafeArea(
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              offset: offline ? Offset.zero : const Offset(0, -1.2),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: offline ? 1 : 0,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.textPrimary,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                      boxShadow: AppShadows.mediumOf(context),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.wifi_off_rounded,
+                            size: 16, color: Colors.white),
+                        const SizedBox(width: 7),
+                        Text(
+                          AppStrings.get('offline_banner'),
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: AppFontSizes.caption,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 ThemeData _buildDarkTheme() {
@@ -900,6 +960,20 @@ class _AuthScreenState extends State<AuthScreen> {
 
   bool get _isSignUp => _mode == AuthMode.signUp;
 
+  int get _passwordStrength {
+    final value = _passwordController.text;
+    if (value.isEmpty) return 0;
+    var score = value.length >= 8 ? 1 : 0;
+    if (RegExp(r'[A-Z]').hasMatch(value)) score++;
+    if (RegExp(r'[0-9]').hasMatch(value)) score++;
+    if (RegExp(r'[^A-Za-z0-9]').hasMatch(value)) score++;
+    return score.clamp(0, 4).toInt();
+  }
+
+  void _refreshPasswordFeedback() {
+    if (mounted) setState(() {});
+  }
+
   String _authText(String tr, String en, String ar) =>
       switch (AppLocaleController.current.value.languageCode) {
         'en' => en,
@@ -919,6 +993,7 @@ class _AuthScreenState extends State<AuthScreen> {
       ..onTap = () => AppLegalLinks.openTermsOfService(context);
     _toggleTermsRecognizer = TapGestureRecognizer()
       ..onTap = () => setState(() => _acceptedTerms = !_acceptedTerms);
+    _passwordController.addListener(_refreshPasswordFeedback);
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
       (state) {
         if (state.session != null &&
@@ -937,6 +1012,7 @@ class _AuthScreenState extends State<AuthScreen> {
     _termsOfServiceRecognizer.dispose();
     _toggleTermsRecognizer.dispose();
     _authSubscription?.cancel();
+    _passwordController.removeListener(_refreshPasswordFeedback);
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -996,7 +1072,8 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_isSignUp && !_acceptedTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_authText(
+        SnackBar(
+            content: Text(_authText(
           'Devam etmek için koşulları kabul et.',
           'Accept the terms to continue.',
           'وافق على الشروط للمتابعة.',
@@ -1021,7 +1098,8 @@ class _AuthScreenState extends State<AuthScreen> {
         if (!mounted) return;
         if (response.session == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_authText(
+            SnackBar(
+                content: Text(_authText(
               'Hesabın oluşturuldu. E-postana gönderilen doğrulama bağlantısını aç.',
               'Your account was created. Open the verification link sent to your email.',
               'تم إنشاء حسابك. افتح رابط التحقق المرسل إلى بريدك الإلكتروني.',
@@ -1087,7 +1165,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  _authText('Şifreni yenile', 'Reset your password', 'إعادة تعيين كلمة المرور'),
+                  _authText('Şifreni yenile', 'Reset your password',
+                      'إعادة تعيين كلمة المرور'),
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: AppFontSizes.display,
@@ -1099,7 +1178,10 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  _authText('Bağlantıyı gönderebilmemiz için e-posta adresini yaz.', 'Enter your email address so we can send the link.', 'أدخل بريدك الإلكتروني لإرسال الرابط.'),
+                  _authText(
+                      'Bağlantıyı gönderebilmemiz için e-posta adresini yaz.',
+                      'Enter your email address so we can send the link.',
+                      'أدخل بريدك الإلكتروني لإرسال الرابط.'),
                   style: TextStyle(
                     fontSize: AppFontSizes.body,
                     color: isSheetDark
@@ -1110,7 +1192,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 20),
                 _AuthField(
                   controller: controller,
-                  label: _authText('E-posta adresi', 'Email address', 'البريد الإلكتروني'),
+                  label: _authText(
+                      'E-posta adresi', 'Email address', 'البريد الإلكتروني'),
                   hint: 'ornek@eposta.com',
                   icon: Icons.mail_outline_rounded,
                   keyboardType: TextInputType.emailAddress,
@@ -1126,7 +1209,10 @@ class _AuthScreenState extends State<AuthScreen> {
                           .hasMatch(email)) {
                         ScaffoldMessenger.of(sheetContext).showSnackBar(
                           SnackBar(
-                            content: Text(_authText('Geçerli bir e-posta adresi yaz.', 'Enter a valid email address.', 'أدخل بريدًا إلكترونيًا صالحًا.')),
+                            content: Text(_authText(
+                                'Geçerli bir e-posta adresi yaz.',
+                                'Enter a valid email address.',
+                                'أدخل بريدًا إلكترونيًا صالحًا.')),
                           ),
                         );
                         return;
@@ -1142,14 +1228,20 @@ class _AuthScreenState extends State<AuthScreen> {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(_authText('Şifre yenileme bağlantısı gönderildi.', 'Password reset link sent.', 'تم إرسال رابط إعادة التعيين.')),
+                            content: Text(_authText(
+                                'Şifre yenileme bağlantısı gönderildi.',
+                                'Password reset link sent.',
+                                'تم إرسال رابط إعادة التعيين.')),
                           ),
                         );
                       } catch (error) {
                         if (!sheetContext.mounted) return;
                         final message = error is AuthException
                             ? error.message
-                            : _authText('Bağlantı gönderilemedi. Tekrar dene.', 'The link could not be sent. Try again.', 'تعذر إرسال الرابط. حاول مرة أخرى.');
+                            : _authText(
+                                'Bağlantı gönderilemedi. Tekrar dene.',
+                                'The link could not be sent. Try again.',
+                                'تعذر إرسال الرابط. حاول مرة أخرى.');
                         ScaffoldMessenger.of(sheetContext).showSnackBar(
                           SnackBar(content: Text(message)),
                         );
@@ -1162,7 +1254,8 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ),
                     child: Text(
-                      _authText('Bağlantıyı Gönder', 'Send link', 'إرسال الرابط'),
+                      _authText(
+                          'Bağlantıyı Gönder', 'Send link', 'إرسال الرابط'),
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -1204,7 +1297,8 @@ class _AuthScreenState extends State<AuthScreen> {
       );
 
   Widget _buildAuthModeSwitcher(bool isDark) => Semantics(
-        label: _authText('Hesap işlemi seçimi', 'Choose account action', 'اختر إجراء الحساب'),
+        label: _authText('Hesap işlemi seçimi', 'Choose account action',
+            'اختر إجراء الحساب'),
         child: Container(
           key: const Key('auth_mode_switcher'),
           height: 52,
@@ -1245,7 +1339,8 @@ class _AuthScreenState extends State<AuthScreen> {
         builder: (context, locale, _) => Column(
           children: [
             Text(
-              _authText('Uygulama dilini seç', 'Choose app language', 'اختر لغة التطبيق'),
+              _authText('Uygulama dilini seç', 'Choose app language',
+                  'اختر لغة التطبيق'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: AppFontSizes.caption,
@@ -1381,6 +1476,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     width: constraints.maxWidth,
                     child: Form(
                       key: _formKey,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1439,7 +1535,10 @@ class _AuthScreenState extends State<AuthScreen> {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 12),
                               child: Text(
-                                _authText('veya e-posta ile', 'or continue with email', 'أو تابع بالبريد الإلكتروني'),
+                                _authText(
+                                    'veya e-posta ile',
+                                    'or continue with email',
+                                    'أو تابع بالبريد الإلكتروني'),
                                 style: TextStyle(
                                   fontFamily: 'Outfit',
                                   fontSize: AppFontSizes.caption,
@@ -1461,20 +1560,26 @@ class _AuthScreenState extends State<AuthScreen> {
                               if (_isSignUp) ...[
                                 _AuthField(
                                   controller: _nameController,
-                                  label: _authText('Ad soyad', 'Full name', 'الاسم الكامل'),
-                                  hint: _authText('Ad Soyad', 'Full name', 'الاسم الكامل'),
+                                  label: _authText(
+                                      'Ad soyad', 'Full name', 'الاسم الكامل'),
+                                  hint: _authText(
+                                      'Ad Soyad', 'Full name', 'الاسم الكامل'),
                                   icon: Icons.person_outline_rounded,
                                   textInputAction: TextInputAction.next,
                                   validator: (value) =>
                                       (value?.trim().length ?? 0) < 3
-                                          ? _authText('Adını ve soyadını yaz.', 'Enter your full name.', 'أدخل اسمك الكامل.')
+                                          ? _authText(
+                                              'Adını ve soyadını yaz.',
+                                              'Enter your full name.',
+                                              'أدخل اسمك الكامل.')
                                           : null,
                                 ),
                                 const SizedBox(height: 12),
                               ],
                               _AuthField(
                                 controller: _emailController,
-                                  label: _authText('E-posta', 'Email', 'البريد الإلكتروني'),
+                                label: _authText(
+                                    'E-posta', 'Email', 'البريد الإلكتروني'),
                                 hint: 'ornek@eposta.com',
                                 icon: Icons.mail_outline_rounded,
                                 keyboardType: TextInputType.emailAddress,
@@ -1483,7 +1588,10 @@ class _AuthScreenState extends State<AuthScreen> {
                                   final email = value?.trim() ?? '';
                                   if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
                                       .hasMatch(email)) {
-                                    return _authText('Geçerli bir e-posta adresi yaz.', 'Enter a valid email address.', 'أدخل بريدًا إلكترونيًا صالحًا.');
+                                    return _authText(
+                                        'Geçerli bir e-posta adresi yaz.',
+                                        'Enter a valid email address.',
+                                        'أدخل بريدًا إلكترونيًا صالحًا.');
                                   }
                                   return null;
                                 },
@@ -1491,10 +1599,17 @@ class _AuthScreenState extends State<AuthScreen> {
                               const SizedBox(height: 12),
                               _AuthField(
                                 controller: _passwordController,
-                                label: _authText('Şifre', 'Password', 'كلمة المرور'),
+                                label: _authText(
+                                    'Şifre', 'Password', 'كلمة المرور'),
                                 hint: _isSignUp
-                                    ? _authText('En az 8 karakter', 'At least 8 characters', '8 أحرف على الأقل')
-                                    : _authText('Şifreni yaz', 'Enter your password', 'أدخل كلمة المرور'),
+                                    ? _authText(
+                                        'En az 8 karakter',
+                                        'At least 8 characters',
+                                        '8 أحرف على الأقل')
+                                    : _authText(
+                                        'Şifreni yaz',
+                                        'Enter your password',
+                                        'أدخل كلمة المرور'),
                                 icon: Icons.lock_outline_rounded,
                                 obscureText: !_passwordVisible,
                                 textInputAction: _isSignUp
@@ -1508,18 +1623,49 @@ class _AuthScreenState extends State<AuthScreen> {
                                       : Icons.visibility_outlined),
                                 ),
                                 validator: (value) => (value?.length ?? 0) < 8
-                                    ? _authText('Şifre en az 8 karakter olmalı.', 'Password must be at least 8 characters.', 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.')
+                                    ? _authText(
+                                        'Şifre en az 8 karakter olmalı.',
+                                        'Password must be at least 8 characters.',
+                                        'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.')
                                     : null,
                                 onSubmitted: (_) {
                                   if (!_isSignUp) _submit();
                                 },
                               ),
                               if (_isSignUp) ...[
+                                const SizedBox(height: 7),
+                                _PasswordStrengthMeter(
+                                  score: _passwordStrength,
+                                  label: _authText(
+                                    switch (_passwordStrength) {
+                                      0 => 'Şifre gücü',
+                                      1 => 'Zayıf şifre',
+                                      2 => 'Orta şifre',
+                                      _ => 'Güçlü şifre',
+                                    },
+                                    switch (_passwordStrength) {
+                                      0 => 'Password strength',
+                                      1 => 'Weak password',
+                                      2 => 'Medium password',
+                                      _ => 'Strong password',
+                                    },
+                                    switch (_passwordStrength) {
+                                      0 => 'قوة كلمة المرور',
+                                      1 => 'كلمة مرور ضعيفة',
+                                      2 => 'كلمة مرور متوسطة',
+                                      _ => 'كلمة مرور قوية',
+                                    },
+                                  ),
+                                ),
                                 const SizedBox(height: 12),
                                 _AuthField(
                                   controller: _confirmController,
-                                  label: _authText('Şifre tekrarı', 'Repeat password', 'تأكيد كلمة المرور'),
-                                  hint: _authText('Şifreni yeniden yaz', 'Enter your password again', 'أدخل كلمة المرور مرة أخرى'),
+                                  label: _authText('Şifre tekrarı',
+                                      'Repeat password', 'تأكيد كلمة المرور'),
+                                  hint: _authText(
+                                      'Şifreni yeniden yaz',
+                                      'Enter your password again',
+                                      'أدخل كلمة المرور مرة أخرى'),
                                   icon: Icons.verified_user_outlined,
                                   obscureText: !_confirmVisible,
                                   textInputAction: TextInputAction.done,
@@ -1532,7 +1678,10 @@ class _AuthScreenState extends State<AuthScreen> {
                                   ),
                                   validator: (value) =>
                                       value != _passwordController.text
-                                          ? _authText('Şifreler birbiriyle aynı değil.', 'Passwords do not match.', 'كلمتا المرور غير متطابقتين.')
+                                          ? _authText(
+                                              'Şifreler birbiriyle aynı değil.',
+                                              'Passwords do not match.',
+                                              'كلمتا المرور غير متطابقتين.')
                                           : null,
                                   onSubmitted: (_) => _submit(),
                                 ),
@@ -1547,7 +1696,10 @@ class _AuthScreenState extends State<AuthScreen> {
                                           top: 9, bottom: 8),
                                     ),
                                     child: Text(
-                                      _authText('Şifremi unuttum', 'Forgot password?', 'نسيت كلمة المرور؟'),
+                                      _authText(
+                                          'Şifremi unuttum',
+                                          'Forgot password?',
+                                          'نسيت كلمة المرور؟'),
                                       style: TextStyle(
                                           fontSize: AppFontSizes.label,
                                           fontWeight: FontWeight.w600),
@@ -1583,7 +1735,10 @@ class _AuthScreenState extends State<AuthScreen> {
                                         child: Text.rich(
                                           TextSpan(children: [
                                             TextSpan(
-                                              text: _authText('Kullanım Şartları', 'Terms of Service', 'شروط الاستخدام'),
+                                              text: _authText(
+                                                  'Kullanım Şartları',
+                                                  'Terms of Service',
+                                                  'شروط الاستخدام'),
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.w700,
@@ -1593,9 +1748,14 @@ class _AuthScreenState extends State<AuthScreen> {
                                               recognizer:
                                                   _termsOfServiceRecognizer,
                                             ),
-                                            TextSpan(text: _authText(' ve ', ' and ', ' و')),
                                             TextSpan(
-                                              text: _authText('Gizlilik Politikası', 'Privacy Policy', 'سياسة الخصوصية'),
+                                                text: _authText(
+                                                    ' ve ', ' and ', ' و')),
+                                            TextSpan(
+                                              text: _authText(
+                                                  'Gizlilik Politikası',
+                                                  'Privacy Policy',
+                                                  'سياسة الخصوصية'),
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.w700,
@@ -1606,7 +1766,10 @@ class _AuthScreenState extends State<AuthScreen> {
                                                   _privacyPolicyRecognizer,
                                             ),
                                             TextSpan(
-                                              text: _authText('’nı okudum, kabul ediyorum.', ' — I have read and accept.', ' — قرأت وأوافق.'),
+                                              text: _authText(
+                                                  '’nı okudum, kabul ediyorum.',
+                                                  ' — I have read and accept.',
+                                                  ' — قرأت وأوافق.'),
                                               recognizer:
                                                   _toggleTermsRecognizer,
                                             ),
@@ -1658,7 +1821,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                               MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              _authText('Devam et', 'Continue', 'متابعة'),
+                                              _authText('Devam et', 'Continue',
+                                                  'متابعة'),
                                               style: const TextStyle(
                                                   fontSize: AppFontSizes.title,
                                                   fontWeight: FontWeight.w600),
@@ -1914,6 +2078,7 @@ class _AuthField extends StatelessWidget {
           keyboardType: keyboardType,
           textInputAction: textInputAction,
           obscureText: obscureText,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           validator: validator,
           onFieldSubmitted: onSubmitted,
           autocorrect: false,
@@ -1953,6 +2118,58 @@ class _AuthField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PasswordStrengthMeter extends StatelessWidget {
+  const _PasswordStrengthMeter({required this.score, required this.label});
+
+  final int score;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (score) {
+      <= 1 => AppColors.error,
+      2 => AppColors.accentOrangeOf(context),
+      _ => AppColors.primary,
+    };
+    return Semantics(
+      label: label,
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              children: List<Widget>.generate(
+                4,
+                (index) => Expanded(
+                  child: Container(
+                    height: 3,
+                    margin: EdgeInsets.only(right: index == 3 ? 0 : 4),
+                    decoration: BoxDecoration(
+                      color: index < score
+                          ? color
+                          : Colors.white.withValues(alpha: .35),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: AppFontSizes.caption,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: .90),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

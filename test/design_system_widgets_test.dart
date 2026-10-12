@@ -60,7 +60,8 @@ void main() {
       () {
     final detail = File('lib/src/features/detail.dart').readAsStringSync();
 
-    expect(detail, contains('constraints: const BoxConstraints(minHeight: 72)'));
+    expect(
+        detail, contains('constraints: const BoxConstraints(minHeight: 72)'));
     expect(detail, contains("tooltip: AppStrings.get('nav_copy_coords')"));
   });
 
@@ -123,8 +124,10 @@ void main() {
     final source = File('lib/src/app/app.dart').readAsStringSync();
 
     expect(source, contains('_buildAuthModeSwitcher(isDark)'));
-    expect(source, contains("label: _authText('Kayıt ol', 'Sign up', 'إنشاء حساب')"));
-    expect(source, contains("label: _authText('Giriş yap', 'Sign in', 'تسجيل الدخول')"));
+    expect(source,
+        contains("label: _authText('Kayıt ol', 'Sign up', 'إنشاء حساب')"));
+    expect(source,
+        contains("label: _authText('Giriş yap', 'Sign in', 'تسجيل الدخول')"));
   });
 
   test('native app surfaces are never constrained to a phone-width frame', () {
@@ -211,7 +214,8 @@ void main() {
       ),
     );
 
-    expect(tester.getSize(find.byType(AppTextButton)).height, greaterThanOrEqualTo(44));
+    expect(tester.getSize(find.byType(AppTextButton)).height,
+        greaterThanOrEqualTo(44));
     expect(tester.getSemantics(find.byType(AppTextButton)),
         matchesSemantics(label: 'Tekrar dene', isButton: true));
   });
@@ -531,5 +535,28 @@ void main() {
         r'icon: Icons\.map_outlined,\r?\n\s*activeIcon: Icons\.map_outlined,',
       )),
     );
+  });
+
+  test(
+      'shared pressable gives buttons and place cards a restrained press state',
+      () {
+    final widgets =
+        File('lib/src/widgets/design_system_widgets.dart').readAsStringSync();
+
+    expect(widgets, contains('class AppPressable extends StatefulWidget'));
+    expect(widgets, contains('AnimatedScale'));
+    expect(widgets, contains('scale: _pressed ? widget.pressedScale : 1'));
+    expect(
+      widgets,
+      contains('onPressed: () => _runWithSelectionHaptic(onTap)'),
+    );
+  });
+
+  test('auth form validates while typing and exposes password strength', () {
+    final app = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(app, contains('AutovalidateMode.onUserInteraction'));
+    expect(app, contains('class _PasswordStrengthMeter'));
+    expect(app, contains('_passwordStrength'));
   });
 }

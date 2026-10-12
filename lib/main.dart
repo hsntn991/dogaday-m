@@ -12,6 +12,7 @@ import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, HapticFeedback, SystemNavigator, rootBundle;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
@@ -92,6 +93,7 @@ Future<void> main() async {
   await AppLocaleController.load();
   await HomeWeatherLocationController.load();
   await OfflineMapTiles.initialize();
+  unawaited(AppConnectivityController.initialize());
   AppStartupTimer.mark('controllers_ok');
 
   assert(supabaseOk);

@@ -386,9 +386,18 @@ abstract final class AppShadows {
   static const darkSoft = <BoxShadow>[
     BoxShadow(color: AppColors.shadow20, blurRadius: 14, offset: Offset(0, 4)),
   ];
+  static const medium = <BoxShadow>[
+    BoxShadow(color: AppColors.shadow20, blurRadius: 20, offset: Offset(0, 8)),
+  ];
+  static const darkMedium = <BoxShadow>[
+    BoxShadow(color: AppColors.shadow40, blurRadius: 20, offset: Offset(0, 8)),
+  ];
 
   static List<BoxShadow> softOf(BuildContext context) =>
       AppColors.isDark(context) ? darkSoft : soft;
+
+  static List<BoxShadow> mediumOf(BuildContext context) =>
+      AppColors.isDark(context) ? darkMedium : medium;
 }
 
 abstract final class AppIconSizes {
@@ -2469,6 +2478,31 @@ abstract final class AppImageCachePolicy {
     cache.maximumSize = kIsWeb ? _webMaximumSize : _mobileMaximumSize;
     cache.maximumSizeBytes =
         kIsWeb ? _webMaximumSizeBytes : _mobileMaximumSizeBytes;
+  }
+}
+
+/// Uygulama internet arayüzünün kaybolduğunu izler. Bu, uzak sunucuya sürekli
+/// ping atmaz; çevrimdışı durumunda önbellekteki yerler ve harita karoları
+/// kullanılmaya devam ederken kullanıcıya yalnızca görünür bir bilgi verir.
+class AppConnectivityController {
+  AppConnectivityController._();
+
+  static final isOffline = ValueNotifier(false);
+  static StreamSubscription<List<ConnectivityResult>>? _subscription;
+
+  static Future<void> initialize() async {
+    if (_subscription != null) return;
+    try {
+      _setStatus(await Connectivity().checkConnectivity());
+      _subscription = Connectivity().onConnectivityChanged.listen(_setStatus);
+    } catch (_) {
+      // Platform servisinin erişilemediği önizlemelerde mevcut görünümü koru.
+    }
+  }
+
+  static void _setStatus(List<ConnectivityResult> result) {
+    isOffline.value = result.isEmpty ||
+        result.every((connection) => connection == ConnectivityResult.none);
   }
 }
 

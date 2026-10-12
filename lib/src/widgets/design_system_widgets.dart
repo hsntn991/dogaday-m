@@ -5,6 +5,59 @@ void _runWithSelectionHaptic(VoidCallback callback) {
   callback();
 }
 
+/// Ortak basma hareketi: kartlarda ve tasarım sistemi butonlarında aynı,
+/// ölçülü fiziksel geri bildirimi verir. Hareketi azaltma tercihi açıkken
+/// ölçek animasyonu kapatılır; dokunma davranışı korunur.
+class AppPressable extends StatefulWidget {
+  const AppPressable({
+    super.key,
+    required this.child,
+    this.onPressed,
+    this.borderRadius,
+    this.pressedScale = .98,
+  });
+
+  final Widget child;
+  final VoidCallback? onPressed;
+  final BorderRadius? borderRadius;
+  final double pressedScale;
+
+  @override
+  State<AppPressable> createState() => _AppPressableState();
+}
+
+class _AppPressableState extends State<AppPressable> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (mounted && _pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return Semantics(
+      button: enabled,
+      enabled: enabled,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: enabled ? (_) => _setPressed(true) : null,
+        onTapUp: enabled ? (_) => _setPressed(false) : null,
+        onTapCancel: enabled ? () => _setPressed(false) : null,
+        onTap: widget.onPressed,
+        child: AnimatedScale(
+          scale: _pressed ? widget.pressedScale : 1,
+          duration:
+              reduceMotion ? Duration.zero : const Duration(milliseconds: 110),
+          curve: Curves.easeOutCubic,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
 class AppPrimaryButton extends StatelessWidget {
   const AppPrimaryButton({
     super.key,
@@ -46,7 +99,22 @@ class AppPrimaryButton extends StatelessWidget {
         ],
       ),
     );
-    return expand ? SizedBox(width: double.infinity, child: button) : button;
+    final content = AbsorbPointer(
+      child: FilledButton(
+        onPressed: onPressed == null ? null : () {},
+        style: button.style,
+        child: button.child!,
+      ),
+    );
+    final pressable = AppPressable(
+      onPressed:
+          onPressed == null ? null : () => _runWithSelectionHaptic(onPressed!),
+      borderRadius: BorderRadius.circular(AppRadii.medium),
+      child: content,
+    );
+    return expand
+        ? SizedBox(width: double.infinity, child: pressable)
+        : pressable;
   }
 }
 
@@ -86,7 +154,22 @@ class AppSecondaryButton extends StatelessWidget {
         ],
       ),
     );
-    return expand ? SizedBox(width: double.infinity, child: button) : button;
+    final content = AbsorbPointer(
+      child: OutlinedButton(
+        onPressed: onPressed == null ? null : () {},
+        style: button.style,
+        child: button.child!,
+      ),
+    );
+    final pressable = AppPressable(
+      onPressed:
+          onPressed == null ? null : () => _runWithSelectionHaptic(onPressed!),
+      borderRadius: BorderRadius.circular(AppRadii.medium),
+      child: content,
+    );
+    return expand
+        ? SizedBox(width: double.infinity, child: pressable)
+        : pressable;
   }
 }
 
@@ -106,19 +189,25 @@ class AppTextButton extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
         button: true,
         label: label,
-        child: TextButton.icon(
+        child: AppPressable(
           onPressed: onPressed == null
               ? null
               : () => _runWithSelectionHaptic(onPressed!),
-          icon: leading ?? const SizedBox.shrink(),
-          label: Text(label),
-          style: TextButton.styleFrom(
-            minimumSize: const Size(44, AppControlSizes.minimumTouchTarget),
-            foregroundColor: AppColors.isDark(context)
-                ? AppColors.darkPrimaryLight
-                : AppColors.primary,
-            textStyle: AppTypography.labelOf(context),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          child: AbsorbPointer(
+            child: TextButton.icon(
+              onPressed: onPressed == null ? null : () {},
+              icon: leading ?? const SizedBox.shrink(),
+              label: Text(label),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(44, AppControlSizes.minimumTouchTarget),
+                foregroundColor: AppColors.isDark(context)
+                    ? AppColors.darkPrimaryLight
+                    : AppColors.primary,
+                textStyle: AppTypography.labelOf(context),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
           ),
         ),
       );
@@ -579,11 +668,11 @@ class AppPlaceHeroCard extends StatelessWidget {
     final description = place.description.trim().isEmpty
         ? place.kind
         : place.description.trim();
-    return Material(
-      color: AppColors.surfaceOf(context),
+    return AppPressable(
+      onPressed: () => _runWithSelectionHaptic(onTap),
       borderRadius: BorderRadius.circular(AppRadii.large),
-      child: InkWell(
-        onTap: onTap,
+      child: Material(
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(AppRadii.large),
         child: Container(
           clipBehavior: Clip.antiAlias,
@@ -760,11 +849,11 @@ class AppMapPreviewCard extends StatelessWidget {
         : place.description.trim();
     final cardHeight = prominent ? 128.0 : 108.0;
     final imageWidth = prominent ? 136.0 : 88.0;
-    return Material(
-      color: AppColors.surfaceOf(context),
+    return AppPressable(
+      onPressed: () => _runWithSelectionHaptic(onTap),
       borderRadius: BorderRadius.circular(AppRadii.medium),
-      child: InkWell(
-        onTap: onTap,
+      child: Material(
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(AppRadii.medium),
         child: Container(
           height: cardHeight,
