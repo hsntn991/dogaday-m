@@ -5,6 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('widget catalog covers core controls and feedback states', () {
+    final source = File('widgetbook/main.dart').readAsStringSync();
+
+    expect(source, contains("name: 'Buttons'"));
+    expect(source, contains("name: 'Feedback'"));
+    expect(source, contains("name: 'Loading'"));
+    expect(source,
+        contains("initialRoute: '/foundations/buttons/primary-and-secondary'"));
+    expect(source, contains('AppPrimaryButton('));
+    expect(source, contains('AppFeedbackCard('));
+    expect(source, contains('AppLoadingCard('));
+  });
+
   test(
       'web bootstrap removes browser margins so Flutter owns the full viewport',
       () {
