@@ -406,24 +406,22 @@ class EmergencyHelpController {
     );
     if (error != null) throw ArgumentError(error);
 
-    final expiry = DateTime.now().toUtc().add(const Duration(hours: 48));
-    final row = await Supabase.instance.client
-        .from('help_requests')
-        .insert({
-          'requester_id': userId,
-          'request_type': draft.type.databaseValue,
-          'contact_preference': draft.contactPreference.databaseValue,
-          'contact_value': draft.contactPreference ==
-                  EmergencyContactPreference.contactDetails
-              ? draft.contactValue.trim()
-              : null,
-          'latitude': coordinate.latitude,
-          'longitude': coordinate.longitude,
-          'status': 'active',
-          'expires_at': expiry.toIso8601String(),
-        })
-        .select()
-        .single();
+    // Sunucudaki RPC, süresi geçen eski çağrıyı kapatır ve yeni çağrıyı aynı
+    // işlemde oluşturur. Böylece eski "aktif" satır, kullanıcıyı 48 saat
+    // sonra yeni yardım isteği oluşturmaktan alıkoymaz.
+    final row = await Supabase.instance.client.rpc(
+      'create_help_request',
+      params: <String, dynamic>{
+        'p_request_type': draft.type.databaseValue,
+        'p_contact_preference': draft.contactPreference.databaseValue,
+        'p_contact_value':
+            draft.contactPreference == EmergencyContactPreference.contactDetails
+                ? draft.contactValue.trim()
+                : null,
+        'p_latitude': coordinate.latitude,
+        'p_longitude': coordinate.longitude,
+      },
+    );
     final request =
         EmergencyHelpRequest.fromJson(Map<String, dynamic>.from(row));
     await load();

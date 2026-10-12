@@ -33,7 +33,8 @@ void main() {
         File('lib/src/features/favorites_profile.dart').readAsStringSync();
 
     expect(profile, contains('item.isRejected || item.isActionRequired'));
-    expect(profile, contains("AppStrings.get('profile_feedback_correction_title')"));
+    expect(profile,
+        contains("AppStrings.get('profile_feedback_correction_title')"));
   });
 
   test('help request entry is not blocked when the feed cannot load', () {
@@ -46,6 +47,21 @@ void main() {
 
     expect(entryFlow, isNot(contains('isAvailable.value')));
     expect(entryFlow, contains('EmergencyHelpRequestSheet.show(context)'));
+  });
+
+  test('a new help request safely replaces an expired active request', () {
+    final help =
+        File('lib/src/features/emergency_help.dart').readAsStringSync();
+    final migration = File(
+      'supabase/migrations/202610120002_create_help_request_rpc.sql',
+    ).readAsStringSync();
+
+    expect(help, contains("'create_help_request'"));
+    expect(migration,
+        contains('create or replace function public.create_help_request'));
+    expect(migration, contains("status = 'resolved'"));
+    expect(migration, contains('expires_at <= now()'));
+    expect(migration, contains('auth.uid()'));
   });
 
   test('account deletion confirmations use the active app language', () {
