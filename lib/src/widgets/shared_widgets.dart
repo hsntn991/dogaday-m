@@ -48,6 +48,9 @@ class PlaceImage extends StatelessWidget {
             photo.url,
             fit: fit,
             cacheWidth: cacheWidth,
+            loadingBuilder: (context, child, progress) => progress == null
+                ? child
+                : _PlaceImageLoadingPlaceholder(icon: place.icon),
             errorBuilder: (_, __, ___) => fallback,
           );
         }
@@ -56,14 +59,22 @@ class PlaceImage extends StatelessWidget {
       return FutureBuilder<PlaceEnrichment?>(
         future: PlaceEnrichmentService.find(place),
         builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _PlaceImageLoadingPlaceholder(icon: place.icon);
+          }
           final photo = snapshot.data?.primaryPhoto;
           if (photo == null || !photo.url.startsWith('https://')) {
             return fallback;
           }
-          return Image.network(photo.url,
-              fit: fit,
-              cacheWidth: cacheWidth,
-              errorBuilder: (_, __, ___) => fallback);
+          return Image.network(
+            photo.url,
+            fit: fit,
+            cacheWidth: cacheWidth,
+            loadingBuilder: (context, child, progress) => progress == null
+                ? child
+                : _PlaceImageLoadingPlaceholder(icon: place.icon),
+            errorBuilder: (_, __, ___) => fallback,
+          );
         },
       );
     }
@@ -71,9 +82,44 @@ class PlaceImage extends StatelessWidget {
       image: ResizeImage.resizeIfNeeded(cacheWidth, null, provider),
       fit: fit,
       gaplessPlayback: true,
+      loadingBuilder: (context, child, progress) => progress == null
+          ? child
+          : _PlaceImageLoadingPlaceholder(icon: place.icon),
       errorBuilder: (_, __, ___) => fallback,
     );
   }
+}
+
+class _PlaceImageLoadingPlaceholder extends StatelessWidget {
+  const _PlaceImageLoadingPlaceholder({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: 'Görsel yükleniyor',
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.surfaceMutedOf(context),
+                AppColors.isDark(context)
+                    ? AppColors.darkPrimarySoft
+                    : AppColors.primarySoft,
+              ],
+            ),
+          ),
+          child: Center(
+            child: Icon(
+              icon,
+              size: AppIconSizes.large,
+              color: AppColors.textTertiaryOf(context).withValues(alpha: .68),
+            ),
+          ),
+        ),
+      );
 }
 
 class NatureArt extends StatelessWidget {

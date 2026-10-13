@@ -212,6 +212,7 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
     SupabasePlacesController.places.addListener(_refreshUserPlaces);
     NearbyPlacesService.revision.addListener(_refreshNearbyPlaces);
     WeatherService.revision.addListener(_refreshRecommendations);
+    unawaited(SubmissionFeedbackController.load());
   }
 
   @override
@@ -269,24 +270,56 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
         ),
       );
 
-  Widget _buildCategoryStrip() => SizedBox(
-        height: AppControlSizes.minimumTouchTarget,
-        child: ScrollConfiguration(
-          behavior: const _MouseDragScrollBehavior(),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: _homeCategories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (_, index) {
-              final category = _homeCategories[index];
-              return AppCategoryChip(
-                label: category.localizedLabel,
-                icon: _categoryIcon(category.key),
-                selected: selectedCategory == category.key,
-                onSelected: (_) => selectCategory(category.key),
-              );
-            },
+  Widget _buildCategoryStrip() => Semantics(
+        label: 'Daha fazla kategori için kaydır',
+        child: SizedBox(
+          height: AppControlSizes.minimumTouchTarget,
+          child: Stack(
+            children: [
+              ScrollConfiguration(
+                behavior: const _MouseDragScrollBehavior(),
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: _homeCategories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, index) {
+                    final category = _homeCategories[index];
+                    return AppCategoryChip(
+                      label: category.localizedLabel,
+                      icon: _categoryIcon(category.key),
+                      selected: selectedCategory == category.key,
+                      onSelected: (_) => selectCategory(category.key),
+                    );
+                  },
+                ),
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.backgroundOf(context).withValues(alpha: 0),
+                          AppColors.backgroundOf(context),
+                        ],
+                      ),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 18, right: 1),
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -1402,10 +1435,22 @@ class _HomePremiumHeader extends StatelessWidget {
     );
   }
 
+  void _showNotificationCenter(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const NotificationCenterSheet(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 370;
+          // Bildirim ve sohbet eylemleri aynı başlıkta kalır. 420 px altı
+          // telefonlarda konum metni yerine yalnızca anlaşılır konum simgesi
+          // göstererek yatay taşmayı önleriz.
+          final compact = constraints.maxWidth < 420;
           return Row(
             children: [
               Semantics(
@@ -1433,7 +1478,7 @@ class _HomePremiumHeader extends StatelessWidget {
               SizedBox(width: compact ? 4 : 8),
               const Spacer(),
               ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: compact ? 112 : 155),
+                constraints: BoxConstraints(maxWidth: compact ? 38 : 155),
                 child: GlassContainer(
                   borderRadius: BorderRadius.circular(AppRadii.medium),
                   blur: 12,
@@ -1453,30 +1498,32 @@ class _HomePremiumHeader extends StatelessWidget {
                           const Icon(Icons.location_on_outlined,
                               color: AppColors.textPrimary,
                               size: AppIconSizes.small),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              isResolvingLocation
-                                  ? AppStrings.get('home_locating')
-                                  : (target.label ==
-                                          HomeWeatherLocationController
-                                              .unavailableLabel
-                                      ? AppStrings.get(
-                                          'home_location_permission_required')
-                                      : (target.label.trim().toLowerCase() ==
-                                                  'konumum' ||
-                                              target.label
-                                                      .trim()
-                                                      .toLowerCase() ==
-                                                  'bulunduğu alan'
-                                          ? AppStrings.get('my_location')
-                                          : target.label)),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.label
-                                  .copyWith(fontSize: AppFontSizes.label),
+                          if (!compact) ...[
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                isResolvingLocation
+                                    ? AppStrings.get('home_locating')
+                                    : (target.label ==
+                                            HomeWeatherLocationController
+                                                .unavailableLabel
+                                        ? AppStrings.get(
+                                            'home_location_permission_required')
+                                        : (target.label.trim().toLowerCase() ==
+                                                    'konumum' ||
+                                                target.label
+                                                        .trim()
+                                                        .toLowerCase() ==
+                                                    'bulunduğu alan'
+                                            ? AppStrings.get('my_location')
+                                            : target.label)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.label
+                                    .copyWith(fontSize: AppFontSizes.label),
+                              ),
                             ),
-                          ),
+                          ],
                           if (!isResolvingLocation && !compact) ...[
                             const SizedBox(width: 4),
                             const Icon(Icons.keyboard_arrow_down_rounded,
@@ -1499,10 +1546,206 @@ class _HomePremiumHeader extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.65),
                 borderColor: Colors.white.withValues(alpha: 0.90),
               ),
+              SizedBox(width: compact ? 3 : 6),
+              ValueListenableBuilder<List<SubmissionFeedback>>(
+                valueListenable: SubmissionFeedbackController.items,
+                builder: (context, items, _) => Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    GlassIconButton(
+                      icon: Icons.notifications_none_rounded,
+                      onTap: () => _showNotificationCenter(context),
+                      tooltip: 'Bildirimler',
+                      size: compact ? 38 : 42,
+                      iconSize: 20,
+                      blur: 12,
+                      color: Colors.white.withValues(alpha: 0.65),
+                      borderColor: Colors.white.withValues(alpha: 0.90),
+                    ),
+                    if (items.isNotEmpty)
+                      Positioned(
+                        top: 3,
+                        right: 3,
+                        child: Semantics(
+                          label: '${items.length} okunmamış bildirim',
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: AppColors.error,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.surface),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
           );
         },
       );
+}
+
+/// Uygulama açıkken Supabase Realtime ile gelen kullanıcı bildirimlerinin
+/// erişilebilir, kısa özet merkezi. Bildirim açıldığında sunucudaki güvenli
+/// RPC üzerinden okundu sayılır; başka kullanıcının kaydı istemciye gelmez.
+class NotificationCenterSheet extends StatelessWidget {
+  const NotificationCenterSheet({super.key});
+
+  Future<void> _markRead(
+    BuildContext context,
+    SubmissionFeedback feedback,
+  ) async {
+    try {
+      await SubmissionFeedbackController.markRead(feedback);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Bildirim okundu olarak işaretlenemedi. Tekrar dene.'),
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SafeArea(
+      top: false,
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .70,
+        ),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadii.hero),
+          ),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.border,
+          ),
+        ),
+        child: ValueListenableBuilder<List<SubmissionFeedback>>(
+          valueListenable: SubmissionFeedbackController.items,
+          builder: (context, items, _) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 10, bottom: 14),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkBorder : AppColors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Bildirimler',
+                          style: AppTypography.title.copyWith(
+                            color: AppColors.textPrimaryOf(context),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        items.isEmpty ? 'Güncel' : '${items.length} yeni',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const AppSectionDivider(),
+                if (items.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(24, 32, 24, 42),
+                    child: Column(
+                      children: [
+                        Icon(Icons.notifications_none_rounded,
+                            size: 34, color: AppColors.textSecondary),
+                        SizedBox(height: 10),
+                        Text('Yeni bildirimin yok',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                            )),
+                        SizedBox(height: 4),
+                        Text(
+                            'Yer ekleme ve yardım çağrısı güncellemeleri burada görünür.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              color: AppColors.textSecondary,
+                            )),
+                      ],
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const AppSectionDivider(
+                        indent: 68,
+                      ),
+                      itemBuilder: (context, index) {
+                        final feedback = items[index];
+                        return Semantics(
+                          button: true,
+                          label: '${feedback.title}. ${feedback.body}',
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 5,
+                            ),
+                            leading: CircleAvatar(
+                              backgroundColor: isDark
+                                  ? AppColors.darkPrimarySoft
+                                  : AppColors.primarySoft,
+                              child: Icon(
+                                feedback.isRejected
+                                    ? Icons.info_outline_rounded
+                                    : Icons.notifications_rounded,
+                                color: feedback.isRejected
+                                    ? AppColors.error
+                                    : AppColors.primary,
+                              ),
+                            ),
+                            title: Text(feedback.title,
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w600,
+                                )),
+                            subtitle: Text(feedback.body,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  color: AppColors.textSecondaryOf(context),
+                                )),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () =>
+                                unawaited(_markRead(context, feedback)),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 class LocationUpdateSheet extends StatefulWidget {

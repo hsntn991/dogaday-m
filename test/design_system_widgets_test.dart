@@ -113,11 +113,12 @@ void main() {
   });
 
   test(
-      'authentication keeps social providers side by side without a form glass panel',
+      'authentication keeps social providers side by side without shrinking form text',
       () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
     expect(source, contains('_buildSocialAuthRow(isDark)'));
-    expect(source, contains('FittedBox('));
+    expect(source, contains('SingleChildScrollView('));
+    expect(source, isNot(contains('fit: BoxFit.scaleDown')));
   });
 
   test('authentication offers language selection before entering the app', () {
@@ -127,7 +128,7 @@ void main() {
   });
 
   test(
-      'authentication layout scales its complete content instead of overflowing',
+      'authentication layout scrolls its complete content instead of overflowing',
       () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
 
@@ -614,5 +615,28 @@ void main() {
     expect(app, contains('AutovalidateMode.onUserInteraction'));
     expect(app, contains('class _PasswordStrengthMeter'));
     expect(app, contains('_passwordStrength'));
+  });
+
+  test('place imagery communicates loading before remote photos arrive', () {
+    final shared =
+        File('lib/src/widgets/shared_widgets.dart').readAsStringSync();
+
+    expect(shared, contains('class _PlaceImageLoadingPlaceholder'));
+    expect(shared, contains('loadingBuilder: (context, child, progress)'));
+    expect(shared, contains("label: 'Görsel yükleniyor'"));
+  });
+
+  test('home category strip signals that more filters are available', () {
+    final home = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(home, contains("label: 'Daha fazla kategori için kaydır'"));
+    expect(home, contains('Icons.chevron_right_rounded'));
+  });
+
+  test('onboarding skip action remains visible and touch-friendly', () {
+    final app = File('lib/src/app/app.dart').readAsStringSync();
+
+    expect(app, contains("message: 'Tanıtımı geç'"));
+    expect(app, contains('minimumSize: const Size(48, 48)'));
   });
 }

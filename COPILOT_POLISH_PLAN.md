@@ -36,3 +36,13 @@ Bu plan, mevcut iş mantığını ve canlı veri akışını değiştirmeden uyg
 
 Her davranış değişikliği, önce başarısız olan bir testle kanıtlanacak; ardından
 en küçük güvenli değişiklik uygulanacaktır.
+
+## Faz 5 — Tasarım denetimi düzeltmeleri (13 Ekim 2026)
+
+- [x] Harita ilk karede boş/gri görünürken erişilebilir bir yüklenme katmanı göster.
+- [x] Mobil servis kartlarındaki emoji tabanlı simgeleri sabit vektör simgelerle değiştir.
+- [x] Haritada gizlenen alt menünün geri çağrılabildiğini görünür bir tutamaçla belirt.
+- [x] Kayıt ekranını 320–342 px genişlikte daha rahat okunur yap.
+- [x] İlgili ekranlardaki doğrudan renk sabitlerini tasarım belirteçlerine bağla.
+- [x] Ana sayfa görsellerine iskelet durumunu ve kategori satırına yatay devam ipucunu ekle.
+- [ ] Açık/koyu mod ile 320, 375 ve 430 px doğrulamasını tekrar çalıştır.

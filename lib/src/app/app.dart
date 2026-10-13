@@ -789,18 +789,37 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 ),
                               ),
                               const Spacer(),
-                              TextButton(
-                                onPressed: finishing ? null : finish,
-                                style: TextButton.styleFrom(
+                              Tooltip(
+                                message: 'Tanıtımı geç',
+                                child: TextButton(
+                                  onPressed: finishing ? null : finish,
+                                  style: TextButton.styleFrom(
                                     foregroundColor: Colors.white,
                                     disabledForegroundColor: Colors.white54,
+                                    minimumSize: const Size(48, 48),
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 18, vertical: 12)),
-                                child: const Text('Geç',
-                                    style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: AppFontSizes.body,
-                                        fontWeight: FontWeight.w600)),
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    backgroundColor:
+                                        Colors.black.withValues(alpha: .24),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadii.pill,
+                                      ),
+                                      side: BorderSide(
+                                        color: Colors.white.withValues(
+                                          alpha: .32,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Text('Geç',
+                                      style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: AppFontSizes.body,
+                                          fontWeight: FontWeight.w700)),
+                                ),
                               ),
                             ]),
                             const Spacer(flex: 6),
@@ -1000,6 +1019,7 @@ class _AuthScreenState extends State<AuthScreen> {
             state.event == AuthChangeEvent.signedIn &&
             mounted) {
           unawaited(PlaceSubmissionController.syncPending());
+          unawaited(UserSocialAccountsController.load());
           _openApp();
         }
       },
@@ -1469,9 +1489,8 @@ class _AuthScreenState extends State<AuthScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) => Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.topCenter,
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
                   child: SizedBox(
                     width: constraints.maxWidth,
                     child: Form(
@@ -2624,6 +2643,52 @@ class _MainShellState extends State<MainShell> {
                     ),
             ),
           ),
+          if (index == 1 && !showNavigation)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 10,
+              child: Center(
+                child: Semantics(
+                  button: true,
+                  label: 'Alt menüyü göster',
+                  child: GestureDetector(
+                    key: const Key('map_navigation_reveal_hint'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _registerMapInteraction,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.darkSurface.withValues(alpha: .94)
+                            : AppColors.surface.withValues(alpha: .94),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                        border: Border.all(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? AppColors.darkBorder
+                              : AppColors.border,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: AppColors.shadow20,
+                            blurRadius: 10,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        child: Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          size: 22,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

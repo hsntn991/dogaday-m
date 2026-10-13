@@ -31,7 +31,8 @@ class _FigmaFavoritesScreenState extends State<FigmaFavoritesScreen> {
                           fontFamily: 'Outfit',
                           color: isDark ? AppColors.darkPrimaryLight : green,
                           fontSize: AppFontSizes.display,
-                          fontWeight: FontWeight.w500)),
+                          fontWeight: FontWeight.w500,
+                          decoration: TextDecoration.none)),
                   const SizedBox(height: 3),
                   Text(
                       '${widget.items.length} ${AppStrings.get('favorites_saved_count')}',
@@ -39,7 +40,8 @@ class _FigmaFavoritesScreenState extends State<FigmaFavoritesScreen> {
                           fontSize: AppFontSizes.label,
                           color: isDark
                               ? AppColors.darkTextSecondary
-                              : AppColors.textSecondary))
+                              : AppColors.textSecondary,
+                          decoration: TextDecoration.none))
                 ])),
             Container(
                 decoration: BoxDecoration(
@@ -191,7 +193,8 @@ class _SegmentButton extends StatelessWidget {
               style: TextStyle(
                   fontSize: AppFontSizes.caption,
                   fontWeight: FontWeight.w600,
-                  color: active ? Colors.white : AppColors.textSecondary))));
+                  color: active ? Colors.white : AppColors.textSecondary,
+                  decoration: TextDecoration.none))));
 }
 
 class SquareAdd extends StatelessWidget {
@@ -317,6 +320,21 @@ class _PendingApprovalBadge extends StatelessWidget {
       );
 }
 
+/// Kullanıcı tam adını saklar; kısa görünüm yalnızca arayüz ve sohbet için
+/// soyadını baş harfe indirger. Böylece ayarı değiştirince ad bilgisi kaybolmaz.
+String profileDisplayNameForStyle(
+  String fullName, {
+  required bool abbreviated,
+}) {
+  final parts = fullName
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList(growable: false);
+  if (!abbreviated || parts.length < 2) return parts.join(' ');
+  return '${parts.first} ${parts.last.characters.first.toUpperCase()}.';
+}
+
 class FigmaProfileScreen extends StatefulWidget {
   const FigmaProfileScreen({super.key, required this.onOpen});
   final ValueChanged<Place> onOpen;
@@ -332,39 +350,75 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
 
   Future<void> _showDisplayNameEditor(String currentName) async {
     final controller = TextEditingController(text: currentName);
-    final selected = await showDialog<String>(
+    final metadata = Supabase.instance.client.auth.currentUser?.userMetadata;
+    var abbreviated = metadata?['display_name_style']?.toString() == 'short';
+    final selected = await showDialog<({String name, bool abbreviated})>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(AppStrings.get('profile_display_name_title')),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 48,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            labelText: AppStrings.get('profile_display_name_label'),
-            hintText: AppStrings.get('profile_display_name_hint'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(AppStrings.get('profile_display_name_title')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLength: 48,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: AppStrings.get('profile_display_name_label'),
+                  hintText: AppStrings.get('profile_display_name_hint'),
+                ),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Soyadımı baş harf olarak göster'),
+                subtitle: Text(
+                  profileDisplayNameForStyle(
+                    controller.text.trim().isEmpty
+                        ? currentName
+                        : controller.text,
+                    abbreviated: abbreviated,
+                  ),
+                ),
+                value: abbreviated,
+                onChanged: (value) => setDialogState(() => abbreviated = value),
+              ),
+            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(AppStrings.get('general_cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                (name: controller.text, abbreviated: abbreviated),
+              ),
+              child: Text(AppStrings.get('general_save')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(AppStrings.get('general_cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: Text(AppStrings.get('general_save')),
-          ),
-        ],
       ),
     );
     controller.dispose();
-    final displayName = selected?.trim() ?? '';
-    if (displayName.length < 2 || displayName.length > 48 || !mounted) return;
+    final fullName = selected?.name.trim() ?? '';
+    if (fullName.length < 2 || fullName.length > 48 || !mounted) return;
+    final displayName = profileDisplayNameForStyle(
+      fullName,
+      abbreviated: selected!.abbreviated,
+    );
     try {
       await Supabase.instance.client.auth.updateUser(
-        UserAttributes(data: {'display_name': displayName}),
+        UserAttributes(data: {
+          'full_name': fullName,
+          'display_name': displayName,
+          'display_name_style': selected.abbreviated ? 'short' : 'full',
+        }),
       );
+      // Sohbetin JWT tabanlı görünen adı aynı oturumda da güncel kalsın.
+      await Supabase.instance.client.auth.refreshSession();
       if (mounted) setState(() {});
     } on AuthException catch (error) {
       if (mounted) {
@@ -406,9 +460,8 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
           feedback.isActionRequired
               ? Icons.edit_note_rounded
               : Icons.info_outline_rounded,
-          color: feedback.isActionRequired
-              ? AppColors.primary
-              : AppColors.error,
+          color:
+              feedback.isActionRequired ? AppColors.primary : AppColors.error,
         ),
         title: Text(feedback.isActionRequired
             ? AppStrings.get('profile_feedback_correction_title')
@@ -850,9 +903,9 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
       user = null;
     }
     final metadata = user?.userMetadata;
-    final fullName = (metadata?['full_name']?.toString() ??
+    final fullName = (metadata?['display_name']?.toString() ??
+            metadata?['full_name']?.toString() ??
             metadata?['name']?.toString() ??
-            metadata?['display_name']?.toString() ??
             '')
         .trim();
     final rawEmail = user?.email?.trim() ?? '';
@@ -1248,8 +1301,10 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                         (customAvatar != null && customAvatar.isNotEmpty)
                             ? customAvatar
                             : avatarUrl;
-                    final hasImage = effectiveAvatar != null &&
-                        effectiveAvatar.startsWith('http');
+                    final avatarImage = effectiveAvatar == null
+                        ? null
+                        : _profileAvatarImageProvider(effectiveAvatar);
+                    final hasImage = avatarImage != null;
                     return Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -1258,8 +1313,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                           backgroundColor: isDark
                               ? AppColors.darkPrimarySoft
                               : AppColors.primarySoft,
-                          backgroundImage:
-                              hasImage ? NetworkImage(effectiveAvatar) : null,
+                          backgroundImage: avatarImage,
                           child: hasImage
                               ? null
                               : Text(
@@ -2445,6 +2499,7 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                 await CommunityPlacePhotosController.clear();
                 await HomeWeatherLocationController.clearSavedLocation();
                 await UserProfileAvatarController.clear();
+                await UserSocialAccountsController.clear();
                 EmergencyHelpController.clearLocalData();
                 SubmissionFeedbackController.items.value =
                     const <SubmissionFeedback>[];
@@ -2520,6 +2575,47 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
       );
 }
 
+ImageProvider? _profileAvatarImageProvider(String value) {
+  if (value.startsWith('data:image/') && value.contains(',')) {
+    try {
+      return MemoryImage(base64Decode(value.split(',').last));
+    } catch (_) {
+      return null;
+    }
+  }
+  return value.startsWith('http') ? NetworkImage(value) : null;
+}
+
+Future<void> _pickProfileAvatar(
+  BuildContext context,
+  ImageSource source,
+) async {
+  try {
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 76,
+      maxWidth: 720,
+      maxHeight: 720,
+      requestFullMetadata: false,
+    );
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    if (bytes.isEmpty || bytes.length > 900 * 1024) {
+      throw StateError('Lütfen 900 KB altındaki bir fotoğraf seç.');
+    }
+    await UserProfileAvatarController.setAvatar(
+      'data:image/jpeg;base64,${base64Encode(bytes)}',
+    );
+    if (context.mounted) Navigator.pop(context);
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profil fotoğrafı seçilemedi: $error')),
+      );
+    }
+  }
+}
+
 Future<void> _showAvatarPickerModal(BuildContext context) async {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   final textPrimary = AppColors.textPrimaryOf(context);
@@ -2557,8 +2653,6 @@ Future<void> _showAvatarPickerModal(BuildContext context) async {
       'https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7?w=300'
     ),
   ];
-
-  final urlController = TextEditingController();
 
   await showModalBottomSheet<void>(
     context: context,
@@ -2600,7 +2694,7 @@ Future<void> _showAvatarPickerModal(BuildContext context) async {
           ),
           const SizedBox(height: 6),
           Text(
-            'Doğa profiline uygun bir avatar seç veya fotoğraf bağlantısı ekle.',
+            'Doğa avatarlarından birini seç veya kameranı ve fotoğraflarını kullan.',
             style: TextStyle(
               fontSize: AppFontSizes.caption,
               color: textSecondary,
@@ -2647,48 +2741,22 @@ Future<void> _showAvatarPickerModal(BuildContext context) async {
             ),
           ),
           const SizedBox(height: 18),
-          Text(
-            'Özel Fotoğraf Bağlantısı',
-            style: TextStyle(
-              fontSize: AppFontSizes.label,
-              fontWeight: FontWeight.w600,
-              color: textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: urlController,
-                  decoration: InputDecoration(
-                    hintText: 'https://... (Fotoğraf linki)',
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.medium),
-                    ),
-                  ),
+                child: AppSecondaryButton(
+                  label: 'Kamerayı aç',
+                  leading: const Icon(Icons.photo_camera_outlined, size: 18),
+                  onPressed: () => _pickProfileAvatar(ctx, ImageSource.camera),
                 ),
               ),
               const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: () async {
-                  final url = urlController.text.trim();
-                  if (url.startsWith('http')) {
-                    await UserProfileAvatarController.setAvatar(url);
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadii.medium),
-                  ),
+              Expanded(
+                child: AppPrimaryButton(
+                  label: 'Fotoğraflardan seç',
+                  leading: const Icon(Icons.photo_library_outlined, size: 18),
+                  onPressed: () => _pickProfileAvatar(ctx, ImageSource.gallery),
                 ),
-                child: const Text('Kaydet'),
               ),
             ],
           ),
@@ -2895,8 +2963,7 @@ Future<void> _openSocialLink(
     }
   } else if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(AppStrings.get('profile_social_invalid_link'))),
+      SnackBar(content: Text(AppStrings.get('profile_social_invalid_link'))),
     );
   }
 }

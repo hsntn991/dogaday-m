@@ -43,6 +43,24 @@ void main() {
     expect(detail, isNot(contains('Görsel Bağlantısı (URL)')));
   });
 
+  test('place picker defers camera movement until its map surface is ready',
+      () {
+    final addPlace = File('lib/src/features/add_place.dart').readAsStringSync();
+
+    expect(addPlace, contains('bool _mapReady = false;'));
+    expect(addPlace, contains('void _moveMapToSelectedLocation'));
+    expect(addPlace, contains('onMapReady: _handleMapReady'));
+  });
+
+  test('a failed submission is not presented as an admin-queued success', () {
+    final core = File('lib/src/core/app_core.dart').readAsStringSync();
+    final addPlace = File('lib/src/features/add_place.dart').readAsStringSync();
+
+    expect(core, contains('SubmissionSyncResult.failed'));
+    expect(addPlace, contains('SubmissionSyncResult.failed'));
+    expect(addPlace, contains('Yer henüz yöneticiye gönderilemedi'));
+  });
+
   test(
       'admin photo loader keeps working when one stored photo cannot be signed',
       () {

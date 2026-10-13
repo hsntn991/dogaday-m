@@ -1145,8 +1145,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const Key('map_auto_hiding_bottom_navigation')),
         findsNothing);
+    expect(find.byKey(const Key('map_navigation_reveal_hint')), findsOneWidget);
+    expect(find.bySemanticsLabel('Alt menüyü göster'), findsOneWidget);
 
-    await tester.tapAt(const Offset(180, 360));
+    await tester.tap(find.byKey(const Key('map_navigation_reveal_hint')));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const Key('map_auto_hiding_bottom_navigation')),
         findsOneWidget);

@@ -84,8 +84,47 @@ void main() {
     final map = File('lib/src/features/search_map.dart').readAsStringSync();
 
     expect(map, contains('MapRegionFocus? _pendingRegionFocus'));
-    expect(map, contains('onMapReady: _applyPendingRegionFocus'));
+    expect(map, contains('onMapReady: _handleMapReady'));
+    expect(map, contains('_applyPendingRegionFocus();'));
     expect(map, contains('_applyRegionFocus(region)'));
+  });
+
+  test('map clearly communicates tile loading before the first tile appears',
+      () {
+    final map = File('lib/src/features/search_map.dart').readAsStringSync();
+
+    expect(map, contains('bool _isMapTilesLoading = true'));
+    expect(map, contains('onMapReady: _handleMapReady'));
+    expect(map, contains('tileBuilder: _trackTileLoading'));
+    expect(
+      map,
+      contains("isFailure ? 'Harita yüklenemedi' : 'Harita yükleniyor'"),
+    );
+  });
+
+  test(
+      'every map style exposes its current source attribution and license link',
+      () {
+    final map = File('lib/src/features/search_map.dart').readAsStringSync();
+    final addPlace = File('lib/src/features/add_place.dart').readAsStringSync();
+
+    expect(map, contains('https://www.openstreetmap.org/copyright'));
+    expect(map, contains('OpenTopoMap (CC-BY-SA)'));
+    expect(map, contains('Source: Esri, Maxar, Earthstar Geographics'));
+    expect(addPlace, contains('https://www.openstreetmap.org/copyright'));
+  });
+
+  test('map offers a retry instead of leaving a slow connection on a spinner',
+      () {
+    final map = File('lib/src/features/search_map.dart').readAsStringSync();
+
+    expect(map, contains('Timer? _mapTileLoadingTimeout'));
+    expect(map, contains('bool _mapTileLoadFailed = false'));
+    expect(map, contains('void _retryMapTiles()'));
+    expect(map,
+        contains("isFailure ? 'Harita yüklenemedi' : 'Harita yükleniyor'"));
+    expect(map, contains("label: 'Haritayı tekrar dene'"));
+    expect(map, contains(r"ValueKey('map-tiles-$_mapTileRefreshRevision')"));
   });
 
   test('regional map uses compact category pins instead of numeric clusters',

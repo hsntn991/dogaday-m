@@ -50,6 +50,15 @@ void main() {
     expect(migration, contains("tablename = 'user_notifications'"));
   });
 
+  test('live in-app notifications are reachable from the home header', () {
+    final home = File('lib/src/features/home.dart').readAsStringSync();
+
+    expect(home, contains('unawaited(SubmissionFeedbackController.load())'));
+    expect(home, contains('class NotificationCenterSheet'));
+    expect(home, contains('ValueListenableBuilder<List<SubmissionFeedback>>'));
+    expect(home, contains("tooltip: 'Bildirimler'"));
+  });
+
   test('app shell exposes a non-blocking offline indicator', () {
     final main = File('lib/main.dart').readAsStringSync();
     final app = File('lib/src/app/app.dart').readAsStringSync();

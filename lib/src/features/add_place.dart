@@ -49,6 +49,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
   final description = TextEditingController();
   final locationSearch = TextEditingController();
   final mapController = MapController();
+  bool _mapReady = false;
   TileProvider? _tileProvider;
   TileProvider get tileProvider =>
       _tileProvider ??= OfflineMapTiles.createTileProvider();
@@ -67,6 +68,20 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
   bool locationExpanded = false;
   String? roadAccess;
   bool draftRestored = false;
+
+  void _handleMapReady() {
+    _mapReady = true;
+    _moveMapToSelectedLocation();
+  }
+
+  /// Konum servisi ya da arama sonucu, FlutterMap ilk karesini çizmeden önce
+  /// gelebilir. Kamera henüz hazır değilken yapılan move çağrısı kaybolduğu
+  /// için seçili noktayı saklıyor ve harita hazır olduğunda taşıyoruz.
+  void _moveMapToSelectedLocation([double? zoom]) {
+    final point = selectedLocation;
+    if (!_mapReady || point == null) return;
+    mapController.move(point, zoom ?? 14);
+  }
 
   static const categories = [
     (
@@ -180,6 +195,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
       roadAccess = draft['roadAccess']?.toString();
       draftRestored = true;
     });
+    _moveMapToSelectedLocation();
   }
 
   void _saveDraft() {
@@ -215,7 +231,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
         selectedLocationLabel = value.label;
         locationError = null;
       });
-      mapController.move(point, 15);
+      _moveMapToSelectedLocation(15);
       _saveDraft();
     } catch (error) {
       if (!mounted) return;
@@ -263,7 +279,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
         selectedLocationLabel = item['display_name']?.toString() ?? query;
         locationError = null;
       });
-      mapController.move(point, 14);
+      _moveMapToSelectedLocation(14);
       _saveDraft();
     } catch (error) {
       if (!mounted) return;
@@ -536,6 +552,9 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
                 AppStrings.get('add_place_saved_offline_login'),
               SubmissionSyncResult.queued =>
                 AppStrings.get('add_place_saved_offline_net'),
+              SubmissionSyncResult.failed =>
+                'Yer henüz yöneticiye gönderilemedi. Bağlantı veya sunucu '
+                    'sorunu giderildiğinde otomatik olarak tekrar denenecek.',
             },
           ),
         ),
@@ -1186,6 +1205,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
               minZoom: 4,
               maxZoom: 19,
               cameraConstraint: CameraConstraint.containLatitude(),
+              onMapReady: _handleMapReady,
               onTap: (_, point) {
                 setState(() {
                   selectedLocation = point;
@@ -1272,11 +1292,33 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
               borderWidth: 1.2,
             ),
           ),
-          const Positioned(
+          Positioned(
             left: 8,
             bottom: 5,
-            child: Text('© OpenStreetMap contributors',
-                style: TextStyle(fontSize: AppFontSizes.caption)),
+            child: Semantics(
+              link: true,
+              label:
+                  'OpenStreetMap katkıcıları. Kaynak ve lisans ayrıntılarını aç',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => unawaited(
+                    launchUrl(
+                      Uri.parse('https://www.openstreetmap.org/copyright'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                  ),
+                  borderRadius: BorderRadius.circular(AppRadii.small),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                    child: Text(
+                      '© OpenStreetMap contributors',
+                      style: TextStyle(fontSize: AppFontSizes.caption),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),

@@ -732,6 +732,10 @@ class _MapScreenState extends State<MapScreen> {
   String? _viewportError;
   int _viewportRequestToken = 0;
   bool _isMapReady = false;
+  bool _isMapTilesLoading = true;
+  bool _mapTileLoadFailed = false;
+  int _mapTileRefreshRevision = 0;
+  Timer? _mapTileLoadingTimeout;
   MapRegionFocus? _pendingRegionFocus;
   // Arama, açık bölgenin dışından da sonuç döndürebilir. Seçilen sonucu
   // kamera/veri yenilenirken kaybetmemek için geçici olarak haritada tutarız.
@@ -1105,6 +1109,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _cameraUpdateTimer?.cancel();
+    _mapTileLoadingTimeout?.cancel();
     _locationSubscription?.cancel();
     UserPlacesController.places.removeListener(_refreshUserPlaces);
     SupabasePlacesController.places.removeListener(_refreshRemotePlaces);
@@ -1144,6 +1149,48 @@ class _MapScreenState extends State<MapScreen> {
     if (region == null || !mounted) return;
     _pendingRegionFocus = null;
     _applyRegionFocus(region);
+  }
+
+  void _handleMapReady() {
+    _applyPendingRegionFocus();
+    _startMapTileLoadingTimeout();
+  }
+
+  void _startMapTileLoadingTimeout() {
+    _mapTileLoadingTimeout?.cancel();
+    if (!_isMapTilesLoading) return;
+    _mapTileLoadingTimeout = Timer(const Duration(seconds: 12), () {
+      if (!mounted || !_isMapTilesLoading) return;
+      setState(() => _mapTileLoadFailed = true);
+    });
+  }
+
+  void _retryMapTiles() {
+    _mapTileLoadingTimeout?.cancel();
+    setState(() {
+      _mapTileLoadFailed = false;
+      _isMapTilesLoading = true;
+      _mapTileRefreshRevision++;
+    });
+    _startMapTileLoadingTimeout();
+  }
+
+  Widget _trackTileLoading(
+    BuildContext context,
+    Widget tileWidget,
+    TileImage tile,
+  ) {
+    if (tile.readyToDisplay && _isMapTilesLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_isMapTilesLoading) return;
+        _mapTileLoadingTimeout?.cancel();
+        setState(() {
+          _isMapTilesLoading = false;
+          _mapTileLoadFailed = false;
+        });
+      });
+    }
+    return tileWidget;
   }
 
   void _applyRegionFocus(MapRegionFocus region) {
@@ -1659,9 +1706,8 @@ class _MapScreenState extends State<MapScreen> {
     required bool bottomNavigationVisible,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mapBottomInset = bottomNavigationVisible
-        ? AppControlSizes.mapControlsBottomInset
-        : 18.0;
+    final mapBottomInset =
+        bottomNavigationVisible ? AppControlSizes.mapControlsBottomInset : 18.0;
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1712,7 +1758,7 @@ class _MapScreenState extends State<MapScreen> {
             minZoom: 4,
             maxZoom: 18,
             cameraConstraint: CameraConstraint.containLatitude(),
-            onMapReady: _applyPendingRegionFocus,
+            onMapReady: _handleMapReady,
             onPositionChanged: handleMapPositionChanged,
             onTap: (_, __) {
               if (selectedIndex != null) {
@@ -1726,6 +1772,7 @@ class _MapScreenState extends State<MapScreen> {
           ),
           children: [
             TileLayer(
+              key: ValueKey('map-tiles-$_mapTileRefreshRevision'),
               urlTemplate: switch (_mapStyle) {
                 _MapStyle.standart =>
                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1741,6 +1788,7 @@ class _MapScreenState extends State<MapScreen> {
               maxNativeZoom: _mapStyle == _MapStyle.topo ? 17 : 19,
               panBuffer: 2,
               tileProvider: tileProvider,
+              tileBuilder: _trackTileLoading,
             ),
             MarkerLayer(
               markers: [
@@ -1812,23 +1860,129 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildAttribution(bool isDark) {
-    return GlassContainer(
-      borderRadius: BorderRadius.circular(AppRadii.medium),
-      blur: 0,
-      color: AppColors.surface,
-      borderColor: AppColors.border,
-      boxShadow: const [],
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      child: Text(
-        switch (_mapStyle) {
-          _MapStyle.standart => '© OpenStreetMap contributors',
-          _MapStyle.uydu => '© Esri, Maxar, Earthstar',
-          _MapStyle.topo => '© OpenTopoMap, OSM contributors',
-        },
-        style: TextStyle(
-          fontFamily: 'Outfit',
-          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-          fontSize: AppFontSizes.caption,
+    final attribution = switch (_mapStyle) {
+      _MapStyle.standart => (
+          label: '© OpenStreetMap contributors',
+          url: Uri.parse('https://www.openstreetmap.org/copyright'),
+        ),
+      _MapStyle.uydu => (
+          label: '© Esri — Source: Esri, Maxar, Earthstar Geographics',
+          url: Uri.parse(
+            'https://www.esri.com/en-us/legal/terms/full-master-agreement',
+          ),
+        ),
+      _MapStyle.topo => (
+          label: '© OpenTopoMap (CC-BY-SA), © OpenStreetMap contributors',
+          url: Uri.parse('https://opentopomap.org/about'),
+        ),
+    };
+    return Semantics(
+      link: true,
+      label: '${attribution.label}. Kaynak ve lisans ayrıntılarını aç',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => unawaited(
+            launchUrl(attribution.url, mode: LaunchMode.externalApplication),
+          ),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
+          child: GlassContainer(
+            borderRadius: BorderRadius.circular(AppRadii.medium),
+            blur: 0,
+            color: AppColors.surface,
+            borderColor: AppColors.border,
+            boxShadow: const [],
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Text(
+              attribution.label,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary,
+                fontSize: AppFontSizes.caption,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapLoadingOverlay(bool isDark) {
+    final isVisible = _isMapTilesLoading || _mapTileLoadFailed;
+    final isFailure = _mapTileLoadFailed;
+    return IgnorePointer(
+      ignoring: !isFailure,
+      child: ExcludeSemantics(
+        excluding: !isVisible,
+        child: AnimatedOpacity(
+          opacity: isVisible ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          child: Semantics(
+            label: isFailure ? 'Harita yüklenemedi' : 'Harita yükleniyor',
+            liveRegion: true,
+            child: Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: (isDark ? AppColors.darkSurface : AppColors.surface)
+                      .withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                  border: Border.all(
+                    color: isDark ? AppColors.darkBorder : AppColors.border,
+                  ),
+                ),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: isFailure
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.cloud_off_rounded, size: 19),
+                            const SizedBox(width: 8),
+                            Semantics(
+                              button: true,
+                              label: 'Haritayı tekrar dene',
+                              child: TextButton.icon(
+                                onPressed: _retryMapTiles,
+                                icon: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 18,
+                                ),
+                                label: const Text('Tekrar dene'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: isDark
+                                      ? AppColors.darkPrimaryLight
+                                      : AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Harita yükleniyor',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: AppFontSizes.label,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -2256,6 +2410,7 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
               ),
+              Positioned.fill(child: _buildMapLoadingOverlay(isDark)),
               if (MapViewportPointsService.enabled)
                 Positioned(
                   top: MapViewportPointsService.regionalExplorerEnabled
@@ -2527,6 +2682,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
+        Positioned.fill(child: _buildMapLoadingOverlay(isDark)),
         Positioned(
           left: 8,
           bottom: sheetHeight == 0

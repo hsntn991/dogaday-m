@@ -31,7 +31,8 @@ void main() {
   });
 
   test('chat reporting and profile name editing use app translations', () {
-    final chat = File('lib/src/features/community_chat.dart').readAsStringSync();
+    final chat =
+        File('lib/src/features/community_chat.dart').readAsStringSync();
     final profile =
         File('lib/src/features/favorites_profile.dart').readAsStringSync();
     final locale = File('lib/src/core/app_locale.dart').readAsStringSync();
@@ -54,13 +55,42 @@ void main() {
     expect(admin, contains('apply_community_chat_restriction'));
   });
 
-  test('community chat receives newly published messages without reopening', () {
+  test('community chat receives newly published messages without reopening',
+      () {
     final core = File('lib/src/core/app_core.dart').readAsStringSync();
-    final room = File('lib/src/features/community_chat.dart').readAsStringSync();
+    final room =
+        File('lib/src/features/community_chat.dart').readAsStringSync();
 
     expect(core, contains('watchMessages'));
     expect(core, contains('onPostgresChanges'));
     expect(room, contains('_subscribeToLiveMessages'));
     expect(room, contains('_realtimeChannel'));
+  });
+
+  test('message owners can edit or delete only their own messages', () {
+    final migration = File(
+      'supabase/migrations/202610130001_community_chat_owner_actions.sql',
+    ).readAsStringSync();
+    final core = File('lib/src/core/app_core.dart').readAsStringSync();
+    final room =
+        File('lib/src/features/community_chat.dart').readAsStringSync();
+
+    expect(migration, contains('update_community_chat_message'));
+    expect(migration, contains('delete_community_chat_message'));
+    expect(migration, contains('author_id = v_user_id'));
+    expect(core, contains('updateMessage'));
+    expect(core, contains('deleteMessage'));
+    expect(room, contains('_showOwnMessageActions'));
+    expect(room, contains('Mesaj seçeneklerini aç:'));
+    expect(room, contains('onPressed: message.id.isEmpty'));
+  });
+
+  test('a restricted user cannot use message editing to bypass chat limits', () {
+    final migration = File(
+      'supabase/migrations/202610130002_block_restricted_chat_edits.sql',
+    ).readAsStringSync();
+
+    expect(migration, contains('community_chat_restrictions'));
+    expect(migration, contains("raise exception 'chat_restricted:%'"));
   });
 }

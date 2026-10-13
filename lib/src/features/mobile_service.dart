@@ -4,13 +4,11 @@ class MobileServiceCategoryItem {
   const MobileServiceCategoryItem({
     required this.key,
     required this.title,
-    required this.emoji,
     required this.icon,
   });
 
   final String key;
   final String title;
-  final String emoji;
   final IconData icon;
 }
 
@@ -18,61 +16,51 @@ const mobileServiceCategories = <MobileServiceCategoryItem>[
   MobileServiceCategoryItem(
     key: 'service_roadside',
     title: 'Çekici / Yol Yardım',
-    emoji: '🚛',
     icon: Icons.local_shipping_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_maintenance',
     title: 'Yıllık Bakım',
-    emoji: '🚐',
     icon: Icons.airport_shuttle_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_gas',
     title: 'Gaz Tesisatı',
-    emoji: '🔥',
     icon: Icons.local_fire_department_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_hvac',
     title: 'Isıtma & Soğutma',
-    emoji: '🌡️',
     icon: Icons.device_thermostat_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_electric',
     title: 'Elektrik & Enerji',
-    emoji: '⚡',
     icon: Icons.bolt_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_plumbing',
     title: 'Su & Tesisat',
-    emoji: '🚿',
     icon: Icons.shower_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_bodywork',
     title: 'Nem & Gövde',
-    emoji: '💧',
     icon: Icons.water_drop_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_chassis_brakes',
     title: 'Şasi & Fren',
-    emoji: '🛞',
     icon: Icons.tire_repair_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_parts',
     title: 'Montaj & Parça',
-    emoji: '⚙️',
     icon: Icons.settings_rounded,
   ),
   MobileServiceCategoryItem(
     key: 'service_inspection',
     title: 'Muayene',
-    emoji: '🔍',
     icon: Icons.fact_check_rounded,
   ),
 ];
@@ -88,7 +76,7 @@ class MobileServiceHubScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkSurface : AppColors.background,
       appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+        backgroundColor: isDark ? AppColors.darkSurface : AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
@@ -229,7 +217,7 @@ class MobileServiceHubScreen extends StatelessWidget {
       width: width,
       height: height,
       child: Material(
-        color: isDark ? AppColors.darkSurfaceMuted : Colors.white,
+        color: isDark ? AppColors.darkSurfaceMuted : AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         elevation: 0,
         child: InkWell(
@@ -243,7 +231,7 @@ class MobileServiceHubScreen extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                color: isDark ? AppColors.darkBorder : AppColors.border,
                 width: 1.0,
               ),
               boxShadow: [
@@ -259,9 +247,11 @@ class MobileServiceHubScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  item.emoji,
-                  style: const TextStyle(fontSize: 28),
+                Icon(
+                  item.icon,
+                  size: 28,
+                  color:
+                      isDark ? AppColors.darkPrimaryLight : AppColors.primary,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -276,7 +266,7 @@ class MobileServiceHubScreen extends StatelessWidget {
                     height: 1.2,
                     color: isDark
                         ? AppColors.darkTextPrimary
-                        : const Color(0xFF1E293B),
+                        : AppColors.textPrimary,
                   ),
                 ),
               ],
@@ -569,6 +559,8 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
         'Giriş yapılmadığı için işletme yerel olarak kaydedildi. Giriş yaptığınızda onaya gönderilecektir.',
       SubmissionSyncResult.queued =>
         'İnternet bağlantısı sağlandığında işletme başvurunuz yönetici onayına iletilecektir.',
+      SubmissionSyncResult.failed =>
+        'İşletme henüz yöneticiye gönderilemedi. Bağlantı veya sunucu sorunu giderildiğinde otomatik olarak tekrar denenecek.',
     };
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -689,7 +681,7 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
               children: mobileServiceCategories.map((item) {
                 final isSelected = _selectedSubtype == item.key;
                 return ChoiceChip(
-                  label: Text('${item.emoji} ${item.title}'),
+                  label: Text(item.title),
                   selected: isSelected,
                   selectedColor: const Color(0xFFFEF3C7),
                   backgroundColor: isDark

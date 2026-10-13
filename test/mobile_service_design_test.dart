@@ -5,17 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('mobile service hub preserves the original, icon-led service layout',
+  test('mobile service hub uses stable vector icons instead of device emojis',
       () {
     final source =
         File('lib/src/features/mobile_service.dart').readAsStringSync();
 
-    expect(source, contains("emoji: '🚛'"));
-    expect(source, contains('item.emoji,'));
+    expect(source, isNot(contains("emoji: '🚛'")));
+    expect(source, isNot(contains('item.emoji,')));
+    expect(source, contains('Icon('));
+    expect(source, contains('item.icon,'));
     expect(source, contains('const itemHeight = 138.0'));
     expect(source, contains('BorderRadius.circular(16)'));
     expect(source, contains('boxShadow: ['));
-    expect(source, contains("label: Text('\${item.emoji} \${item.title}')"));
+    expect(source, contains("label: Text(item.title)"));
   });
 
   test('service submission does not promise instant publication', () {
@@ -24,6 +26,15 @@ void main() {
 
     expect(source, contains('Başvuruyu incelemeye gönder'));
     expect(source, isNot(contains('Firmayı Kaydet ve Haritada Yayınla')));
+  });
+
+  test('service tiles take their border and text colors from design tokens',
+      () {
+    final source =
+        File('lib/src/features/mobile_service.dart').readAsStringSync();
+
+    expect(source, isNot(contains('Color(0xFFE2E8F0)')));
+    expect(source, isNot(contains('Color(0xFF1E293B)')));
   });
 
   testWidgets('mobile service hub remains overflow-free on phone widths',

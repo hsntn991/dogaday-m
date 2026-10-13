@@ -728,7 +728,8 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
 
   Future<void> _refreshLiveMessages() async {
     try {
-      final liveMessages = await CommunityChatService.loadMessages(widget.category);
+      final liveMessages =
+          await CommunityChatService.loadMessages(widget.category);
       if (!mounted) return;
       setState(() {
         messages = liveMessages.map(_CommunityMessage.fromLive).toList();
@@ -879,6 +880,126 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
     }
   }
 
+  Future<void> _showOwnMessageActions(_CommunityMessage message) async {
+    if (message.id.isEmpty) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Düzenle'),
+              onTap: () => Navigator.pop(sheetContext, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: AppColors.error),
+              title:
+                  const Text('Sil', style: TextStyle(color: AppColors.error)),
+              onTap: () => Navigator.pop(sheetContext, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == 'edit') {
+      await _editOwnMessage(message);
+    } else if (action == 'delete') {
+      await _deleteOwnMessage(message);
+    }
+  }
+
+  Future<void> _editOwnMessage(_CommunityMessage message) async {
+    final controller = TextEditingController(text: message.text);
+    final updatedBody = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mesajı düzenle'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 500,
+          minLines: 2,
+          maxLines: 5,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(AppStrings.get('general_cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: Text(AppStrings.get('general_save')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (updatedBody == null || updatedBody.trim() == message.text.trim()) {
+      return;
+    }
+    try {
+      final updated = await CommunityChatService.updateMessage(
+        messageId: message.id,
+        body: updatedBody,
+      );
+      if (!mounted) return;
+      setState(() {
+        messages = messages
+            .map((item) => item.id == message.id
+                ? _CommunityMessage.fromLive(updated)
+                : item)
+            .toList(growable: false);
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mesaj düzenlenemedi. Tekrar dene.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteOwnMessage(_CommunityMessage message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mesaj silinsin mi?'),
+        content: const Text('Bu işlem geri alınamaz.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(AppStrings.get('general_cancel')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await CommunityChatService.deleteMessage(messageId: message.id);
+      if (!mounted) return;
+      setState(() {
+        messages = messages
+            .where((item) => item.id != message.id)
+            .toList(growable: false);
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mesaj silinemedi. Tekrar dene.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -965,41 +1086,57 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
                               if (message.isUser) {
                                 return Align(
                                   alignment: Alignment.centerRight,
-                                  child: Container(
-                                    constraints:
-                                        const BoxConstraints(maxWidth: 290),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: green,
+                                  child: Semantics(
+                                    button: message.id.isNotEmpty,
+                                    label: message.id.isEmpty
+                                        ? message.text
+                                        : 'Mesaj seçeneklerini aç: ${message.text}',
+                                    child: AppPressable(
+                                      onPressed: message.id.isEmpty
+                                          ? null
+                                          : () =>
+                                              _showOwnMessageActions(message),
                                       borderRadius:
                                           BorderRadius.circular(AppRadii.large),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          message.text,
-                                          style: const TextStyle(
-                                            fontFamily: 'Outfit',
-                                            color: Colors.white,
-                                            fontSize: AppFontSizes.label,
+                                      child: Container(
+                                        constraints:
+                                            const BoxConstraints(maxWidth: 290),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: green,
+                                          borderRadius: BorderRadius.circular(
+                                            AppRadii.large,
                                           ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${message.time} · ${message.author}',
-                                          style: TextStyle(
-                                            fontSize: AppFontSizes.caption,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.75),
-                                          ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              message.text,
+                                              style: const TextStyle(
+                                                fontFamily: 'Outfit',
+                                                color: Colors.white,
+                                                fontSize: AppFontSizes.label,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${message.time} · ${message.author}',
+                                              style: TextStyle(
+                                                fontSize: AppFontSizes.caption,
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.75,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 );

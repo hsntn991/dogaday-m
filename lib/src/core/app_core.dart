@@ -1275,6 +1275,25 @@ abstract final class CommunityChatService {
           'p_note': note?.trim(),
         },
       );
+
+  static Future<CommunityChatMessage> updateMessage({
+    required String messageId,
+    required String body,
+  }) async {
+    final response = await Supabase.instance.client.rpc(
+      'update_community_chat_message',
+      params: {'p_message_id': messageId, 'p_body': body.trim()},
+    );
+    return CommunityChatMessage.fromMap(
+      Map<String, dynamic>.from(response as Map),
+    );
+  }
+
+  static Future<void> deleteMessage({required String messageId}) =>
+      Supabase.instance.client.rpc(
+        'delete_community_chat_message',
+        params: {'p_message_id': messageId},
+      );
 }
 
 class MapFocusController {
@@ -1460,7 +1479,7 @@ class UserPlacesController {
   }
 }
 
-enum SubmissionSyncResult { sent, queued, signInRequired }
+enum SubmissionSyncResult { sent, queued, signInRequired, failed }
 
 class SubmissionFeedback {
   const SubmissionFeedback({
@@ -1656,7 +1675,9 @@ class PlaceSubmissionController {
       await _removeFromQueue(sourceId);
       return SubmissionSyncResult.sent;
     } catch (_) {
-      return SubmissionSyncResult.queued;
+      // Kuyruk kaydı korunur; uygulama sonraki güvenli fırsatta tekrar dener.
+      // Ancak kullanıcıya başvurunun yöneticide olduğu izlenimi verilmez.
+      return SubmissionSyncResult.failed;
     }
   }
 
@@ -3291,6 +3312,20 @@ class UserSocialAccountsController {
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    try {
+      final metadata = Supabase.instance.client.auth.currentUser?.userMetadata;
+      final remote = metadata?['social_accounts'];
+      if (remote is Map) {
+        final restored = UserSocialAccounts.fromJson(
+          Map<String, dynamic>.from(remote),
+        );
+        accounts.value = restored;
+        await prefs.setString(_storageKey, jsonEncode(restored.toJson()));
+        return;
+      }
+    } catch (_) {
+      // Oturum henüz başlatılmadıysa cihazdaki son güvenli kopyayı kullan.
+    }
     final raw = prefs.getString(_storageKey);
     if (raw != null && raw.isNotEmpty) {
       try {
@@ -3313,6 +3348,23 @@ class UserSocialAccountsController {
     accounts.value = updated;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_storageKey, jsonEncode(updated.toJson()));
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: {'social_accounts': updated.toJson()}),
+      );
+    } catch (_) {
+      // Bağlantı geçiciyse cihazdaki kopya korunur; sonraki düzenlemede
+      // hesap metaverisi tekrar güncellenir.
+    }
+  }
+
+  /// Oturum kapandığında önceki hesabın sosyal bilgileri yeni kullanıcıya
+  /// görünmez. Uzak kopya Supabase hesabında kaldığı için sonraki girişte
+  /// doğru hesaptan yeniden yüklenir.
+  static Future<void> clear() async {
+    accounts.value = const UserSocialAccounts();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_storageKey);
   }
 }
 
