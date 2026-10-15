@@ -33,3 +33,10 @@
 - Secret, API anahtarı, yerel ortam dosyası, build çıktısı ve kullanıcıya ait özel dosyaları commit etme.
 - Zorla push yapma. Commit veya push başarısızsa nedeni açıkça bildir.
 - Belirsiz ürün, veri modeli veya Git kararlarında tahmin yürütme; yalnız gerekli soruyu sor.
+
+## Doğadayım tasarım kuralları
+
+- Arayüz, etkileşim, tema veya responsive davranış değiştirilecekse önce `.agents/skills/dogadayim-design-system/SKILL.md` dosyasını oku.
+- Yeni ekranlar ve ortak bileşenler mevcut `AppColors`, `AppTypography`, `AppSpacing`, `AppRadii`, `AppControlSizes` ve `AppBorders` token'larını kullanmalıdır; aynı değerleri ekran içinde yeniden tanımlama.
+- Tasarım değişikliği Supabase, harita, konum, önbellek, filtreleme veya navigasyon iş mantığını değiştirmez. Davranış değişikliği ayrıca açıkça istenmelidir.
+- Telefon önceliklidir: 320–430 px genişlik, güvenli alan, klavye, büyük yazı ve açık/koyu tema doğrulanmadan arayüz değişikliği tamamlanmış sayılmaz.
