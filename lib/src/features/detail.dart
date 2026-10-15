@@ -3,6 +3,22 @@ part of '../../main.dart';
 bool isSafeExternalUrl(Uri? uri) =>
     uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
 
+/// Google'ın resmi Maps URL biçimini kullanarak ilgili yerin sayfasını açar.
+/// Yorum metinleri uygulamaya alınmaz; kullanıcı Google Maps'te görür.
+Uri googleMapsSearchUriForPlace(Place place) {
+  final queryParts = <String>[place.name.trim(), place.location.trim()]
+    ..removeWhere((part) => part.isEmpty);
+  if (place.hasCoordinates) {
+    queryParts.add(
+      '${place.latitude!.toStringAsFixed(6)},${place.longitude!.toStringAsFixed(6)}',
+    );
+  }
+  return Uri.https('www.google.com', '/maps/search/', {
+    'api': '1',
+    'query': queryParts.join(', '),
+  });
+}
+
 String? placeCoordinatesForClipboard(Place place) {
   if (!place.hasCoordinates) return null;
   return '${place.latitude!.toStringAsFixed(6)}, '
@@ -356,6 +372,23 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppTypography.metadataOf(context).copyWith(height: 1.35),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: AppControlSizes.minimumTouchTarget,
+            child: OutlinedButton.icon(
+              onPressed: openGoogleReviews,
+              icon: const Icon(Icons.rate_review_outlined),
+              label: const Text("Google Maps'te yorumları gör"),
+              style: OutlinedButton.styleFrom(
+                foregroundColor:
+                    isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+                side: BorderSide(color: AppColors.borderOf(context)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 10),
           _PlaceTrustSummary(place: widget.place),
@@ -859,6 +892,16 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
 
   void message(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  Future<void> openGoogleReviews() async {
+    final opened = await launchUrl(
+      googleMapsSearchUriForPlace(widget.place),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      message('Google Maps açılamadı. Lütfen daha sonra tekrar dene.');
+    }
+  }
 
   Future<void> scrollToPhotos() async {
     final sectionContext = photoSectionKey.currentContext;
