@@ -48,6 +48,8 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
   final name = TextEditingController();
   final description = TextEditingController();
   final locationSearch = TextEditingController();
+  final latitudeInput = TextEditingController();
+  final longitudeInput = TextEditingController();
   final mapController = MapController();
   bool _mapReady = false;
   TileProvider? _tileProvider;
@@ -156,6 +158,8 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
     name.dispose();
     description.dispose();
     locationSearch.dispose();
+    latitudeInput.dispose();
+    longitudeInput.dispose();
     mapController.dispose();
     super.dispose();
   }
@@ -184,6 +188,8 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
           ? null
           : LatLng(latitude, longitude);
       selectedLocationLabel = draft['locationLabel']?.toString() ?? '';
+      latitudeInput.text = latitude?.toStringAsFixed(5) ?? '';
+      longitudeInput.text = longitude?.toStringAsFixed(5) ?? '';
       selectedFeatures
         ..clear()
         ..addAll((draft['features'] as List? ?? const [])
@@ -226,13 +232,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
       final value = await DeviceLocationService.requestCurrentPosition();
       if (!mounted) return;
       final point = LatLng(value.latitude, value.longitude);
-      setState(() {
-        selectedLocation = point;
-        selectedLocationLabel = value.label;
-        locationError = null;
-      });
-      _moveMapToSelectedLocation(15);
-      _saveDraft();
+      _selectLocation(point, label: value.label, zoom: 15);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -274,13 +274,10 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
         double.parse(item['lon'].toString()),
       );
       if (!mounted) return;
-      setState(() {
-        selectedLocation = point;
-        selectedLocationLabel = item['display_name']?.toString() ?? query;
-        locationError = null;
-      });
-      _moveMapToSelectedLocation(14);
-      _saveDraft();
+      _selectLocation(
+        point,
+        label: item['display_name']?.toString() ?? query,
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -289,6 +286,141 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
     } finally {
       if (mounted) setState(() => searching = false);
     }
+  }
+
+  void _openLocationPicker() => setState(() => locationExpanded = true);
+
+  void _selectLocation(
+    LatLng point, {
+    String? label,
+    double zoom = 14,
+  }) {
+    setState(() {
+      selectedLocation = point;
+      selectedLocationLabel = label ??
+          '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+      latitudeInput.text = point.latitude.toStringAsFixed(5);
+      longitudeInput.text = point.longitude.toStringAsFixed(5);
+      locationError = null;
+      locationExpanded = true;
+    });
+    _moveMapToSelectedLocation(zoom);
+    _saveDraft();
+  }
+
+  double? _parseCoordinate(String value) =>
+      double.tryParse(value.trim().replaceAll(',', '.'));
+
+  void _showCoordinateEntry() {
+    String? error;
+    showDialog<void>(
+      context: context,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.82,
+              ),
+              child: GlassContainer(
+                borderRadius: BorderRadius.circular(24),
+                blur: 18,
+                color: AppColors.surface,
+                darkColor: AppColors.darkSurface,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.darkBorder
+                                : AppColors.border,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        AppStrings.get('add_place_coordinates_title'),
+                        style: AppTypography.headingOf(sheetContext),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppStrings.get('add_place_coordinates_hint'),
+                        style: AppTypography.metadataOf(sheetContext),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        key: const Key('add_place_latitude'),
+                        controller: latitudeInput,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: AppStrings.get('add_place_latitude'),
+                          hintText: '39.92080',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        key: const Key('add_place_longitude'),
+                        controller: longitudeInput,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: AppStrings.get('add_place_longitude'),
+                          hintText: '32.85410',
+                          errorText: error,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          key: const Key('add_place_apply_coordinates'),
+                          onPressed: () {
+                            final latitude =
+                                _parseCoordinate(latitudeInput.text);
+                            final longitude =
+                                _parseCoordinate(longitudeInput.text);
+                            if (!AddPlaceQualityService.isValidCoordinate(
+                              latitude,
+                              longitude,
+                            )) {
+                              setSheetState(() => error = AppStrings.get(
+                                  'add_place_coordinates_invalid'));
+                              return;
+                            }
+                            Navigator.pop(sheetContext);
+                            _selectLocation(LatLng(latitude!, longitude!));
+                          },
+                          icon: const Icon(Icons.check_rounded),
+                          label: Text(
+                            AppStrings.get('add_place_apply_coordinates'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   AddPlaceValidationResult validateDraft() => AddPlaceQualityService.validate(
@@ -970,8 +1102,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
                     ? AppStrings.get('add_place_location_hint')
                     : selectedLocationLabel,
                 error: locationError,
-                onTap: () =>
-                    setState(() => locationExpanded = !locationExpanded),
+                onTap: _openLocationPicker,
               ),
               if (locationExpanded) ...[
                 const SizedBox(height: 10),
@@ -1030,8 +1161,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
                       ? AppStrings.get('add_place_location_hint')
                       : selectedLocationLabel,
                   error: locationError,
-                  onTap: () =>
-                      setState(() => locationExpanded = !locationExpanded),
+                  onTap: _openLocationPicker,
                 ),
                 if (locationExpanded) ...[
                   const SizedBox(height: 10),
@@ -1207,13 +1337,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
               cameraConstraint: CameraConstraint.containLatitude(),
               onMapReady: _handleMapReady,
               onTap: (_, point) {
-                setState(() {
-                  selectedLocation = point;
-                  selectedLocationLabel =
-                      '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
-                  locationError = null;
-                });
-                _saveDraft();
+                _selectLocation(point);
               },
             ),
             children: [
@@ -1277,8 +1401,22 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
             ),
           ),
           Positioned(
+            left: 10,
+            top: 64,
+            child: FilledButton.tonalIcon(
+              key: const Key('add_place_enter_coordinates'),
+              onPressed: _showCoordinateEntry,
+              icon: const Icon(Icons.pin_drop_outlined, size: 18),
+              label: Text(AppStrings.get('add_place_enter_coordinates')),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, AppControlSizes.minimumTouchTarget),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
+          ),
+          Positioned(
             right: 10,
-            bottom: 25,
+            bottom: 20,
             child: GlassIconButton(
               icon: Icons.my_location_rounded,
               tooltip: AppStrings.get('add_place_use_current_location'),

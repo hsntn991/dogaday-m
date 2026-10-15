@@ -1627,6 +1627,44 @@ class AppStrings {
       'en': 'Mark the point on the map',
       'ar': 'حدد النقطة على الخريطة',
     },
+    'add_place_enter_coordinates': {
+      'tr': 'Koordinat gir',
+      'en': 'Enter coordinates',
+      'ar': 'أدخل الإحداثيات',
+    },
+    'add_place_coordinates_title': {
+      'tr': 'Koordinatla konum ekle',
+      'en': 'Add location by coordinates',
+      'ar': 'أضف الموقع بالإحداثيات',
+    },
+    'add_place_coordinates_hint': {
+      'tr':
+          'Enlem ve boylamı ondalık biçimde gir. Virgül veya nokta kullanabilirsin.',
+      'en':
+          'Enter latitude and longitude in decimal format. You can use a comma or a dot.',
+      'ar':
+          'أدخل خط العرض وخط الطول بالصيغة العشرية. يمكنك استخدام الفاصلة أو النقطة.',
+    },
+    'add_place_latitude': {
+      'tr': 'Enlem',
+      'en': 'Latitude',
+      'ar': 'خط العرض',
+    },
+    'add_place_longitude': {
+      'tr': 'Boylam',
+      'en': 'Longitude',
+      'ar': 'خط الطول',
+    },
+    'add_place_apply_coordinates': {
+      'tr': 'Konumu uygula',
+      'en': 'Apply location',
+      'ar': 'تطبيق الموقع',
+    },
+    'add_place_coordinates_invalid': {
+      'tr': 'Geçerli bir enlem ve boylam gir.',
+      'en': 'Enter a valid latitude and longitude.',
+      'ar': 'أدخل خط عرض وخط طول صالحين.',
+    },
     'add_place_photo_title': {
       'tr': 'Fotoğraf Ekle',
       'en': 'Add Photo',

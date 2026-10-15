@@ -531,6 +531,81 @@ void main() {
     expect(saved.verificationStatus, VerificationStatus.unverified);
   });
 
+  testWidgets(
+      'add place replaces a selected map point with valid entered coordinates',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MaterialApp(home: AddPlaceScreen()));
+    await tester.tap(find.text('Konum Seç *'));
+    await tester.pump();
+
+    await tester.ensureVisible(
+      find.byKey(const Key('add_place_enter_coordinates')),
+    );
+    await tester.tap(find.byKey(const Key('add_place_enter_coordinates')));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('add_place_latitude')),
+      '39,9208',
+    );
+    await tester.enterText(
+      find.byKey(const Key('add_place_longitude')),
+      '32.8541',
+    );
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    await tester.ensureVisible(
+      find.byKey(const Key('add_place_apply_coordinates')),
+    );
+    await tester.tap(find.byKey(const Key('add_place_apply_coordinates')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing);
+    final locationMarker =
+        tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.single;
+    expect(locationMarker.point.latitude, closeTo(39.9208, 0.00001));
+    expect(locationMarker.point.longitude, closeTo(32.8541, 0.00001));
+  });
+
+  testWidgets('add place keeps the map open when replacing a chosen point',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MaterialApp(home: AddPlaceScreen()));
+    await tester.tap(find.text('Konum Seç *'));
+    await tester.pump();
+
+    var map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    map.options.onTap!(
+      const TapPosition(Offset.zero, Offset.zero),
+      const LatLng(39.5, 34.5),
+    );
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('Konum Seç *'));
+    await tester.tap(find.text('Konum Seç *'));
+    await tester.pump();
+    expect(find.byType(FlutterMap), findsOneWidget);
+
+    map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    map.options.onTap!(
+      const TapPosition(Offset.zero, Offset.zero),
+      const LatLng(40.1, 32.8),
+    );
+    await tester.pump();
+    final replacementMarker =
+        tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.single;
+    expect(replacementMarker.point.latitude, closeTo(40.1, 0.00001));
+    expect(replacementMarker.point.longitude, closeTo(32.8, 0.00001));
+  });
+
   testWidgets('user place detail shows community and unverified trust state',
       (tester) async {
     tester.view.physicalSize = const Size(800, 3000);
