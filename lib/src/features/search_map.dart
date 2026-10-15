@@ -774,10 +774,13 @@ class MapScreen extends StatefulWidget {
 
 enum _MapStyle { standart, uydu, topo }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   static const initialCenter = LatLng(39.0, 35.2);
   static const initialZoom = 5.4;
+  static const _cameraTransitionDuration = Duration(milliseconds: 480);
   final mapController = MapController();
+  late final AnimationController _cameraTransitionController;
+  Completer<bool>? _activeCameraTransition;
   late final TileProvider tileProvider = OfflineMapTiles.createTileProvider();
   late List<Place> _mapPlaces;
   int? selectedIndex;
@@ -1042,6 +1045,10 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _cameraTransitionController = AnimationController(
+      vsync: this,
+      duration: _cameraTransitionDuration,
+    );
     _mapPlaces = buildMapPlaces();
     UserPlacesController.places.addListener(_refreshUserPlaces);
     SupabasePlacesController.places.addListener(_refreshRemotePlaces);
@@ -1175,6 +1182,8 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _activeCameraTransition?.complete(false);
+    _cameraTransitionController.dispose();
     _cameraUpdateTimer?.cancel();
     _mapTileLoadingTimeout?.cancel();
     _locationSubscription?.cancel();
@@ -1338,8 +1347,8 @@ class _MapScreenState extends State<MapScreen> {
           !_selectionHistory.contains(entry.key) &&
           isVisible(entry.value));
 
-  void selectPlace(Place place, {bool keepHistory = false}) {
-    if (!place.hasCoordinates) return;
+  Future<bool> selectPlace(Place place, {bool keepHistory = false}) async {
+    if (!place.hasCoordinates) return false;
     var index = mapPlaces.indexWhere((item) =>
         item.name == place.name &&
         item.latitude == place.latitude &&
@@ -1352,15 +1361,81 @@ class _MapScreenState extends State<MapScreen> {
           item.latitude == place.latitude &&
           item.longitude == place.longitude);
     }
-    if (index < 0) return;
+    if (index < 0) return false;
     setState(() {
       if (!keepHistory) _selectionHistory.clear();
       selectedIndex = index;
       _clusterCache = null;
     });
-    mapController.move(
-        coordinateFor(index), math.max(mapController.camera.zoom, 12.0),
-        offset: const Offset(0, -100));
+    final completed = await _animateMapTo(
+      coordinateFor(index),
+      math.max(mapController.camera.zoom, 12.0),
+      offset: const Offset(0, -100),
+    );
+    return completed && mounted;
+  }
+
+  Future<bool> _animateMapTo(
+    LatLng target,
+    double targetZoom, {
+    Offset offset = Offset.zero,
+  }) async {
+    final camera = mapController.camera;
+    final startCenter = camera.center;
+    final startZoom = camera.zoom;
+    final hasMeaningfulDistance =
+        (startCenter.latitude - target.latitude).abs() > 0.00001 ||
+            (startCenter.longitude - target.longitude).abs() > 0.00001 ||
+            (startZoom - targetZoom).abs() > 0.01;
+    if (!hasMeaningfulDistance) {
+      mapController.move(target, targetZoom, offset: offset);
+      return true;
+    }
+
+    _cameraTransitionController.stop();
+    _activeCameraTransition?.complete(false);
+    final transition = Completer<bool>();
+    _activeCameraTransition = transition;
+    final curve = CurvedAnimation(
+      parent: _cameraTransitionController,
+      curve: Curves.easeOutCubic,
+    );
+
+    void updateCamera() {
+      final progress = curve.value;
+      mapController.move(
+        LatLng(
+          startCenter.latitude +
+              (target.latitude - startCenter.latitude) * progress,
+          startCenter.longitude +
+              (target.longitude - startCenter.longitude) * progress,
+        ),
+        startZoom + (targetZoom - startZoom) * progress,
+        offset: Offset(offset.dx * progress, offset.dy * progress),
+      );
+    }
+
+    void completeWhenFinished(AnimationStatus status) {
+      if (status == AnimationStatus.completed && !transition.isCompleted) {
+        transition.complete(true);
+      }
+    }
+
+    _cameraTransitionController.addListener(updateCamera);
+    _cameraTransitionController.addStatusListener(completeWhenFinished);
+    _cameraTransitionController.forward(from: 0);
+    final completed = await transition.future;
+    _cameraTransitionController.removeListener(updateCamera);
+    _cameraTransitionController.removeStatusListener(completeWhenFinished);
+    if (identical(_activeCameraTransition, transition)) {
+      _activeCameraTransition = null;
+    }
+    return completed;
+  }
+
+  Future<void> _openMarkerDetails(Place place) async {
+    final selected = await selectPlace(place);
+    if (selected && mounted) widget.onOpen(place);
   }
 
   void handleMapPositionChanged(MapCamera camera, bool hasGesture) {
@@ -1899,7 +1974,8 @@ class _MapScreenState extends State<MapScreen> {
                     selected: selected,
                     showLabel: showLabel,
                     sizeScale: _markerScaleForZoom(_mapZoom),
-                    onTap: () => selectPlace(mapPlaces[index]),
+                    onTap: () =>
+                        unawaited(_openMarkerDetails(mapPlaces[index])),
                   ),
                 );
               }).toList(growable: false),
@@ -1916,7 +1992,7 @@ class _MapScreenState extends State<MapScreen> {
                     selected: true,
                     showLabel: true,
                     sizeScale: _markerScaleForZoom(_mapZoom),
-                    onTap: () => selectPlace(selectedPlace),
+                    onTap: () => unawaited(_openMarkerDetails(selectedPlace)),
                   ),
                 )
               ]),

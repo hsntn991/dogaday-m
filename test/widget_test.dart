@@ -809,7 +809,7 @@ void main() {
   });
 
   testWidgets(
-      'map marker opens the shared preview and ignores invalid coordinates',
+      'map marker opens its detail on the first tap and ignores invalid coordinates',
       (tester) async {
     tester.view.physicalSize = const Size(390, 800);
     tester.view.devicePixelRatio = 1;
@@ -845,8 +845,9 @@ void main() {
       ),
     ];
 
+    Place? openedPlace;
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: MapScreen(onOpen: (_) {})),
+      home: Scaffold(body: MapScreen(onOpen: (place) => openedPlace = place)),
     ));
     await tester.pump();
 
@@ -859,10 +860,21 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Haritada Harita Test Şelalesi'));
     await tester.pump();
 
-    expect(find.byType(AppMapPreviewCard), findsOneWidget);
-    expect(find.text('Yakındakiler'), findsNothing);
-    expect(find.byTooltip('Kartı kapat'), findsOneWidget);
-    expect(find.text('Harita Test Şelalesi'), findsWidgets);
+    // İşaretçiye ilk dokunuşta kamera doğrudan hedefe sıçramaz; geçişin
+    // ortasında hem konum hem yakınlaştırma değeri ara noktada kalır.
+    await tester.pump(const Duration(milliseconds: 180));
+    final cameraDuringTransition = tester
+        .widget<FlutterMap>(find.byType(FlutterMap))
+        .mapController!
+        .camera;
+    expect(cameraDuringTransition.center.latitude, greaterThan(39.0));
+    expect(cameraDuringTransition.center.latitude, lessThan(40.73));
+    expect(cameraDuringTransition.zoom, greaterThan(5.4));
+    expect(cameraDuringTransition.zoom, lessThan(12));
+
+    await tester.pump(const Duration(milliseconds: 360));
+
+    expect(openedPlace?.name, 'Harita Test Şelalesi');
     expect(tester.takeException(), isNull);
   });
 
@@ -932,6 +944,7 @@ void main() {
 
     await tester.tap(find.byTooltip('En yakın sonraki yer'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 520));
     expect(find.byType(AppMapPreviewCard), findsOneWidget);
     expect(find.text('İkinci Harita Noktası'), findsWidgets);
     expect(find.text('Detayları gör'), findsOneWidget);
@@ -988,6 +1001,8 @@ void main() {
     await tester.pump();
     await tester.tap(find.text(result.name));
     await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 520));
 
     expect(find.byType(AppMapPreviewCard), findsOneWidget);
     final camera = tester
