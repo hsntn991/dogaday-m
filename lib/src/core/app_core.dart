@@ -2366,7 +2366,7 @@ class SupabasePlacesController {
             'id, name, short_description, description, city, district, '
             'latitude, longitude, is_verified, updated_at, main_category, '
             'subtype, name_tr, verification_level, publish_status, '
-            'author_name, '
+            'author_name, image_url, '
             'categories(name), place_facilities(*)',
           )
           .eq('is_active', true)
@@ -2395,6 +2395,10 @@ class SupabasePlacesController {
 
       final shortDescription =
           data['short_description']?.toString().trim() ?? '';
+      final imageUrl = data['image_url']?.toString().trim() ?? '';
+      final heroImage = Uri.tryParse(imageUrl)?.scheme == 'https'
+          ? imageUrl
+          : null;
 
       final description = data['description']?.toString().trim() ?? '';
       final turkishName = data['name_tr']?.toString().trim() ?? '';
@@ -2423,7 +2427,7 @@ class SupabasePlacesController {
             AppColors.defaultGradientStart,
             AppColors.defaultGradientEnd,
           ],
-          null,
+          heroImage,
           description:
               shortDescription.isNotEmpty ? shortDescription : description,
           latitude: (data['latitude'] as num?)?.toDouble(),

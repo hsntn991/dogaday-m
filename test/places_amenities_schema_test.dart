@@ -50,4 +50,11 @@ void main() {
 
     expect(core, contains("supabase_places_cache_v2"));
   });
+
+  test('published Supabase places retain their HTTPS hero image', () {
+    final core = File('lib/src/core/app_core.dart').readAsStringSync();
+
+    expect(core, contains('author_name, image_url,'));
+    expect(core, contains("data['image_url']"));
+  });
 }
