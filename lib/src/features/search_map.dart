@@ -22,15 +22,23 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
   void initState() {
     super.initState();
     HomeWeatherLocationController.current.addListener(_refreshLocation);
+    SupabasePlacesController.places.addListener(_refreshPlaces);
+    UserPlacesController.places.addListener(_refreshPlaces);
   }
 
   void _refreshLocation() {
     if (mounted) setState(() {});
   }
 
+  void _refreshPlaces() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     HomeWeatherLocationController.current.removeListener(_refreshLocation);
+    SupabasePlacesController.places.removeListener(_refreshPlaces);
+    UserPlacesController.places.removeListener(_refreshPlaces);
     controller.dispose();
     super.dispose();
   }

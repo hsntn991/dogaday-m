@@ -2539,6 +2539,46 @@ void main() {
     });
 
     testWidgets(
+        'FigmaSearchScreen redraws when refreshed places provide a hero photo',
+        (tester) async {
+      final previousRemote = SupabasePlacesController.places.value;
+      final previousUser = UserPlacesController.places.value;
+      addTearDown(() {
+        SupabasePlacesController.places.value = previousRemote;
+        UserPlacesController.places.value = previousUser;
+      });
+      SupabasePlacesController.places.value = const <Place>[];
+      UserPlacesController.places.value = const <Place>[];
+
+      await tester.pumpWidget(MaterialApp(
+        home: FigmaSearchScreen(onOpen: (_) {}),
+      ));
+      await tester.enterText(find.byType(TextField), 'Ramsar');
+      await tester.pump();
+      expect(find.text('Yumurtalık Lagünü Ramsar Alanı'), findsNothing);
+
+      SupabasePlacesController.places.value = const [
+        Place(
+          'Yumurtalık Lagünü Ramsar Alanı',
+          'Adana',
+          'Sulak Alan',
+          0,
+          Icons.water_rounded,
+          [Colors.green, Colors.teal],
+          'https://ekotaban.tarimorman.gov.tr/AlanOnizleme/5208.jpg',
+          latitude: 36.6743087,
+          longitude: 35.6375842,
+          sourceId: 'supabase:18455',
+          verificationStatus: VerificationStatus.community,
+        ),
+      ];
+      await tester.pump();
+
+      expect(find.text('Yumurtalık Lagünü Ramsar Alanı'), findsOneWidget);
+      expect(find.byType(PlaceImage), findsOneWidget);
+    });
+
+    testWidgets(
         'home today recommendations renders 2 equal side-by-side cards without cut-off',
         (tester) async {
       tester.view.physicalSize = const Size(390, 844);
