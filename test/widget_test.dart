@@ -2724,6 +2724,63 @@ void main() {
       expect(find.text('Kelebekler Vadisi'), findsOneWidget);
     });
 
+    test(
+        'search merges duplicate place rows and retains verified data and photo',
+        () {
+      const verified = Place(
+        'Yumurtalık Lagünü Milli Parkı',
+        'Yumurtalık, Adana',
+        'Milli Park',
+        0,
+        Icons.park_rounded,
+        [Colors.green, Colors.teal],
+        null,
+        latitude: 36.6542,
+        longitude: 35.7816,
+        sourceId: 'supabase:legacy',
+        verificationStatus: VerificationStatus.verified,
+      );
+      const imported = Place(
+        'Yumurtalık Lagünü Milli Parkı',
+        'Yumurtalık, Adana',
+        'Milli Park',
+        0,
+        Icons.park_rounded,
+        [Colors.green, Colors.teal],
+        'https://images.example/yumurtalik.jpg',
+        latitude: 36.6542,
+        longitude: 35.7816,
+        sourceId: 'supabase:imported',
+        verificationStatus: VerificationStatus.community,
+      );
+
+      final results = mergeDuplicateSearchPlaces([imported, verified]);
+
+      expect(results, hasLength(1));
+      expect(results.single.verificationStatus, VerificationStatus.verified);
+      expect(results.single.image, imported.image);
+    });
+
+    test('search falls back to the selected city centre for distance', () {
+      const place = Place(
+        'Adana Test Noktası',
+        'Adana',
+        'Milli Park',
+        0,
+        Icons.park_rounded,
+        [Colors.green, Colors.teal],
+        null,
+        latitude: 37.0000,
+        longitude: 35.3213,
+      );
+
+      final label =
+          searchDistanceLabel(place, const WeatherTarget.city('Adana'));
+
+      expect(label, startsWith('~'));
+      expect(label, isNot(contains('Mesafe bilgisi yok')));
+    });
+
     testWidgets(
         'DetailScreen invokes onShowOnMap callback when Haritada Göster is tapped',
         (tester) async {

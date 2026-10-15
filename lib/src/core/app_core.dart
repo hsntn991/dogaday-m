@@ -2396,9 +2396,8 @@ class SupabasePlacesController {
       final shortDescription =
           data['short_description']?.toString().trim() ?? '';
       final imageUrl = data['image_url']?.toString().trim() ?? '';
-      final heroImage = Uri.tryParse(imageUrl)?.scheme == 'https'
-          ? imageUrl
-          : null;
+      final heroImage =
+          Uri.tryParse(imageUrl)?.scheme == 'https' ? imageUrl : null;
 
       final description = data['description']?.toString().trim() ?? '';
       final turkishName = data['name_tr']?.toString().trim() ?? '';
@@ -3739,6 +3738,22 @@ class LocationReverseGeocoder {
       }
     }
     return nearestName;
+  }
+
+  /// Uses bundled city centres only when precise device coordinates are not
+  /// available. Callers can label the resulting distance as approximate.
+  static ({double latitude, double longitude})? referenceCoordinatesFor(
+    String label,
+  ) {
+    final normalizedLabel = AddPlaceQualityService.normalizeName(label);
+    if (normalizedLabel.isEmpty) return null;
+    for (final location in _turkishReferenceLocations) {
+      if (AddPlaceQualityService.normalizeName(location.name) ==
+          normalizedLabel) {
+        return (latitude: location.lat, longitude: location.lon);
+      }
+    }
+    return null;
   }
 }
 

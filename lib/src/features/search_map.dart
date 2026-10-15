@@ -63,10 +63,10 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final realPlaces = <Place>[
+    final realPlaces = mergeDuplicateSearchPlaces([
       ...SupabasePlacesController.places.value,
       ...UserPlacesController.places.value,
-    ]
+    ])
         .where((place) => !isNonNatureCandidateName(
               place.name,
               subtype: place.resolvedTaxonomy.subtype,
@@ -403,6 +403,45 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
   }
 }
 
+/// Consolidates the same real-world point when an older database record and a
+/// newer curated import coexist. The verified record remains authoritative;
+/// an available hero image is retained from the duplicate.
+List<Place> mergeDuplicateSearchPlaces(Iterable<Place> places) {
+  final grouped = <String, List<Place>>{};
+  for (final place in places) {
+    final coordinateKey = place.hasCoordinates
+        ? '${place.latitude!.toStringAsFixed(4)},${place.longitude!.toStringAsFixed(4)}'
+        : AddPlaceQualityService.normalizeName(place.location);
+    final key =
+        '${AddPlaceQualityService.normalizeName(place.name)}|$coordinateKey';
+    grouped.putIfAbsent(key, () => <Place>[]).add(place);
+  }
+
+  return grouped.values.map((group) {
+    group.sort(
+        (a, b) => _searchPlacePriority(b).compareTo(_searchPlacePriority(a)));
+    final preferred = group.first;
+    final heroImage = group.map((place) => place.image).firstWhere(
+        (image) => image != null && image.isNotEmpty,
+        orElse: () => null);
+    return heroImage == null ? preferred : preferred.copyWith(image: heroImage);
+  }).toList(growable: false);
+}
+
+int _searchPlacePriority(Place place) {
+  final verification = switch (place.verificationStatus) {
+    VerificationStatus.verified => 3,
+    VerificationStatus.community => 2,
+    VerificationStatus.unverified => 1,
+  };
+  final source = switch (place.source) {
+    PlaceSource.curated => 3,
+    PlaceSource.user => 2,
+    PlaceSource.osm => 1,
+  };
+  return verification * 10 + source;
+}
+
 class _SearchHeading extends StatelessWidget {
   const _SearchHeading(this.text);
   final String text;
@@ -465,9 +504,9 @@ class _RecentSearch extends StatelessWidget {
   }
 }
 
-String _userDistanceLabel(Place place) {
-  final target = HomeWeatherLocationController.current.value;
+String searchDistanceLabel(Place place, WeatherTarget target) {
   double? distanceKm;
+  var approximate = false;
   if (target.usesCoordinates && place.hasCoordinates) {
     distanceKm = NearbyPlacesService.calculateDistanceKm(
       target.latitude!,
@@ -475,14 +514,34 @@ String _userDistanceLabel(Place place) {
       place.latitude!,
       place.longitude!,
     );
-  } else {
-    distanceKm = place.distanceKm;
+  } else if (place.hasCoordinates) {
+    final cityCentre = LocationReverseGeocoder.referenceCoordinatesFor(
+      target.label,
+    );
+    if (cityCentre != null) {
+      distanceKm = NearbyPlacesService.calculateDistanceKm(
+        cityCentre.latitude,
+        cityCentre.longitude,
+        place.latitude!,
+        place.longitude!,
+      );
+      approximate = true;
+    }
   }
+  distanceKm ??= place.distanceKm;
   if (distanceKm == null || !distanceKm.isFinite) {
-    return 'Mesafe bilgisi yok';
+    return 'Konumu aç';
   }
-  if (distanceKm < 1) return '${(distanceKm * 1000).round()} m';
-  return '${distanceKm.toStringAsFixed(distanceKm < 10 ? 1 : 0)} km';
+  final prefix = approximate ? '~' : '';
+  if (distanceKm < 1) return '$prefix${(distanceKm * 1000).round()} m';
+  return '$prefix${distanceKm.toStringAsFixed(distanceKm < 10 ? 1 : 0)} km';
+}
+
+String _userDistanceLabel(Place place) {
+  return searchDistanceLabel(
+    place,
+    HomeWeatherLocationController.current.value,
+  );
 }
 
 class _SearchResultCard extends StatelessWidget {
