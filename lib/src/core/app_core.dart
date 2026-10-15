@@ -1296,6 +1296,221 @@ abstract final class CommunityChatService {
       );
 }
 
+/// Kullanıcının seçtiği sohbet odaları için cihazda tutulan uygulama içi
+/// bildirim tercihi. Bu katman push bildirimi göndermez; uygulama sonraki
+/// açılışta takip edilen odadaki yeni mesajı ana sayfa bildirim merkezine
+/// getirir. Böylece ek bir Supabase tablosu veya bildirim izni gerekmez.
+class CommunityChatRoomNotification {
+  const CommunityChatRoomNotification({
+    required this.category,
+    required this.messageId,
+    required this.authorName,
+    required this.body,
+    required this.createdAt,
+  });
+
+  final String category;
+  final String messageId;
+  final String authorName;
+  final String body;
+  final DateTime createdAt;
+
+  String get title => '$category sohbetinde yeni mesaj';
+  String get summary => '$authorName: $body';
+}
+
+abstract final class CommunityChatSubscriptionController {
+  CommunityChatSubscriptionController._();
+
+  static const _subscriptionsKey = 'community_chat_room_subscriptions_v1';
+  static const _seenMessagesKey = 'community_chat_room_seen_messages_v1';
+
+  static final followedRooms = ValueNotifier<Set<String>>(<String>{});
+  static final items = ValueNotifier<List<CommunityChatRoomNotification>>(
+    const <CommunityChatRoomNotification>[],
+  );
+
+  static final Map<String, _CommunityChatSeenMessage> _seenMessages =
+      <String, _CommunityChatSeenMessage>{};
+  static bool _loaded = false;
+
+  static bool isFollowing(String category) =>
+      followedRooms.value.contains(category.trim());
+
+  static Future<void> load() async {
+    if (!_loaded) {
+      final preferences = await SharedPreferences.getInstance();
+      followedRooms.value =
+          (preferences.getStringList(_subscriptionsKey) ?? const <String>[])
+              .map((item) => item.trim())
+              .where((item) => item.isNotEmpty)
+              .toSet();
+      _seenMessages
+        ..clear()
+        ..addAll(_decodeSeenMessages(preferences.getString(_seenMessagesKey)));
+      _loaded = true;
+    }
+    await refresh();
+  }
+
+  static Future<void> subscribe(String category) async {
+    final normalized = category.trim();
+    if (normalized.isEmpty) return;
+    await load();
+    if (isFollowing(normalized)) return;
+
+    final current = Set<String>.from(followedRooms.value)..add(normalized);
+    followedRooms.value = current;
+    await _persistSubscriptions();
+
+    // Takip başladığı andaki geçmişi bildirim saymayız; bundan sonra gelen
+    // mesajlar sonraki uygulama açılışında görünür.
+    try {
+      final latest = await _latestMessage(normalized);
+      if (latest != null) {
+        _seenMessages[normalized] = _CommunityChatSeenMessage.from(latest);
+        await _persistSeenMessages();
+      }
+    } catch (_) {
+      // Bağlantı yoksa tercih korunur; ilk başarılı açılışta yalnız yeni
+      // mesajlar için kesin bir zaman damgası oluşacaktır.
+    }
+  }
+
+  static Future<void> unsubscribe(String category) async {
+    final normalized = category.trim();
+    final current = Set<String>.from(followedRooms.value)..remove(normalized);
+    followedRooms.value = current;
+    _seenMessages.remove(normalized);
+    items.value = items.value
+        .where((item) => item.category != normalized)
+        .toList(growable: false);
+    await _persistSubscriptions();
+    await _persistSeenMessages();
+  }
+
+  static Future<void> refresh() async {
+    if (!_loaded || followedRooms.value.isEmpty) {
+      items.value = const <CommunityChatRoomNotification>[];
+      return;
+    }
+
+    final notifications = <CommunityChatRoomNotification>[];
+    for (final category in followedRooms.value) {
+      try {
+        final messages = await CommunityChatService.loadMessages(category);
+        if (messages.isEmpty) continue;
+        messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        final latest = messages.last;
+        final seen = _seenMessages[category];
+
+        if (seen == null) {
+          _seenMessages[category] = _CommunityChatSeenMessage.from(latest);
+          continue;
+        }
+        final isNew =
+            latest.id != seen.id && !latest.createdAt.isBefore(seen.createdAt);
+        if (isNew) {
+          notifications.add(CommunityChatRoomNotification(
+            category: category,
+            messageId: latest.id,
+            authorName: latest.authorName,
+            body: latest.body,
+            createdAt: latest.createdAt,
+          ));
+        }
+      } catch (_) {
+        // Bir odanın geçici bağlantı hatası diğer bildirimleri silmez.
+      }
+    }
+    notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    items.value = notifications;
+    await _persistSeenMessages();
+  }
+
+  static Future<void> markRoomRead(String category) async {
+    final normalized = category.trim();
+    try {
+      final latest = await _latestMessage(normalized);
+      if (latest != null) {
+        _seenMessages[normalized] = _CommunityChatSeenMessage.from(latest);
+        await _persistSeenMessages();
+      }
+    } catch (_) {
+      // Oda yine de açılabilir; bağlantı geldiğinde okunma kaydı güncellenir.
+    }
+    items.value = items.value
+        .where((item) => item.category != normalized)
+        .toList(growable: false);
+  }
+
+  static Future<CommunityChatMessage?> _latestMessage(String category) async {
+    final messages = await CommunityChatService.loadMessages(category);
+    if (messages.isEmpty) return null;
+    messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return messages.last;
+  }
+
+  static Future<void> _persistSubscriptions() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      _subscriptionsKey,
+      followedRooms.value.toList()..sort(),
+    );
+  }
+
+  static Future<void> _persistSeenMessages() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _seenMessagesKey,
+      jsonEncode(_seenMessages.map(
+        (category, seen) => MapEntry(category, seen.toJson()),
+      )),
+    );
+  }
+
+  static Map<String, _CommunityChatSeenMessage> _decodeSeenMessages(
+    String? raw,
+  ) {
+    if (raw == null || raw.isEmpty) {
+      return <String, _CommunityChatSeenMessage>{};
+    }
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return decoded.map(
+        (category, value) => MapEntry(
+          category,
+          _CommunityChatSeenMessage.fromJson(Map<String, dynamic>.from(value)),
+        ),
+      );
+    } catch (_) {
+      return <String, _CommunityChatSeenMessage>{};
+    }
+  }
+}
+
+class _CommunityChatSeenMessage {
+  const _CommunityChatSeenMessage({required this.id, required this.createdAt});
+
+  final String id;
+  final DateTime createdAt;
+
+  factory _CommunityChatSeenMessage.from(CommunityChatMessage message) =>
+      _CommunityChatSeenMessage(id: message.id, createdAt: message.createdAt);
+
+  factory _CommunityChatSeenMessage.fromJson(Map<String, dynamic> json) =>
+      _CommunityChatSeenMessage(
+        id: json['id']?.toString() ?? '',
+        createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+      );
+
+  Map<String, String> toJson() => <String, String>{
+        'id': id,
+        'createdAt': createdAt.toIso8601String(),
+      };
+}
+
 class MapFocusController {
   MapFocusController._();
 

@@ -189,6 +189,48 @@ class _ChatCategoryTile extends StatelessWidget {
   final bool isSelected;
   final VoidCallback? onTap;
 
+  Future<void> _toggleRoomNotifications(BuildContext context) async {
+    final following = CommunityChatSubscriptionController.isFollowing(title);
+    final answer = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(following ? 'Bildirimleri kapat' : 'Sohbet bildirimleri'),
+        content: Text(
+          following
+              ? 'Bu sohbet odasıyla ilgili bildirimleri kapatmak ister misiniz?'
+              : 'Bu sohbet odası ile ilgili bildirim almak ister misiniz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Hayır'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(following ? 'Kapat' : 'Evet'),
+          ),
+        ],
+      ),
+    );
+    if (answer != true || !context.mounted) return;
+
+    if (following) {
+      await CommunityChatSubscriptionController.unsubscribe(title);
+    } else {
+      await CommunityChatSubscriptionController.subscribe(title);
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          following
+              ? '$title sohbeti için bildirimler kapatıldı.'
+              : '$title sohbeti için bildirimler açıldı.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -263,40 +305,31 @@ class _ChatCategoryTile extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppColors.darkPrimarySoft
-                                  : AppColors.primarySoft,
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.small),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 5,
-                                  height: 5,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.primary,
-                                    shape: BoxShape.circle,
-                                  ),
+                          ValueListenableBuilder<Set<String>>(
+                            valueListenable: CommunityChatSubscriptionController
+                                .followedRooms,
+                            builder: (context, followedRooms, _) {
+                              final following = followedRooms.contains(title);
+                              return IconButton(
+                                tooltip: following
+                                    ? '$title bildirimlerini kapat'
+                                    : '$title bildirimlerini aç',
+                                onPressed: () =>
+                                    _toggleRoomNotifications(context),
+                                icon: Icon(
+                                  following
+                                      ? Icons.notifications_active_rounded
+                                      : Icons.notifications_none_rounded,
+                                  color: following
+                                      ? (isDark
+                                          ? AppColors.darkPrimaryLight
+                                          : AppColors.primary)
+                                      : (isDark
+                                          ? AppColors.darkTextSecondary
+                                          : AppColors.textSecondary),
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Aktif',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.darkPrimaryLight
-                                        : AppColors.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -752,6 +785,11 @@ class _CommunityChatRoomScreenState extends State<CommunityChatRoomScreen> {
       setState(() {
         messages = liveMessages.map(_CommunityMessage.fromLive).toList();
       });
+      if (CommunityChatSubscriptionController.isFollowing(widget.category)) {
+        unawaited(CommunityChatSubscriptionController.markRoomRead(
+          widget.category,
+        ));
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadError = 'Sohbet şu anda yüklenemedi.');

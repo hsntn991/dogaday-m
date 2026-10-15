@@ -213,6 +213,7 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
     NearbyPlacesService.revision.addListener(_refreshNearbyPlaces);
     WeatherService.revision.addListener(_refreshRecommendations);
     unawaited(SubmissionFeedbackController.load());
+    unawaited(CommunityChatSubscriptionController.load());
   }
 
   @override
@@ -1547,40 +1548,48 @@ class _HomePremiumHeader extends StatelessWidget {
                 borderColor: Colors.white.withValues(alpha: 0.90),
               ),
               SizedBox(width: compact ? 3 : 6),
-              ValueListenableBuilder<List<SubmissionFeedback>>(
-                valueListenable: SubmissionFeedbackController.items,
-                builder: (context, items, _) => Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    GlassIconButton(
-                      icon: Icons.notifications_none_rounded,
-                      onTap: () => _showNotificationCenter(context),
-                      tooltip: 'Bildirimler',
-                      size: compact ? 38 : 42,
-                      iconSize: 20,
-                      blur: 12,
-                      color: Colors.white.withValues(alpha: 0.65),
-                      borderColor: Colors.white.withValues(alpha: 0.90),
-                    ),
-                    if (items.isNotEmpty)
-                      Positioned(
-                        top: 3,
-                        right: 3,
-                        child: Semantics(
-                          label: '${items.length} okunmamış bildirim',
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: AppColors.error,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.surface),
+              AnimatedBuilder(
+                animation: Listenable.merge([
+                  SubmissionFeedbackController.items,
+                  CommunityChatSubscriptionController.items,
+                ]),
+                builder: (context, _) {
+                  final notificationCount = SubmissionFeedbackController
+                          .items.value.length +
+                      CommunityChatSubscriptionController.items.value.length;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GlassIconButton(
+                        icon: Icons.notifications_none_rounded,
+                        onTap: () => _showNotificationCenter(context),
+                        tooltip: 'Bildirimler',
+                        size: compact ? 38 : 42,
+                        iconSize: 20,
+                        blur: 12,
+                        color: Colors.white.withValues(alpha: 0.65),
+                        borderColor: Colors.white.withValues(alpha: 0.90),
+                      ),
+                      if (notificationCount > 0)
+                        Positioned(
+                          top: 3,
+                          right: 3,
+                          child: Semantics(
+                            label: '$notificationCount okunmamış bildirim',
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: AppColors.error,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppColors.surface),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
+                    ],
+                  );
+                },
               ),
             ],
           );
@@ -1608,6 +1617,23 @@ class NotificationCenterSheet extends StatelessWidget {
     }
   }
 
+  void _openCommunityRoom(
+    BuildContext context,
+    CommunityChatRoomNotification notification,
+  ) {
+    final navigator = Navigator.of(context);
+    unawaited(
+      CommunityChatSubscriptionController.markRoomRead(notification.category),
+    );
+    navigator.pop();
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) =>
+            CommunityChatRoomScreen(category: notification.category),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1626,9 +1652,15 @@ class NotificationCenterSheet extends StatelessWidget {
             color: isDark ? AppColors.darkBorder : AppColors.border,
           ),
         ),
-        child: ValueListenableBuilder<List<SubmissionFeedback>>(
-          valueListenable: SubmissionFeedbackController.items,
-          builder: (context, items, _) {
+        child: AnimatedBuilder(
+          animation: Listenable.merge([
+            SubmissionFeedbackController.items,
+            CommunityChatSubscriptionController.items,
+          ]),
+          builder: (context, _) {
+            final items = SubmissionFeedbackController.items.value;
+            final chatItems = CommunityChatSubscriptionController.items.value;
+            final totalItems = items.length + chatItems.length;
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1654,7 +1686,7 @@ class NotificationCenterSheet extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        items.isEmpty ? 'Güncel' : '${items.length} yeni',
+                        totalItems == 0 ? 'Güncel' : '$totalItems yeni',
                         style: AppTypography.caption.copyWith(
                           color: AppColors.textSecondaryOf(context),
                         ),
@@ -1663,7 +1695,7 @@ class NotificationCenterSheet extends StatelessWidget {
                   ),
                 ),
                 const AppSectionDivider(),
-                if (items.isEmpty)
+                if (totalItems == 0)
                   const Padding(
                     padding: EdgeInsets.fromLTRB(24, 32, 24, 42),
                     child: Column(
@@ -1678,7 +1710,7 @@ class NotificationCenterSheet extends StatelessWidget {
                             )),
                         SizedBox(height: 4),
                         Text(
-                            'Yer ekleme ve yardım çağrısı güncellemeleri burada görünür.',
+                            'Takip ettiğin sohbetler ile katkı ve yardım güncellemeleri burada görünür.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontFamily: 'Outfit',
@@ -1692,12 +1724,54 @@ class NotificationCenterSheet extends StatelessWidget {
                     child: ListView.separated(
                       shrinkWrap: true,
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      itemCount: items.length,
+                      itemCount: chatItems.length + items.length,
                       separatorBuilder: (_, __) => const AppSectionDivider(
                         indent: 68,
                       ),
                       itemBuilder: (context, index) {
-                        final feedback = items[index];
+                        if (index < chatItems.length) {
+                          final notification = chatItems[index];
+                          return Semantics(
+                            button: true,
+                            label:
+                                '${notification.title}. ${notification.summary}',
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 5,
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor: isDark
+                                    ? AppColors.darkPrimarySoft
+                                    : AppColors.primarySoft,
+                                child: const Icon(
+                                  Icons.forum_rounded,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              title: Text(
+                                notification.title,
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Text(
+                                notification.summary,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  color: AppColors.textSecondaryOf(context),
+                                ),
+                              ),
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              onTap: () =>
+                                  _openCommunityRoom(context, notification),
+                            ),
+                          );
+                        }
+                        final feedback = items[index - chatItems.length];
                         return Semantics(
                           button: true,
                           label: '${feedback.title}. ${feedback.body}',
