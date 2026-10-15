@@ -846,6 +846,10 @@ class _AddServiceFirmSheetState extends State<_AddServiceFirmSheet> {
                     : AppColors.textSecondary,
               ),
             ),
+            if (_selectedPhoto != null) ...[
+              const SizedBox(height: 12),
+              AppSelectedPhotoPreview(photo: _selectedPhoto!),
+            ],
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _saving ? null : _saveFirm,

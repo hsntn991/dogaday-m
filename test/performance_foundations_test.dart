@@ -55,7 +55,8 @@ void main() {
 
     expect(home, contains('unawaited(SubmissionFeedbackController.load())'));
     expect(home, contains('class NotificationCenterSheet'));
-    expect(home, contains('ValueListenableBuilder<List<SubmissionFeedback>>'));
+    expect(home, contains('Listenable.merge(['));
+    expect(home, contains('CommunityChatSubscriptionController.items'));
     expect(home, contains("tooltip: 'Bildirimler'"));
   });
 

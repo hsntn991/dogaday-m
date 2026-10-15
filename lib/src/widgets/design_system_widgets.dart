@@ -236,6 +236,65 @@ class AppSectionDivider extends StatelessWidget {
       );
 }
 
+/// Kaydedilmeden önce seçilen fotoğrafı doğrulamak için ortak önizleme alanı.
+/// Yer ekleme, fotoğraf katkısı ve servis başvurularında aynı, sabit boyutlu
+/// geri bildirim sunar; bozuk bir dosya da ekranı taşırmadan açıklanır.
+class AppSelectedPhotoPreview extends StatelessWidget {
+  const AppSelectedPhotoPreview({
+    super.key,
+    required this.photo,
+    this.height = 124,
+  });
+
+  final XFile photo;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+
+    Widget placeholder(IconData icon) => ColoredBox(
+          color: isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
+          child: Center(
+            child: Icon(
+              icon,
+              color: AppColors.textSecondaryOf(context),
+              size: AppIconSizes.large,
+            ),
+          ),
+        );
+
+    return Semantics(
+      image: true,
+      label: 'Seçilen fotoğraf önizlemesi',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.medium),
+        child: SizedBox(
+          width: double.infinity,
+          height: height,
+          child: FutureBuilder<Uint8List>(
+            future: photo.readAsBytes(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                return Image.memory(
+                  snapshot.data!,
+                  fit: BoxFit.cover,
+                  cacheWidth: 720,
+                  gaplessPlayback: true,
+                );
+              }
+              if (snapshot.hasError) {
+                return placeholder(Icons.broken_image_outlined);
+              }
+              return placeholder(Icons.photo_outlined);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Veri yüklenirken içerik alanını koruyan, tema uyumlu iskelet yüzey.
 /// Kısa isteklerde dikkat dağıtmayan, uzun isteklerde de bekleme durumunu
 /// açıkça anlatan hafif bir parlama kullanır.

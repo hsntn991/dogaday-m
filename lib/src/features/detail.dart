@@ -5498,6 +5498,10 @@ Future<void> _openAddPhotoModal(BuildContext context, Place place) async {
                     : AppColors.textSecondary,
               ),
             ),
+            if (selectedPhoto != null) ...[
+              const SizedBox(height: 12),
+              AppSelectedPhotoPreview(photo: selectedPhoto!),
+            ],
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
