@@ -884,7 +884,7 @@ void main() {
   });
 
   testWidgets(
-      'map marker opens its detail on the first tap and ignores invalid coordinates',
+      'map marker opens its info sheet before the user chooses to view details',
       (tester) async {
     tester.view.physicalSize = const Size(390, 800);
     tester.view.devicePixelRatio = 1;
@@ -948,6 +948,13 @@ void main() {
     expect(cameraDuringTransition.zoom, lessThan(12));
 
     await tester.pump(const Duration(milliseconds: 360));
+    await tester.pump();
+
+    expect(find.byType(AppMapPreviewCard), findsOneWidget);
+    expect(openedPlace, isNull);
+
+    await tester.tap(find.text(AppStrings.get('map_view_details')));
+    await tester.pump();
 
     expect(openedPlace?.name, 'Harita Test Şelalesi');
     expect(tester.takeException(), isNull);
@@ -983,7 +990,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.byIcon(Icons.waterfall_chart_rounded), findsOneWidget);
+    expect(find.byType(AppCategoryPictogram), findsWidgets);
   });
 
   testWidgets('selecting another map marker updates the same preview card',
@@ -1120,9 +1127,6 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(body: MapScreen(onOpen: (_) {})),
       ));
-      await tester.pump();
-      await tester
-          .tap(find.bySemanticsLabel('Haritada Dar Ekran Harita Noktası'));
       await tester.pump();
       expect(tester.takeException(), isNull, reason: '${width.toInt()}px');
       if (width == 390 && const bool.fromEnvironment('CAPTURE_MAP')) {

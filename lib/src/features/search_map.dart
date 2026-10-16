@@ -783,7 +783,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   Completer<bool>? _activeCameraTransition;
   late final TileProvider tileProvider = OfflineMapTiles.createTileProvider();
   late List<Place> _mapPlaces;
-  int? selectedIndex;
+  int? _selectedIndex;
+  Place? _selectedPreviewPlace;
+
+  int? get selectedIndex => _selectedIndex;
+  set selectedIndex(int? value) {
+    _selectedIndex = value;
+    if (value == null) _selectedPreviewPlace = null;
+  }
+
   String selectedFilter = 'Tümü';
   String? selectedSubtype;
   _MapStyle _mapStyle = _MapStyle.standart;
@@ -805,6 +813,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _isMapTilesLoading = true;
   bool _mapTileLoadFailed = false;
   int _mapTileRefreshRevision = 0;
+  bool _ignoreNextMapTap = false;
   Timer? _mapTileLoadingTimeout;
   MapRegionFocus? _pendingRegionFocus;
   // Arama, açık bölgenin dışından da sonuç döndürebilir. Seçilen sonucu
@@ -903,7 +912,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   Place? get selectedMapPlace {
     final index = validSelectedIndex;
-    return index == null ? null : mapPlaces[index];
+    return index == null ? _selectedPreviewPlace : mapPlaces[index];
   }
 
   List<Place> get nearbyPreviewPlaces {
@@ -1104,12 +1113,23 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   void _reloadPlaces() {
     if (!mounted) return;
+    final previouslySelected = selectedMapPlace;
     setState(() {
       _mapPlaces = buildMapPlaces();
-      selectedIndex = null;
+      selectedIndex = _indexForPlace(previouslySelected);
       _selectionHistory.clear();
       _clusterCache = null;
     });
+  }
+
+  int? _indexForPlace(Place? place) {
+    if (place == null) return null;
+    final index = mapPlaces.indexWhere((candidate) =>
+        (place.sourceId != null && candidate.sourceId == place.sourceId) ||
+        (candidate.name == place.name &&
+            candidate.latitude == place.latitude &&
+            candidate.longitude == place.longitude));
+    return index < 0 ? null : index;
   }
 
   List<Place> _cachedPlacesInsideViewport(LatLngBounds bounds) =>
@@ -1128,6 +1148,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     if (!MapViewportPointsService.enabled || _visibleBounds == null) return;
     if (_isViewportLoading) return;
     final requestToken = ++_viewportRequestToken;
+    final previouslySelected = selectedMapPlace;
     final requestedBounds = _visibleBounds!;
     final requestedZoom = _mapZoom;
     final filterTypes = switch (selectedFilter) {
@@ -1157,7 +1178,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         _viewportNeedsSearch = false;
         _isViewportLoading = false;
         _mapPlaces = buildMapPlaces();
-        selectedIndex = null;
+        _selectedIndex = _indexForPlace(previouslySelected);
         _selectionHistory.clear();
         _clusterCache = null;
       });
@@ -1364,6 +1385,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     if (index < 0) return false;
     setState(() {
       if (!keepHistory) _selectionHistory.clear();
+      _selectedPreviewPlace = place;
       selectedIndex = index;
       _clusterCache = null;
     });
@@ -1373,6 +1395,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       offset: const Offset(0, -100),
     );
     return completed && mounted;
+  }
+
+  void _selectMarkerForPreview(Place place) {
+    _ignoreNextMapTap = true;
+    unawaited(selectPlace(place));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ignoreNextMapTap = false;
+    });
   }
 
   Future<bool> _animateMapTo(
@@ -1433,16 +1463,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     return completed;
   }
 
-  Future<void> _openMarkerDetails(Place place) async {
-    final selected = await selectPlace(place);
-    if (selected && mounted) widget.onOpen(place);
-  }
-
   void handleMapPositionChanged(MapCamera camera, bool hasGesture) {
     final currentSelection = validSelectedIndex;
     final nextZoomBucket = (camera.zoom * 2).round() / 2;
     final currentZoomBucket = (_mapZoom * 2).round() / 2;
     final shouldClearSelection = hasGesture &&
+        !_cameraTransitionController.isAnimating &&
         currentSelection != null &&
         !isPlaceMeaningfullyNearViewport(
           coordinateFor(currentSelection),
@@ -1903,6 +1929,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             onMapReady: _handleMapReady,
             onPositionChanged: handleMapPositionChanged,
             onTap: (_, __) {
+              if (_ignoreNextMapTap) return;
               if (selectedIndex != null) {
                 setState(() {
                   selectedIndex = null;
@@ -1974,13 +2001,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     selected: selected,
                     showLabel: showLabel,
                     sizeScale: _markerScaleForZoom(_mapZoom),
-                    onTap: () =>
-                        unawaited(_openMarkerDetails(mapPlaces[index])),
+                    onTap: () => _selectMarkerForPreview(mapPlaces[index]),
                   ),
                 );
               }).toList(growable: false),
             ),
-            if (selectedPlace != null)
+            if (selectedPlace != null && validSelectedIndex != null)
               MarkerLayer(markers: [
                 Marker(
                   point: coordinateFor(validSelectedIndex!),
@@ -1992,7 +2018,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     selected: true,
                     showLabel: true,
                     sizeScale: _markerScaleForZoom(_mapZoom),
-                    onTap: () => unawaited(_openMarkerDetails(selectedPlace)),
+                    onTap: () => _selectMarkerForPreview(selectedPlace),
                   ),
                 )
               ]),
