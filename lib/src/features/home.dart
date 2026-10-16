@@ -289,6 +289,12 @@ class _FigmaHomeScreenState extends State<FigmaHomeScreen> {
                     return AppCategoryChip(
                       label: category.localizedLabel,
                       icon: _categoryIcon(category.key),
+                      iconWidget: AppCategoryPictogram(
+                        category.key,
+                        color: selectedCategory == category.key
+                            ? AppColors.onPrimary
+                            : AppColors.textPrimaryOf(context),
+                      ),
                       selected: selectedCategory == category.key,
                       onSelected: (_) => selectCategory(category.key),
                     );
@@ -1148,9 +1154,11 @@ class _ProvinceCountChip extends StatelessWidget {
             ),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(category.icon,
-                size: 18,
-                color: isDark ? AppColors.darkPrimaryLight : AppColors.primary),
+            AppCategoryPictogram(
+              category.key,
+              size: 18,
+              color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+            ),
             const SizedBox(width: 7),
             Text('${category.label} $count',
                 style: AppTypography.labelOf(context).copyWith(

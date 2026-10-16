@@ -34,6 +34,7 @@ flutter:
   assets:
     - assets/branding/dogadayim_logo_full.png
     - assets/branding/dogadayim_logo_mark.png
+    - assets/icons/categories/
     - assets/images/auth_misty_forest.jpg
     - assets/photos/ekotaban_optimized/
     - assets/maps/turkiye_provinces_paintmaps.png

@@ -570,12 +570,14 @@ class AppCategoryChip extends StatelessWidget {
     super.key,
     required this.label,
     required this.icon,
+    this.iconWidget,
     this.selected = false,
     this.onSelected,
   });
 
   final String label;
   final IconData icon;
+  final Widget? iconWidget;
   final bool selected;
   final ValueChanged<bool>? onSelected;
 
@@ -588,13 +590,14 @@ class AppCategoryChip extends StatelessWidget {
           selected: selected,
           onSelected: onSelected,
           showCheckmark: false,
-          avatar: Icon(
-            icon,
-            size: AppIconSizes.small,
-            color: selected
-                ? AppColors.onPrimary
-                : AppColors.textPrimaryOf(context),
-          ),
+          avatar: iconWidget ??
+              Icon(
+                icon,
+                size: AppIconSizes.small,
+                color: selected
+                    ? AppColors.onPrimary
+                    : AppColors.textPrimaryOf(context),
+              ),
           label: Text(label, style: AppTypography.labelOf(context)),
           labelStyle: AppTypography.label.copyWith(
             color: selected
@@ -612,6 +615,45 @@ class AppCategoryChip extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Şelale ve mağara gibi Material'ın belirsiz kaldığı doğa türleri için
+/// uygulamaya ait, tek renkli çizgisel simgeler.
+class AppCategoryPictogram extends StatelessWidget {
+  const AppCategoryPictogram(
+    this.categoryKey, {
+    super.key,
+    required this.color,
+    this.size = AppIconSizes.small,
+  });
+
+  final String categoryKey;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = switch (categoryKey) {
+      'waterfall' => 'assets/icons/categories/waterfall.svg',
+      'cave' => 'assets/icons/categories/cave.svg',
+      _ => null,
+    };
+    if (asset == null) {
+      return Icon(
+        iconForCategoryKey(categoryKey),
+        size: size,
+        color: color,
+      );
+    }
+    return ExcludeSemantics(
+      child: SvgPicture.asset(
+        asset,
+        width: size,
+        height: size,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      ),
+    );
+  }
 }
 
 class AppSectionHeader extends StatelessWidget {

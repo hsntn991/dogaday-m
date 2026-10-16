@@ -2230,8 +2230,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    _mapIconForCategory(category.key),
+                  AppCategoryPictogram(
+                    category.key,
                     size: 16,
                     color: selected
                         ? Colors.white
@@ -3191,10 +3191,8 @@ class _MapClusterMarker extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: !showCount
-              ? Icon(
-                  category == null
-                      ? Icons.explore_rounded
-                      : _mapIconForCategory(category),
+              ? AppCategoryPictogram(
+                  category ?? 'all',
                   size: 17,
                   color: Colors.white,
                 )
@@ -3211,8 +3209,8 @@ class _MapClusterMarker extends StatelessWidget {
                   : Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          _mapIconForCategory(category),
+                        AppCategoryPictogram(
+                          category,
                           size: 15,
                           color: Colors.white,
                         ),
@@ -3547,23 +3545,6 @@ Color _markerColorForCategory(
     _ => AppColors.clusterMarker,
   };
 }
-
-IconData _mapIconForCategory(String key) => switch (key) {
-      'all' => Icons.explore_rounded,
-      'camp' => Icons.cabin_rounded,
-      'caravan' => Icons.rv_hookup_rounded,
-      'lake' => Icons.water_rounded,
-      'waterfall' => Icons.waterfall_chart_rounded,
-      'canyon_valley' => Icons.terrain_rounded,
-      'cave' => Icons.landscape_rounded,
-      'national_park' => Icons.forest_rounded,
-      'toilet' => Icons.wc_outlined,
-      'drinking_water' => Icons.water_drop_outlined,
-      'water_fountain' => Icons.water_rounded,
-      'water_amenities' => Icons.water_drop_outlined,
-      'local_service' => Icons.handyman_rounded,
-      _ => Icons.place_outlined,
-    };
 
 IconData _mapIconForPlace(Place place) {
   final taxonomy = place.resolvedTaxonomy;
