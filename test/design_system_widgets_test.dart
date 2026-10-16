@@ -104,26 +104,25 @@ void main() {
     expect(source, contains('return RepaintBoundary('));
   });
 
-  test('authentication screen uses the supplied forest image as its background',
-      () {
+  test('authentication opens with a focused, light welcome screen', () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
-    expect(source, contains('assets/images/auth_misty_forest.jpg'));
-    expect(source,
-        contains('AssetImage(\'assets/images/auth_misty_forest.jpg\')'));
+    expect(source, contains('enum AuthStage { welcome, email }'));
+    expect(source, contains('AuthStage _stage = AuthStage.welcome'));
+    expect(source, contains("Doğadayım’a hoş geldin"));
+    expect(source, contains('_buildWelcomeStage(isDark)'));
   });
 
-  test(
-      'authentication keeps social providers side by side without shrinking form text',
-      () {
+  test('authentication uses clear full-width social and email actions', () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
-    expect(source, contains('_buildSocialAuthRow(isDark)'));
+    expect(source, contains('_buildSocialAuthColumn()'));
+    expect(source, contains('E-posta ile devam et'));
     expect(source, contains('SingleChildScrollView('));
     expect(source, isNot(contains('fit: BoxFit.scaleDown')));
   });
 
   test('authentication offers language selection before entering the app', () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
-    expect(source, contains('_buildLanguageChooser()'));
+    expect(source, contains('_buildLanguageChooser(onLightSurface: true)'));
     expect(source, contains('AppLocaleController.setLocale'));
   });
 
@@ -132,17 +131,16 @@ void main() {
       () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
 
-    expect(source, contains('mainAxisSize: MainAxisSize.min'));
+    expect(source, contains('MediaQuery.viewInsetsOf(context).bottom'));
     expect(source, isNot(contains('height: constraints.maxHeight')));
   });
 
-  test('authentication background owns the entire available viewport', () {
+  test('authentication routes the e-mail form through a dedicated stage', () {
     final source = File('lib/src/app/app.dart').readAsStringSync();
 
-    expect(
-      source,
-      matches(RegExp(r'body: Stack\(\s+fit: StackFit\.expand,')),
-    );
+    expect(source, contains('_openEmailStage'));
+    expect(source, contains('_returnToWelcome'));
+    expect(source, contains('_buildEmailStage(isDark)'));
   });
 
   test('authentication presents adjacent sign-up and sign-in tabs', () {

@@ -951,6 +951,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
 enum AuthMode { signIn, signUp }
 
+enum AuthStage { welcome, email }
+
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -967,6 +969,7 @@ class _AuthScreenState extends State<AuthScreen> {
   // Kayıt ekranı uygulamaya ilk kez gelen kişilerin ana akışıdır. Aynı
   // ekrandaki sekme, hesabı olanların girişe geçmesini sağlar.
   AuthMode _mode = AuthMode.signUp;
+  AuthStage _stage = AuthStage.welcome;
   bool _passwordVisible = false;
   bool _confirmVisible = false;
   bool _acceptedTerms = false;
@@ -1047,6 +1050,16 @@ class _AuthScreenState extends State<AuthScreen> {
       _acceptedTerms = false;
     });
     _formKey.currentState?.reset();
+  }
+
+  void _openEmailStage([AuthMode mode = AuthMode.signIn]) {
+    _setMode(mode);
+    setState(() => _stage = AuthStage.email);
+  }
+
+  void _returnToWelcome() {
+    FocusScope.of(context).unfocus();
+    setState(() => _stage = AuthStage.welcome);
   }
 
   void _openApp() {
@@ -1288,34 +1301,6 @@ class _AuthScreenState extends State<AuthScreen> {
     ).whenComplete(controller.dispose);
   }
 
-  Widget _buildSocialAuthRow(bool isDark) => Row(
-        children: [
-          Expanded(
-            child: _SocialAuthButton(
-              label: 'Apple',
-              mark: const Icon(Icons.apple, size: 23, color: Colors.white),
-              dark: true,
-              onPressed: _loading ? null : () => _socialSignIn('apple'),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _SocialAuthButton(
-              label: 'Google',
-              mark: const Text(
-                'G',
-                style: TextStyle(
-                  fontSize: AppFontSizes.title,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.brandGoogle,
-                ),
-              ),
-              onPressed: _loading ? null : () => _socialSignIn('google'),
-            ),
-          ),
-        ],
-      );
-
   Widget _buildAuthModeSwitcher(bool isDark) => Semantics(
         label: _authText('Hesap işlemi seçimi', 'Choose account action',
             'اختر إجراء الحساب'),
@@ -1324,10 +1309,10 @@ class _AuthScreenState extends State<AuthScreen> {
           height: 52,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: isDark ? .16 : .78),
+            color: isDark ? AppColors.darkSurfaceMuted : AppColors.surfaceMuted,
             borderRadius: BorderRadius.circular(AppRadii.large),
             border: Border.all(
-              color: Colors.white.withValues(alpha: isDark ? .18 : .88),
+              color: isDark ? AppColors.darkBorder : AppColors.border,
             ),
           ),
           child: Row(
@@ -1354,7 +1339,467 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
       );
 
-  Widget _buildLanguageChooser() => ValueListenableBuilder<Locale>(
+  Widget _buildPremiumAuthPage(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor:
+          isDark ? AppColors.darkBackground : AppColors.surfaceMuted,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.large,
+              AppSpacing.medium,
+              AppSpacing.large,
+              MediaQuery.viewInsetsOf(context).bottom + AppSpacing.large,
+            ),
+            child: SizedBox(
+              width: constraints.maxWidth,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: _stage == AuthStage.welcome
+                    ? _buildWelcomeStage(isDark)
+                    : _buildEmailStage(isDark),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeStage(bool isDark) => Column(
+        key: const ValueKey('auth_welcome_stage'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              onPressed: () => Navigator.maybePop(context),
+              tooltip: _authText('Geri', 'Back', 'رجوع'),
+              icon: const Icon(Icons.arrow_back_rounded),
+              style: IconButton.styleFrom(
+                minimumSize:
+                    const Size.square(AppControlSizes.minimumTouchTarget),
+                foregroundColor:
+                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                side: BorderSide(color: AppColors.borderOf(context)),
+                backgroundColor: AppColors.surfaceOf(context),
+              ),
+            ),
+          ),
+          const SizedBox(height: 58),
+          _authBrandHeader(
+            subtitle: _authText(
+              'Doğaseverler için keşif uygulaması',
+              'A discovery app for nature lovers',
+              'تطبيق استكشاف لمحبي الطبيعة',
+            ),
+          ),
+          const SizedBox(height: 52),
+          Text(
+            _authText('Doğadayım’a hoş geldin', 'Welcome to Doğadayım',
+                'مرحبًا بك في دوغادايم'),
+            textAlign: TextAlign.center,
+            style: AppTypography.titleOf(context).copyWith(
+              fontSize: AppFontSizes.display,
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _authText(
+              'Saniyeler içinde giriş yap ya da hesap oluştur.',
+              'Sign in or create an account in seconds.',
+              'سجّل الدخول أو أنشئ حسابًا خلال ثوانٍ.',
+            ),
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyOf(context).copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 30),
+          _buildTermsAcknowledgement(isDark),
+          const SizedBox(height: 20),
+          _buildSocialAuthColumn(),
+          const SizedBox(height: 22),
+          _buildAuthDivider(),
+          const SizedBox(height: 22),
+          SizedBox(
+            height: AppControlSizes.button,
+            child: FilledButton.icon(
+              onPressed: _loading ? null : _openEmailStage,
+              icon: const Icon(Icons.mail_outline_rounded),
+              label: Text(_authText('E-posta ile devam et',
+                  'Continue with email', 'المتابعة بالبريد الإلكتروني')),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: _openApp,
+            icon: const Icon(Icons.explore_outlined),
+            label: Text(_authText('Misafir olarak devam et',
+                'Continue as guest', 'المتابعة كضيف')),
+          ),
+          const SizedBox(height: 26),
+          _buildLanguageChooser(onLightSurface: true),
+        ],
+      );
+
+  Widget _buildEmailStage(bool isDark) => Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: Column(
+          key: const ValueKey('auth_email_stage'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                onPressed: _returnToWelcome,
+                tooltip: _authText('Geri', 'Back', 'رجوع'),
+                icon: const Icon(Icons.arrow_back_rounded),
+                style: IconButton.styleFrom(
+                  minimumSize:
+                      const Size.square(AppControlSizes.minimumTouchTarget),
+                  foregroundColor: AppColors.textPrimaryOf(context),
+                  side: BorderSide(color: AppColors.borderOf(context)),
+                  backgroundColor: AppColors.surfaceOf(context),
+                ),
+              ),
+            ),
+            const SizedBox(height: 40),
+            _authBrandHeader(),
+            const SizedBox(height: 50),
+            Text(
+              _isSignUp
+                  ? _authText(
+                      'E-posta ile kayıt ol', 'Create an account', 'إنشاء حساب')
+                  : _authText('E-posta ile giriş', 'Sign in with email',
+                      'تسجيل الدخول بالبريد'),
+              style: AppTypography.titleOf(context).copyWith(
+                fontSize: AppFontSizes.display,
+                color: AppColors.textPrimaryOf(context),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _isSignUp
+                  ? _authText(
+                      'Hesabını oluştur, doğayı keşfetmeye başla.',
+                      'Create your account and start exploring.',
+                      'أنشئ حسابك وابدأ الاستكشاف.')
+                  : _authText(
+                      'Daha önce e-postayla kayıt olduysan buradan giriş yap.',
+                      'Sign in with the email you used before.',
+                      'سجّل الدخول ببريدك الإلكتروني المسجل.'),
+              style: AppTypography.bodyOf(context).copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
+            ),
+            const SizedBox(height: 28),
+            _buildAuthModeSwitcher(isDark),
+            const SizedBox(height: 20),
+            if (_isSignUp) ...[
+              _AuthField(
+                controller: _nameController,
+                label: _authText('Ad soyad', 'Full name', 'الاسم الكامل'),
+                hint: _authText('Ad Soyad', 'Full name', 'الاسم الكامل'),
+                icon: Icons.person_outline_rounded,
+                textInputAction: TextInputAction.next,
+                validator: (value) => (value?.trim().length ?? 0) < 3
+                    ? _authText('Adını ve soyadını yaz.',
+                        'Enter your full name.', 'أدخل اسمك الكامل.')
+                    : null,
+              ),
+              const SizedBox(height: 14),
+            ],
+            _AuthField(
+              controller: _emailController,
+              label: _authText(
+                  'E-posta adresi', 'Email address', 'البريد الإلكتروني'),
+              hint: 'ornek@eposta.com',
+              icon: Icons.mail_outline_rounded,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              validator: _validateEmail,
+            ),
+            const SizedBox(height: 14),
+            _AuthField(
+              controller: _passwordController,
+              label: _authText('Şifre', 'Password', 'كلمة المرور'),
+              hint: _isSignUp
+                  ? _authText('En az 8 karakter', 'At least 8 characters',
+                      '8 أحرف على الأقل')
+                  : _authText(
+                      'Şifreni yaz', 'Enter your password', 'أدخل كلمة المرور'),
+              icon: Icons.lock_outline_rounded,
+              obscureText: !_passwordVisible,
+              textInputAction:
+                  _isSignUp ? TextInputAction.next : TextInputAction.done,
+              suffix: IconButton(
+                tooltip: _authText(
+                    'Şifreyi göster', 'Show password', 'إظهار كلمة المرور'),
+                onPressed: () =>
+                    setState(() => _passwordVisible = !_passwordVisible),
+                icon: Icon(_passwordVisible
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined),
+              ),
+              validator: _validatePassword,
+              onSubmitted: (_) {
+                if (!_isSignUp) _submit();
+              },
+            ),
+            if (_isSignUp) ...[
+              const SizedBox(height: 8),
+              _PasswordStrengthMeter(
+                score: _passwordStrength,
+                label: _authText(
+                  switch (_passwordStrength) {
+                    0 => 'Şifre gücü',
+                    1 => 'Zayıf şifre',
+                    2 => 'Orta şifre',
+                    _ => 'Güçlü şifre',
+                  },
+                  switch (_passwordStrength) {
+                    0 => 'Password strength',
+                    1 => 'Weak password',
+                    2 => 'Medium password',
+                    _ => 'Strong password',
+                  },
+                  switch (_passwordStrength) {
+                    0 => 'قوة كلمة المرور',
+                    1 => 'كلمة مرور ضعيفة',
+                    2 => 'كلمة مرور متوسطة',
+                    _ => 'كلمة مرور قوية',
+                  },
+                ),
+              ),
+              const SizedBox(height: 14),
+              _AuthField(
+                controller: _confirmController,
+                label: _authText(
+                    'Şifre tekrarı', 'Repeat password', 'تأكيد كلمة المرور'),
+                hint: _authText('Şifreni yeniden yaz',
+                    'Enter your password again', 'أدخل كلمة المرور مرة أخرى'),
+                icon: Icons.lock_reset_outlined,
+                obscureText: !_confirmVisible,
+                textInputAction: TextInputAction.done,
+                suffix: IconButton(
+                  tooltip: _authText(
+                      'Şifreyi göster', 'Show password', 'إظهار كلمة المرور'),
+                  onPressed: () =>
+                      setState(() => _confirmVisible = !_confirmVisible),
+                  icon: Icon(_confirmVisible
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined),
+                ),
+                validator: (value) => value != _passwordController.text
+                    ? _authText(
+                        'Şifreler aynı değil.',
+                        'Passwords do not match.',
+                        'كلمتا المرور غير متطابقتين.')
+                    : null,
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 14),
+              _buildTermsAcknowledgement(isDark),
+            ] else
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _forgotPassword,
+                  child: Text(_authText('Şifreni mi unuttun?',
+                      'Forgot password?', 'هل نسيت كلمة المرور؟')),
+                ),
+              ),
+            const SizedBox(height: 18),
+            SizedBox(
+              height: AppControlSizes.button,
+              child: FilledButton(
+                onPressed:
+                    _loading || (_isSignUp && !_acceptedTerms) ? null : _submit,
+                child: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(_isSignUp
+                        ? _authText(
+                            'Hesap oluştur', 'Create account', 'إنشاء حساب')
+                        : _authText('Giriş yap', 'Sign in', 'تسجيل الدخول')),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Center(
+              child: TextButton(
+                onPressed: () =>
+                    _setMode(_isSignUp ? AuthMode.signIn : AuthMode.signUp),
+                child: Text(_isSignUp
+                    ? _authText(
+                        'Zaten hesabın var mı? Giriş yap',
+                        'Already have an account? Sign in',
+                        'لديك حساب بالفعل؟ سجّل الدخول')
+                    : _authText(
+                        'Hesabın yok mu? Kayıt ol',
+                        'No account yet? Sign up',
+                        'ليس لديك حساب؟ أنشئ حسابًا')),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildLanguageChooser(onLightSurface: true),
+          ],
+        ),
+      );
+
+  Widget _authBrandHeader({String? subtitle}) => Column(
+        children: [
+          Image.asset(
+            'assets/branding/dogadayim_logo_full.png',
+            width: 200,
+            fit: BoxFit.contain,
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyOf(context).copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
+            ),
+          ],
+        ],
+      );
+
+  Widget _buildSocialAuthColumn() => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SocialAuthButton(
+            label: _authText('Apple ile devam et', 'Continue with Apple',
+                'المتابعة مع Apple'),
+            mark: const Icon(Icons.apple, size: 23, color: Colors.white),
+            dark: true,
+            onPressed: _loading ? null : () => _socialSignIn('apple'),
+          ),
+          const SizedBox(height: 12),
+          _SocialAuthButton(
+            label: _authText('Google ile devam et', 'Continue with Google',
+                'المتابعة مع Google'),
+            mark: const Text(
+              'G',
+              style: TextStyle(
+                fontSize: AppFontSizes.title,
+                fontWeight: FontWeight.w800,
+                color: AppColors.brandGoogle,
+              ),
+            ),
+            onPressed: _loading ? null : () => _socialSignIn('google'),
+          ),
+        ],
+      );
+
+  Widget _buildAuthDivider() => Row(
+        children: [
+          const Expanded(child: Divider()),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.compact),
+            child: Text(
+              _authText(
+                  'veya e-posta ile', 'or with email', 'أو بالبريد الإلكتروني'),
+              style: AppTypography.metadataOf(context).copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
+            ),
+          ),
+          const Expanded(child: Divider()),
+        ],
+      );
+
+  Widget _buildTermsAcknowledgement(bool isDark) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: AppControlSizes.minimumTouchTarget,
+            height: AppControlSizes.minimumTouchTarget,
+            child: Checkbox(
+              value: _acceptedTerms,
+              onChanged: (value) =>
+                  setState(() => _acceptedTerms = value ?? false),
+              activeColor: isDark ? AppColors.darkPrimary : AppColors.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.small),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 13),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: _authText('Kullanım Şartları', 'Terms of Service',
+                          'شروط الاستخدام'),
+                      style: TextStyle(
+                        color: AppColors.textPrimaryOf(context),
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: _termsOfServiceRecognizer,
+                    ),
+                    TextSpan(text: _authText(' ve ', ' and ', ' و ')),
+                    TextSpan(
+                      text: _authText('Gizlilik Politikası', 'Privacy Policy',
+                          'سياسة الخصوصية'),
+                      style: TextStyle(
+                        color: AppColors.textPrimaryOf(context),
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: _privacyPolicyRecognizer,
+                    ),
+                    TextSpan(
+                      text: _authText('’nı okudum, kabul ediyorum.',
+                          ' — I have read and accept.', ' — قرأت وأوافق.'),
+                      recognizer: _toggleTermsRecognizer,
+                    ),
+                  ],
+                ),
+                style: AppTypography.metadataOf(context).copyWith(
+                  height: 1.45,
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      return _authText('Geçerli bir e-posta adresi yaz.',
+          'Enter a valid email address.', 'أدخل بريدًا إلكترونيًا صالحًا.');
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) => (value?.length ?? 0) < 8
+      ? _authText(
+          'Şifre en az 8 karakter olmalı.',
+          'Password must be at least 8 characters.',
+          'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.')
+      : null;
+
+  Widget _buildLanguageChooser({bool onLightSurface = false}) =>
+      ValueListenableBuilder<Locale>(
         valueListenable: AppLocaleController.current,
         builder: (context, locale, _) => Column(
           children: [
@@ -1362,7 +1807,9 @@ class _AuthScreenState extends State<AuthScreen> {
               _authText('Uygulama dilini seç', 'Choose app language',
                   'اختر لغة التطبيق'),
               style: TextStyle(
-                color: Colors.white,
+                color: onLightSurface
+                    ? AppColors.textSecondaryOf(context)
+                    : Colors.white,
                 fontSize: AppFontSizes.caption,
                 fontWeight: FontWeight.w700,
               ),
@@ -1378,16 +1825,23 @@ class _AuthScreenState extends State<AuthScreen> {
                     selected: locale.languageCode == option.locale.languageCode,
                     onSelected: (_) =>
                         unawaited(AppLocaleController.setLocale(option.locale)),
-                    selectedColor: Colors.white,
-                    backgroundColor: Colors.black.withValues(alpha: .28),
+                    selectedColor:
+                        onLightSurface ? AppColors.primarySoft : Colors.white,
+                    backgroundColor: onLightSurface
+                        ? AppColors.surfaceMutedOf(context)
+                        : Colors.black.withValues(alpha: .28),
                     labelStyle: TextStyle(
                       color: locale.languageCode == option.locale.languageCode
                           ? AppColors.primary
-                          : Colors.white,
+                          : (onLightSurface
+                              ? AppColors.textSecondaryOf(context)
+                              : Colors.white),
                       fontWeight: FontWeight.w700,
                     ),
                     side: BorderSide(
-                      color: Colors.white.withValues(alpha: .58),
+                      color: onLightSurface
+                          ? AppColors.borderOf(context)
+                          : Colors.white.withValues(alpha: .58),
                     ),
                   ),
               ],
@@ -1397,534 +1851,7 @@ class _AuthScreenState extends State<AuthScreen> {
       );
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.darkBackground : AppColors.surfaceMuted,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Kullanıcının seçtiği sisli orman görseli giriş ekranının ana
-          // atmosferidir. Üstteki koyu geçiş, form ve marka alanını her
-          // ekranda okunur tutar.
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                image: const DecorationImage(
-                  image: AssetImage('assets/images/auth_misty_forest.jpg'),
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                  filterQuality: FilterQuality.high,
-                  colorFilter: ColorFilter.mode(
-                    Color(0x770B482A),
-                    BlendMode.srcOver,
-                  ),
-                ),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          AppColors.darkSurfaceDeep.withValues(alpha: .90),
-                          AppColors.darkBackground.withValues(alpha: .82),
-                          AppColors.darkSurface.withValues(alpha: .90),
-                        ]
-                      : [
-                          AppColors.primary.withValues(alpha: .62),
-                          AppColors.primary.withValues(alpha: .48),
-                          AppColors.primaryPressed.withValues(alpha: .74),
-                        ],
-                ),
-              ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: -60,
-                    left: -40,
-                    child: Container(
-                      width: 240,
-                      height: 240,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color:
-                            (isDark ? AppColors.darkPrimary : AppColors.primary)
-                                .withValues(alpha: isDark ? 0.14 : 0.12),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 240,
-                    right: -60,
-                    child: Container(
-                      width: 260,
-                      height: 260,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.categoryNature
-                            .withValues(alpha: isDark ? 0.10 : 0.08),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 40,
-                    left: -40,
-                    child: Container(
-                      width: 220,
-                      height: 220,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: (isDark
-                                ? AppColors.darkPrimarySoft
-                                : AppColors.accentOrange)
-                            .withValues(alpha: isDark ? 0.15 : 0.09),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) => Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: SizedBox(
-                    width: constraints.maxWidth,
-                    child: Form(
-                      key: _formKey,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: GlassIconButton(
-                              icon: Icons.arrow_back_rounded,
-                              onTap: () => Navigator.maybePop(context),
-                              iconColor: AppColors.textPrimary,
-                              darkIconColor: AppColors.darkTextPrimary,
-                              size: 44,
-                              iconSize: 22,
-                              blur: 14,
-                              color: Colors.white.withValues(alpha: 0.65),
-                              darkColor: AppColors.darkGlass,
-                              borderColor: Colors.white.withValues(alpha: 0.90),
-                              darkBorderColor:
-                                  Colors.white.withValues(alpha: 0.14),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 9,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: .84),
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.large),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: .92),
-                                ),
-                              ),
-                              child: Image.asset(
-                                'assets/branding/dogadayim_logo_full.png',
-                                width: 220,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _buildAuthModeSwitcher(isDark),
-                          const SizedBox(height: 16),
-                          _buildSocialAuthRow(isDark),
-                          const SizedBox(height: 16),
-                          Row(children: [
-                            Expanded(
-                              child: Divider(
-                                color: Colors.white.withValues(alpha: .70),
-                              ),
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text(
-                                _authText(
-                                    'veya e-posta ile',
-                                    'or continue with email',
-                                    'أو تابع بالبريد الإلكتروني'),
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: AppFontSizes.caption,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white.withValues(alpha: .88),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Divider(
-                                color: Colors.white.withValues(alpha: .70),
-                              ),
-                            ),
-                          ]),
-                          const SizedBox(height: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (_isSignUp) ...[
-                                _AuthField(
-                                  controller: _nameController,
-                                  label: _authText(
-                                      'Ad soyad', 'Full name', 'الاسم الكامل'),
-                                  hint: _authText(
-                                      'Ad Soyad', 'Full name', 'الاسم الكامل'),
-                                  icon: Icons.person_outline_rounded,
-                                  textInputAction: TextInputAction.next,
-                                  validator: (value) =>
-                                      (value?.trim().length ?? 0) < 3
-                                          ? _authText(
-                                              'Adını ve soyadını yaz.',
-                                              'Enter your full name.',
-                                              'أدخل اسمك الكامل.')
-                                          : null,
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                              _AuthField(
-                                controller: _emailController,
-                                label: _authText(
-                                    'E-posta', 'Email', 'البريد الإلكتروني'),
-                                hint: 'ornek@eposta.com',
-                                icon: Icons.mail_outline_rounded,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                validator: (value) {
-                                  final email = value?.trim() ?? '';
-                                  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                                      .hasMatch(email)) {
-                                    return _authText(
-                                        'Geçerli bir e-posta adresi yaz.',
-                                        'Enter a valid email address.',
-                                        'أدخل بريدًا إلكترونيًا صالحًا.');
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              _AuthField(
-                                controller: _passwordController,
-                                label: _authText(
-                                    'Şifre', 'Password', 'كلمة المرور'),
-                                hint: _isSignUp
-                                    ? _authText(
-                                        'En az 8 karakter',
-                                        'At least 8 characters',
-                                        '8 أحرف على الأقل')
-                                    : _authText(
-                                        'Şifreni yaz',
-                                        'Enter your password',
-                                        'أدخل كلمة المرور'),
-                                icon: Icons.lock_outline_rounded,
-                                obscureText: !_passwordVisible,
-                                textInputAction: _isSignUp
-                                    ? TextInputAction.next
-                                    : TextInputAction.done,
-                                suffix: IconButton(
-                                  onPressed: () => setState(() =>
-                                      _passwordVisible = !_passwordVisible),
-                                  icon: Icon(_passwordVisible
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined),
-                                ),
-                                validator: (value) => (value?.length ?? 0) < 8
-                                    ? _authText(
-                                        'Şifre en az 8 karakter olmalı.',
-                                        'Password must be at least 8 characters.',
-                                        'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.')
-                                    : null,
-                                onSubmitted: (_) {
-                                  if (!_isSignUp) _submit();
-                                },
-                              ),
-                              if (_isSignUp) ...[
-                                const SizedBox(height: 7),
-                                _PasswordStrengthMeter(
-                                  score: _passwordStrength,
-                                  label: _authText(
-                                    switch (_passwordStrength) {
-                                      0 => 'Şifre gücü',
-                                      1 => 'Zayıf şifre',
-                                      2 => 'Orta şifre',
-                                      _ => 'Güçlü şifre',
-                                    },
-                                    switch (_passwordStrength) {
-                                      0 => 'Password strength',
-                                      1 => 'Weak password',
-                                      2 => 'Medium password',
-                                      _ => 'Strong password',
-                                    },
-                                    switch (_passwordStrength) {
-                                      0 => 'قوة كلمة المرور',
-                                      1 => 'كلمة مرور ضعيفة',
-                                      2 => 'كلمة مرور متوسطة',
-                                      _ => 'كلمة مرور قوية',
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                _AuthField(
-                                  controller: _confirmController,
-                                  label: _authText('Şifre tekrarı',
-                                      'Repeat password', 'تأكيد كلمة المرور'),
-                                  hint: _authText(
-                                      'Şifreni yeniden yaz',
-                                      'Enter your password again',
-                                      'أدخل كلمة المرور مرة أخرى'),
-                                  icon: Icons.verified_user_outlined,
-                                  obscureText: !_confirmVisible,
-                                  textInputAction: TextInputAction.done,
-                                  suffix: IconButton(
-                                    onPressed: () => setState(() =>
-                                        _confirmVisible = !_confirmVisible),
-                                    icon: Icon(_confirmVisible
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined),
-                                  ),
-                                  validator: (value) =>
-                                      value != _passwordController.text
-                                          ? _authText(
-                                              'Şifreler birbiriyle aynı değil.',
-                                              'Passwords do not match.',
-                                              'كلمتا المرور غير متطابقتين.')
-                                          : null,
-                                  onSubmitted: (_) => _submit(),
-                                ),
-                              ] else
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: _forgotPassword,
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.only(
-                                          top: 9, bottom: 8),
-                                    ),
-                                    child: Text(
-                                      _authText(
-                                          'Şifremi unuttum',
-                                          'Forgot password?',
-                                          'نسيت كلمة المرور؟'),
-                                      style: TextStyle(
-                                          fontSize: AppFontSizes.label,
-                                          fontWeight: FontWeight.w600),
-                                    ),
-                                  ),
-                                ),
-                              if (_isSignUp) ...[
-                                const SizedBox(height: 8),
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      SizedBox(
-                                        width: 23,
-                                        height: 23,
-                                        child: Checkbox(
-                                          value: _acceptedTerms,
-                                          onChanged: (value) => setState(() =>
-                                              _acceptedTerms = value ?? false),
-                                          activeColor: isDark
-                                              ? AppColors.darkPrimary
-                                              : AppColors.primary,
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(5)),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text.rich(
-                                          TextSpan(children: [
-                                            TextSpan(
-                                              text: _authText(
-                                                  'Kullanım Şartları',
-                                                  'Terms of Service',
-                                                  'شروط الاستخدام'),
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w700,
-                                                decoration:
-                                                    TextDecoration.underline,
-                                              ),
-                                              recognizer:
-                                                  _termsOfServiceRecognizer,
-                                            ),
-                                            TextSpan(
-                                                text: _authText(
-                                                    ' ve ', ' and ', ' و')),
-                                            TextSpan(
-                                              text: _authText(
-                                                  'Gizlilik Politikası',
-                                                  'Privacy Policy',
-                                                  'سياسة الخصوصية'),
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w700,
-                                                decoration:
-                                                    TextDecoration.underline,
-                                              ),
-                                              recognizer:
-                                                  _privacyPolicyRecognizer,
-                                            ),
-                                            TextSpan(
-                                              text: _authText(
-                                                  '’nı okudum, kabul ediyorum.',
-                                                  ' — I have read and accept.',
-                                                  ' — قرأت وأوافق.'),
-                                              recognizer:
-                                                  _toggleTermsRecognizer,
-                                            ),
-                                          ]),
-                                          style: TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: AppFontSizes.caption,
-                                            height: 1.45,
-                                            color: Colors.white
-                                                .withValues(alpha: .90),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 13),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 54,
-                                child: FilledButton(
-                                  onPressed:
-                                      _loading || (_isSignUp && !_acceptedTerms)
-                                          ? null
-                                          : _submit,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: isDark
-                                        ? AppColors.darkPrimary
-                                        : AppColors.primary,
-                                    disabledBackgroundColor: isDark
-                                        ? AppColors.darkPrimarySoft
-                                        : AppColors.disabled,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(AppRadii.large),
-                                    ),
-                                  ),
-                                  child: _loading
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white),
-                                        )
-                                      : Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              _authText('Devam et', 'Continue',
-                                                  'متابعة'),
-                                              style: const TextStyle(
-                                                  fontSize: AppFontSizes.title,
-                                                  fontWeight: FontWeight.w600),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Icon(
-                                                Icons.arrow_forward_rounded,
-                                                size: 19),
-                                          ],
-                                        ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 52,
-                            child: GlassContainer(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.large),
-                              blur: 14,
-                              color: Colors.white.withValues(alpha: 0.65),
-                              darkColor: AppColors.darkGlass,
-                              borderColor: Colors.white.withValues(alpha: 0.90),
-                              darkBorderColor:
-                                  Colors.white.withValues(alpha: 0.14),
-                              borderWidth: 1.2,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: isDark
-                                      ? AppColors.shadow26
-                                      : AppColors.shadow08,
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: _openApp,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.large),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.explore_outlined,
-                                          size: 20,
-                                          color: isDark
-                                              ? AppColors.darkTextPrimary
-                                              : AppColors.textPrimary),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Misafir olarak devam et',
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: AppFontSizes.body,
-                                          fontWeight: FontWeight.w600,
-                                          color: isDark
-                                              ? AppColors.darkTextPrimary
-                                              : AppColors.textPrimary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildLanguageChooser(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _buildPremiumAuthPage(context);
 }
 
 class _SocialAuthButton extends StatelessWidget {
@@ -1944,54 +1871,41 @@ class _SocialAuthButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
-      height: 52,
-      child: GlassContainer(
-        borderRadius: BorderRadius.circular(AppRadii.large),
-        blur: 14,
-        color:
-            dark ? AppColors.darkGlass : Colors.white.withValues(alpha: 0.68),
-        darkColor: dark ? AppColors.darkGlass : AppColors.darkSurfaceMuted,
-        borderColor: dark
-            ? Colors.white.withValues(alpha: 0.16)
-            : (isDark
-                ? Colors.white.withValues(alpha: 0.14)
-                : Colors.white.withValues(alpha: 0.90)),
-        darkBorderColor: dark
-            ? Colors.white.withValues(alpha: 0.16)
-            : Colors.white.withValues(alpha: 0.14),
-        borderWidth: 1.2,
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? AppColors.shadow26 : AppColors.shadow08,
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+      height: AppControlSizes.button,
+      child: Material(
+        color: dark
+            ? Colors.black
+            : (isDark ? AppColors.darkSurfaceMuted : AppColors.surface),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          side: BorderSide(
+            color: dark
+                ? Colors.transparent
+                : (isDark ? AppColors.darkBorder : AppColors.border),
           ),
-        ],
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(AppRadii.large),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                mark,
-                const SizedBox(width: 9),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: AppFontSizes.body,
-                    fontWeight: FontWeight.w700,
-                    color: dark
-                        ? Colors.white
-                        : (isDark
-                            ? AppColors.darkTextPrimary
-                            : AppColors.textPrimary),
-                  ),
+        ),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              mark,
+              const SizedBox(width: 9),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: AppFontSizes.body,
+                  fontWeight: FontWeight.w700,
+                  color: dark
+                      ? Colors.white
+                      : (isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textPrimary),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -2065,16 +1979,12 @@ class _AuthField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Form artık doğrudan fotoğraf üzerinde; etiketler tema yerine bu yüzeyin
-    // kontrast ihtiyacına göre beyaz kalır.
-    final labelColor = Colors.white;
-    final fieldFillColor = isDark
-        ? AppColors.darkSurfaceMuted
-        : Colors.white.withValues(alpha: 0.78);
-    final fieldBorderColor = isDark
-        ? Colors.white.withValues(alpha: 0.14)
-        : Colors.white.withValues(alpha: 0.95);
-    final textColor = AppColors.textPrimary;
+    final labelColor = AppColors.textPrimaryOf(context);
+    final fieldFillColor =
+        isDark ? AppColors.darkSurfaceMuted : AppColors.surface;
+    final fieldBorderColor =
+        isDark ? Colors.white.withValues(alpha: 0.14) : AppColors.border;
+    final textColor = AppColors.textPrimaryOf(context);
     final hintColor =
         isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
     final iconColor =
@@ -2167,9 +2077,8 @@ class _PasswordStrengthMeter extends StatelessWidget {
                     height: 3,
                     margin: EdgeInsets.only(right: index == 3 ? 0 : 4),
                     decoration: BoxDecoration(
-                      color: index < score
-                          ? color
-                          : Colors.white.withValues(alpha: .35),
+                      color:
+                          index < score ? color : AppColors.borderOf(context),
                       borderRadius: BorderRadius.circular(AppRadii.pill),
                     ),
                   ),
@@ -2184,7 +2093,7 @@ class _PasswordStrengthMeter extends StatelessWidget {
               fontFamily: 'Outfit',
               fontSize: AppFontSizes.caption,
               fontWeight: FontWeight.w600,
-              color: Colors.white.withValues(alpha: .90),
+              color: AppColors.textSecondaryOf(context),
             ),
           ),
         ],
