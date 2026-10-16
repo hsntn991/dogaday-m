@@ -2035,8 +2035,8 @@ class _FigmaProfileScreenState extends State<FigmaProfileScreen> {
                                         ),
                                       ],
                                     ),
-                                    child: Icon(
-                                      place.icon,
+                                    child: AppPlaceCategoryPictogram(
+                                      place,
                                       size: 13,
                                       color: AppColors.primary,
                                     ),

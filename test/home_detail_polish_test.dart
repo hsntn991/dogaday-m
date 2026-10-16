@@ -38,13 +38,12 @@ void main() {
     expect(AppStrings.get('source_supabase'), 'Doğadayım kaydı');
   });
 
-  test('detail type summary uses the place category icon used across the app',
-      () {
+  test('detail type summary uses the shared category pictogram', () {
     final source = File('lib/src/features/detail.dart').readAsStringSync();
 
     expect(
       source,
-      contains("stat(widget.place.icon, widget.place.kind,"),
+      contains('iconWidget: AppPlaceCategoryPictogram('),
     );
   });
 
@@ -79,4 +78,3 @@ void main() {
     expect(find.byTooltip('Favorilerden çıkar'), findsOneWidget);
   });
 }
-

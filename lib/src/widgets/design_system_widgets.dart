@@ -617,8 +617,9 @@ class AppCategoryChip extends StatelessWidget {
       );
 }
 
-/// Şelale ve mağara gibi Material'ın belirsiz kaldığı doğa türleri için
-/// uygulamaya ait, tek renkli çizgisel simgeler.
+/// Keşif, il özeti ve harita katmanlarında ortak kullanılan, tek renkli
+/// çizgisel kategori simgeleri. Böylece kategori dili cihazın Material
+/// sürümüne göre değişmez ve şelale/mağara gibi türler ayırt edilebilir kalır.
 class AppCategoryPictogram extends StatelessWidget {
   const AppCategoryPictogram(
     this.categoryKey, {
@@ -633,11 +634,7 @@ class AppCategoryPictogram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final asset = switch (categoryKey) {
-      'waterfall' => 'assets/icons/categories/waterfall.svg',
-      'cave' => 'assets/icons/categories/cave.svg',
-      _ => null,
-    };
+    final asset = _categoryPictogramAsset(categoryKey);
     if (asset == null) {
       return Icon(
         iconForCategoryKey(categoryKey),
@@ -655,6 +652,72 @@ class AppCategoryPictogram extends StatelessWidget {
     );
   }
 }
+
+/// Bir kayıt üzerinde kategori simgesi gerektiğinde, veri satırındaki eski
+/// Material simgesine değil güncel taksonomi anahtarına bakar.
+class AppPlaceCategoryPictogram extends StatelessWidget {
+  const AppPlaceCategoryPictogram(
+    this.place, {
+    super.key,
+    required this.color,
+    this.size = AppIconSizes.small,
+  });
+
+  final Place place;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final taxonomy = place.resolvedTaxonomy;
+    return AppCategoryPictogram(
+      taxonomy.subtype ?? taxonomy.mainCategory ?? 'all',
+      color: color,
+      size: size,
+    );
+  }
+}
+
+String? _categoryPictogramAsset(String key) => switch (key) {
+      'camp' || 'camp_site' => 'assets/icons/categories/camp.svg',
+      'caravan' || 'caravan_site' => 'assets/icons/categories/caravan.svg',
+      'lake' ||
+      'river' ||
+      'stream' ||
+      'spring' ||
+      'natural_pool' =>
+        'assets/icons/categories/lake.svg',
+      'waterfall' => 'assets/icons/categories/waterfall.svg',
+      'canyon' ||
+      'canyon_valley' ||
+      'mountain' ||
+      'peak' ||
+      'hill' ||
+      'plateau' ||
+      'plateau_landform' ||
+      'valley' =>
+        'assets/icons/categories/canyon_valley.svg',
+      'cave' ||
+      'sinkhole' ||
+      'travertine' ||
+      'fairy_chimney' ||
+      'natural_arch' =>
+        'assets/icons/categories/cave.svg',
+      'forest' ||
+      'national_park' ||
+      'nature_park' ||
+      'wetland' ||
+      'protected_area' ||
+      'picnic_area' =>
+        'assets/icons/categories/national_park.svg',
+      'water_amenities' ||
+      'drinking_water' ||
+      'water_fountain' =>
+        'assets/icons/categories/water_amenities.svg',
+      'toilet' => 'assets/icons/categories/toilet.svg',
+      'local_service' => 'assets/icons/categories/local_service.svg',
+      _ => null,
+    };
 
 class AppSectionHeader extends StatelessWidget {
   const AppSectionHeader({
@@ -714,8 +777,8 @@ class AppPlaceThumbnail extends StatelessWidget {
                 place: place,
                 cacheWidth: cacheWidth,
                 fallback: Center(
-                  child: Icon(
-                    place.icon,
+                  child: AppPlaceCategoryPictogram(
+                    place,
                     size: AppIconSizes.large,
                     color: AppColors.textTertiaryOf(context),
                   ),

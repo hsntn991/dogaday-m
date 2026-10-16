@@ -314,8 +314,18 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
             stat(Icons.schedule_outlined, duration,
                 AppStrings.get('card_arrival_time')),
             const SizedBox(width: 9),
-            stat(widget.place.icon, widget.place.kind,
-                AppStrings.get('card_place_type')),
+            stat(
+              Icons.category_outlined,
+              widget.place.kind,
+              AppStrings.get('card_place_type'),
+              iconWidget: AppPlaceCategoryPictogram(
+                widget.place,
+                size: 19,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.darkPrimaryLight
+                    : AppColors.primary,
+              ),
+            ),
             const SizedBox(width: 9),
             stat(Icons.verified_outlined, placeSourceLabel,
                 AppStrings.get('card_data_source')),
@@ -1161,7 +1171,7 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
           )
       ]);
 
-  Widget stat(IconData icon, String value, String label) {
+  Widget stat(IconData icon, String value, String label, {Widget? iconWidget}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Container(
@@ -1177,11 +1187,12 @@ class _FigmaDetailScreenState extends State<DetailScreen> {
               : const [BoxShadow(color: AppColors.shadow08, blurRadius: 8)],
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(
-            icon,
-            size: 19,
-            color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
-          ),
+          iconWidget ??
+              Icon(
+                icon,
+                size: 19,
+                color: isDark ? AppColors.darkPrimaryLight : AppColors.primary,
+              ),
           const SizedBox(height: 7),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -3592,13 +3603,15 @@ class _ReviewRecommendSheetState extends State<_ReviewRecommendSheet> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(AppRadii.medium),
                         borderSide: BorderSide(
-                          color: isDark ? AppColors.darkBorder : AppColors.border,
+                          color:
+                              isDark ? AppColors.darkBorder : AppColors.border,
                         ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(AppRadii.medium),
                         borderSide: BorderSide(
-                          color: isDark ? AppColors.darkBorder : AppColors.border,
+                          color:
+                              isDark ? AppColors.darkBorder : AppColors.border,
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(

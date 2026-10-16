@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -137,8 +138,36 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.byIcon(Icons.explore_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.water_rounded), findsOneWidget);
+    expect(find.byType(AppCategoryPictogram), findsWidgets);
+  });
+
+  testWidgets('discovery categories share the modern SVG pictogram family',
+      (tester) async {
+    const categoryKeys = <String>[
+      'water_amenities',
+      'toilet',
+      'camp',
+      'caravan',
+      'lake',
+      'waterfall',
+      'canyon_valley',
+      'cave',
+      'national_park',
+      'local_service',
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Row(
+          children: [
+            for (final key in categoryKeys)
+              AppCategoryPictogram(key, color: AppColors.primary),
+          ],
+        ),
+      ),
+    ));
+
+    expect(find.byType(SvgPicture), findsNWidgets(categoryKeys.length));
   });
 
   test('place contribution taxonomy exposes vector icons', () {
@@ -1576,7 +1605,7 @@ void main() {
         home: SizedBox(
             width: 200, height: 200, child: NatureArt(place: place(null))),
       ));
-      expect(find.byIcon(Icons.landscape), findsOneWidget);
+      expect(find.byType(AppPlaceCategoryPictogram), findsOneWidget);
 
       await tester.pumpWidget(MaterialApp(
         home: SizedBox(
@@ -1585,7 +1614,7 @@ void main() {
           child: NatureArt(place: place('Z:\\missing\\photo.jpg')),
         ),
       ));
-      expect(find.byIcon(Icons.landscape), findsOneWidget);
+      expect(find.byType(AppPlaceCategoryPictogram), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

@@ -13,9 +13,9 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
   String filter = 'Tümü';
   final recentSearches = <String>[];
 
-  static final categories = <(IconData, String, String)>[
+  static final categories = <(String, String, String)>[
     ...placeTaxonomy
-        .map((item) => (item.icon, item.label, 'Alt türleri keşfet')),
+        .map((item) => (item.key, item.label, 'Alt türleri keşfet')),
   ];
 
   @override
@@ -129,8 +129,8 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
         .toSet()
         .toList();
 
-    final filterItems = <(IconData, String)>[
-      (Icons.explore_rounded, 'Tümü'),
+    final filterItems = <(String, String)>[
+      ('all', 'Tümü'),
       ...categories.map((category) => (category.$1, category.$2)),
     ];
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -211,7 +211,7 @@ class _FigmaSearchScreenState extends State<FigmaSearchScreen> {
                             label: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
+                                AppCategoryPictogram(
                                   item.$1,
                                   size: 15,
                                   color: filter == item.$2
@@ -3265,8 +3265,9 @@ String _mapCategoryLabel(String key) {
   return AppStrings.get('all');
 }
 
-// A consistent rounded-stroke pictogram family for landforms absent from
-// Material Icons (waterfall_chart is a chart, not a natural waterfall).
+// Harita işaretçileri filtre, il özeti ve kartlarla aynı kategori ailesini
+// kullanır. Böylece bir kategori farklı ekranlarda farklı simgelerle
+// gösterilmez.
 class _MapPlaceSymbol extends StatelessWidget {
   const _MapPlaceSymbol(
       {required this.place, required this.color, required this.size});
@@ -3275,140 +3276,13 @@ class _MapPlaceSymbol extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) {
-    final subtype = place.resolvedTaxonomy.subtype;
-    if (const [
-      'waterfall',
-      'canyon',
-      'mountain',
-      'peak',
-      'camp_site',
-      'water_fountain',
-      'drinking_water',
-      'viewpoint',
-      'sunset_viewpoint'
-    ].contains(subtype)) {
-      return CustomPaint(
-          size: Size.square(size), painter: _LandmarkPainter(subtype!, color));
-    }
-    return Icon(_mapIconForPlace(place), color: color, size: size);
+    final taxonomy = place.resolvedTaxonomy;
+    return AppCategoryPictogram(
+      taxonomy.subtype ?? taxonomy.mainCategory ?? 'all',
+      color: color,
+      size: size,
+    );
   }
-}
-
-class _LandmarkPainter extends CustomPainter {
-  const _LandmarkPainter(this.kind, this.color);
-  final String kind;
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.save();
-    canvas.scale(size.width / 24, size.height / 24);
-    final pen = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    void line(List<Offset> points) {
-      final path = Path()..moveTo(points.first.dx, points.first.dy);
-      for (final point in points.skip(1)) {
-        path.lineTo(point.dx, point.dy);
-      }
-      canvas.drawPath(path, pen);
-    }
-
-    switch (kind) {
-      case 'waterfall':
-        line(const [Offset(2, 5), Offset(8, 5), Offset(8, 15)]);
-        line(const [Offset(12, 4), Offset(12, 17)]);
-        line(const [Offset(16, 5), Offset(16, 15)]);
-        line(const [Offset(16, 5), Offset(21, 5)]);
-        canvas.drawPath(
-            Path()
-              ..moveTo(3, 19)
-              ..quadraticBezierTo(6, 16, 9, 19)
-              ..quadraticBezierTo(12, 22, 15, 19)
-              ..quadraticBezierTo(18, 16, 21, 19),
-            pen);
-      case 'canyon':
-        line(const [
-          Offset(2, 3),
-          Offset(7, 7),
-          Offset(5, 12),
-          Offset(9, 17),
-          Offset(9, 21)
-        ]);
-        line(const [
-          Offset(22, 3),
-          Offset(17, 7),
-          Offset(19, 12),
-          Offset(15, 17),
-          Offset(15, 21)
-        ]);
-        line(const [
-          Offset(12, 9),
-          Offset(11, 13),
-          Offset(13, 17),
-          Offset(12, 22)
-        ]);
-      case 'mountain':
-      case 'peak':
-        line(const [
-          Offset(2, 21),
-          Offset(12, 3),
-          Offset(22, 21),
-          Offset(2, 21)
-        ]);
-        line(const [
-          Offset(8, 10),
-          Offset(11, 12),
-          Offset(13, 9),
-          Offset(16, 11)
-        ]);
-      case 'camp_site':
-        line(const [
-          Offset(2, 21),
-          Offset(12, 4),
-          Offset(22, 21),
-          Offset(2, 21)
-        ]);
-        line(const [Offset(7, 21), Offset(12, 12), Offset(17, 21)]);
-        line(const [Offset(10, 2), Offset(14, 7)]);
-      case 'water_fountain':
-      case 'drinking_water':
-        line(const [
-          Offset(3, 11),
-          Offset(3, 7),
-          Offset(15, 7),
-          Offset(18, 10),
-          Offset(18, 12)
-        ]);
-        line(const [Offset(9, 7), Offset(9, 3)]);
-        line(const [Offset(6, 3), Offset(12, 3)]);
-        canvas.drawPath(
-            Path()
-              ..moveTo(18, 15)
-              ..quadraticBezierTo(13, 21, 18, 21)
-              ..quadraticBezierTo(23, 21, 18, 15),
-            pen);
-      case 'viewpoint':
-      case 'sunset_viewpoint':
-        canvas.drawCircle(const Offset(6, 16), 4, pen);
-        canvas.drawCircle(const Offset(18, 16), 4, pen);
-        line(const [Offset(2, 15), Offset(5, 5), Offset(8, 5), Offset(10, 15)]);
-        line(const [
-          Offset(14, 15),
-          Offset(16, 5),
-          Offset(19, 5),
-          Offset(22, 15)
-        ]);
-        line(const [Offset(10, 12), Offset(14, 12)]);
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_LandmarkPainter oldDelegate) =>
-      oldDelegate.kind != kind || oldDelegate.color != color;
 }
 
 /// Uzakta noktalar fark edilsin; yaklaştıkça daha çok nokta üst üste
@@ -3572,66 +3446,6 @@ Color _markerColorForCategory(
   };
 }
 
-IconData _mapIconForPlace(Place place) {
-  final taxonomy = place.resolvedTaxonomy;
-  if (taxonomy.mainCategory == 'local_service' ||
-      taxonomy.subtype == 'local_service' ||
-      place.isMobileService ||
-      place.kind.toLowerCase().contains('servis') ||
-      place.kind.toLowerCase().contains('işletme') ||
-      place.kind.toLowerCase().contains('isletme')) {
-    if (taxonomy.subtype != null && taxonomy.subtype != 'local_service') {
-      return iconForCategoryKey(taxonomy.subtype);
-    }
-    return Icons.handyman_rounded;
-  }
-  return switch (taxonomy.subtype ?? taxonomy.mainCategory) {
-    'waterfall' => Icons.waterfall_chart_rounded,
-    'lake' ||
-    'river' ||
-    'stream' ||
-    'spring' ||
-    'natural_pool' =>
-      Icons.water_drop_outlined,
-    'mountain' ||
-    'peak' ||
-    'hill' ||
-    'plateau' ||
-    'plateau_landform' ||
-    'valley' =>
-      Icons.terrain_rounded,
-    'canyon' ||
-    'cave' ||
-    'sinkhole' ||
-    'travertine' ||
-    'fairy_chimney' ||
-    'natural_arch' =>
-      Icons.landscape_rounded,
-    'forest' ||
-    'national_park' ||
-    'nature_park' ||
-    'wetland' ||
-    'protected_area' ||
-    'picnic_area' =>
-      Icons.park_outlined,
-    'camp_site' || 'caravan_site' => Icons.cabin_outlined,
-    'hiking' ||
-    'trekking' ||
-    'cycling' ||
-    'climbing' ||
-    'canoe' =>
-      Icons.directions_walk_rounded,
-    'viewpoint' ||
-    'sunset_viewpoint' ||
-    'photo_spot' ||
-    'stargazing' =>
-      Icons.visibility_outlined,
-    'toilet' => Icons.wc_outlined,
-    'drinking_water' || 'water_fountain' => Icons.water_drop_outlined,
-    _ => place.icon,
-  };
-}
-
 class _MapPlaceSearchDelegate extends SearchDelegate<Place?> {
   _MapPlaceSearchDelegate({required this.category, this.subtype})
       : super(
@@ -3776,8 +3590,8 @@ class _MapPlaceSearchDelegate extends SearchDelegate<Place?> {
           ),
           leading: CircleAvatar(
             backgroundColor: isDark ? AppColors.darkPrimarySoft : mint,
-            child: Icon(
-              place.icon,
+            child: AppPlaceCategoryPictogram(
+              place,
               color: isDark ? AppColors.darkPrimaryLight : green,
               size: 20,
             ),

@@ -50,7 +50,7 @@ class PlaceImage extends StatelessWidget {
             cacheWidth: cacheWidth,
             loadingBuilder: (context, child, progress) => progress == null
                 ? child
-                : _PlaceImageLoadingPlaceholder(icon: place.icon),
+                : _PlaceImageLoadingPlaceholder(place: place),
             errorBuilder: (_, __, ___) => fallback,
           );
         }
@@ -60,7 +60,7 @@ class PlaceImage extends StatelessWidget {
         future: PlaceEnrichmentService.find(place),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return _PlaceImageLoadingPlaceholder(icon: place.icon);
+            return _PlaceImageLoadingPlaceholder(place: place);
           }
           final photo = snapshot.data?.primaryPhoto;
           if (photo == null || !photo.url.startsWith('https://')) {
@@ -72,7 +72,7 @@ class PlaceImage extends StatelessWidget {
             cacheWidth: cacheWidth,
             loadingBuilder: (context, child, progress) => progress == null
                 ? child
-                : _PlaceImageLoadingPlaceholder(icon: place.icon),
+                : _PlaceImageLoadingPlaceholder(place: place),
             errorBuilder: (_, __, ___) => fallback,
           );
         },
@@ -84,16 +84,16 @@ class PlaceImage extends StatelessWidget {
       gaplessPlayback: true,
       loadingBuilder: (context, child, progress) => progress == null
           ? child
-          : _PlaceImageLoadingPlaceholder(icon: place.icon),
+          : _PlaceImageLoadingPlaceholder(place: place),
       errorBuilder: (_, __, ___) => fallback,
     );
   }
 }
 
 class _PlaceImageLoadingPlaceholder extends StatelessWidget {
-  const _PlaceImageLoadingPlaceholder({required this.icon});
+  const _PlaceImageLoadingPlaceholder({required this.place});
 
-  final IconData icon;
+  final Place place;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -112,8 +112,8 @@ class _PlaceImageLoadingPlaceholder extends StatelessWidget {
             ),
           ),
           child: Center(
-            child: Icon(
-              icon,
+            child: AppPlaceCategoryPictogram(
+              place,
               size: AppIconSizes.large,
               color: AppColors.textTertiaryOf(context).withValues(alpha: .68),
             ),
@@ -154,8 +154,8 @@ class NatureArt extends StatelessWidget {
             place: place,
             cacheWidth: cacheWidth,
             fallback: Center(
-              child: Icon(
-                place.icon,
+              child: AppPlaceCategoryPictogram(
+                place,
                 size: 36,
                 color: Colors.white.withValues(alpha: .42),
               ),
