@@ -24,4 +24,16 @@ void main() {
     expect(source, contains('Misafir olarak devam et'));
     expect(source, contains('_buildLanguageChooser('));
   });
+
+  test('welcome screen is compact, has no back action, and states the brand',
+      () {
+    final source = File('lib/src/app/app.dart').readAsStringSync();
+    final welcomeStart = source.indexOf('Widget _buildWelcomeStage');
+    final emailStart = source.indexOf('Widget _buildEmailStage');
+    final welcome = source.substring(welcomeStart, emailStart);
+
+    expect(welcome, contains('Türkiye’nin Toplum Destekli Doğa Haritası'));
+    expect(welcome, isNot(contains('Navigator.maybePop(context)')));
+    expect(welcome, isNot(contains('IconButton(')));
+  });
 }

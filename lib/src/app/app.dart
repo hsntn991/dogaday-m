@@ -1372,31 +1372,15 @@ class _AuthScreenState extends State<AuthScreen> {
         key: const ValueKey('auth_welcome_stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: IconButton(
-              onPressed: () => Navigator.maybePop(context),
-              tooltip: _authText('Geri', 'Back', 'رجوع'),
-              icon: const Icon(Icons.arrow_back_rounded),
-              style: IconButton.styleFrom(
-                minimumSize:
-                    const Size.square(AppControlSizes.minimumTouchTarget),
-                foregroundColor:
-                    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-                side: BorderSide(color: AppColors.borderOf(context)),
-                backgroundColor: AppColors.surfaceOf(context),
-              ),
-            ),
-          ),
-          const SizedBox(height: 58),
+          const SizedBox(height: AppSpacing.large),
           _authBrandHeader(
             subtitle: _authText(
-              'Doğaseverler için keşif uygulaması',
-              'A discovery app for nature lovers',
-              'تطبيق استكشاف لمحبي الطبيعة',
+              'Türkiye’nin Toplum Destekli Doğa Haritası',
+              'Türkiye’s community-powered nature map',
+              'خريطة تركيا الطبيعية المدعومة من المجتمع',
             ),
           ),
-          const SizedBox(height: 52),
+          const SizedBox(height: 36),
           Text(
             _authText('Doğadayım’a hoş geldin', 'Welcome to Doğadayım',
                 'مرحبًا بك في دوغادايم'),
